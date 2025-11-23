@@ -697,7 +697,7 @@ jQuery(function($) {
      */
     private static function addWebDAVOptions($form)
     {
-        $optionConfig = Helper::options()->plugin('MediaLibrary');
+        $optionConfig = self::getPluginOptionConfig();
         $defaultEndpoint = isset($optionConfig->webdavEndpoint) ? $optionConfig->webdavEndpoint : '';
         $defaultBasePath = isset($optionConfig->webdavBasePath) ? $optionConfig->webdavBasePath : '/';
         $defaultUsername = isset($optionConfig->webdavUsername) ? $optionConfig->webdavUsername : '';
@@ -741,6 +741,21 @@ jQuery(function($) {
             'SSL 验证',
             '如果 WebDAV 服务使用自签名证书，可取消勾选以跳过 SSL 验证（不推荐）');
         $form->addInput($webdavVerifySSL);
+    }
+
+    /**
+     * 获取插件配置，首次启用时没有配置会返回空对象
+     */
+    private static function getPluginOptionConfig()
+    {
+        try {
+            return Helper::options()->plugin('MediaLibrary');
+        } catch (Exception $e) {
+            if (class_exists('Typecho_Config')) {
+                return new Typecho_Config();
+            }
+            return (object)[];
+        }
     }
 
     /**
