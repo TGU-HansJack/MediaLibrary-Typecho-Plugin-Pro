@@ -304,7 +304,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $logHtml .= '<div class="ml-log-head">';
         $logHtml .= '<div><h4 style="margin:0 0 6px 0;">处理流程日志</h4>';
         $logHtml .= '<p style="margin:0;color:#666;font-size:13px;">以下内容来自日志文件，可直接滚动查看。</p></div>';
-        $logHtml .= '<button type="button" class="ml-log-copy-btn" id="ml-copy-log-btn" title="复制日志内容">Copy to clipboard !</button>';
+        $logHtml .= '<button type="button" class="ml-log-copy-btn" id="ml-copy-log-btn" title="复制日志内容">Copy</button>';
         $logHtml .= '</div>';
         $logHtml .= '<div class="ml-log-meta">日志文件位置：<code style="font-size:12px;">' . htmlspecialchars($logFile) . '</code>';
         $logHtml .= '<div class="ml-log-meta-extra" id="ml-log-meta-text">' . htmlspecialchars($logMetaText) . '</div></div>';
@@ -394,7 +394,7 @@ jQuery(function($) {
             // 使用 Clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(logText).then(function() {
-                    $copyBtn.text("Copy successful !").addClass("success");
+                    $copyBtn.text("✓").addClass("success");
                     setTimeout(function() {
                         $copyBtn.text(originalText).removeClass("success");
                     }, 2000);
@@ -414,7 +414,7 @@ jQuery(function($) {
             try {
                 var successful = document.execCommand("copy");
                 if (successful) {
-                    $copyBtn.text("Copy successful !").addClass("success");
+                    $copyBtn.text("✓").addClass("success");
                     setTimeout(function() {
                         $copyBtn.text(originalText).removeClass("success");
                     }, 2000);
@@ -436,7 +436,7 @@ jQuery(function($) {
         }
 
         var target = $btn.data("target");
-        var $box = $(".ml-info-box[data-section='" + target + "']");
+        var $box = $(".ml-info-box[data-section=\"" + target + "\"]");
         if (!$box.length) {
             return;
         }
@@ -494,7 +494,7 @@ jQuery(function($) {
             lines.push("- " + $(this).text().trim());
         });
 
-        return lines.join("\n");
+        return lines.join("\\n");
     }
 
     function fallbackCopyInfo(text, $btn, originalText) {
