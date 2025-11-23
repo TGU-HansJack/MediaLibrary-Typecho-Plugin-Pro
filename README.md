@@ -5,6 +5,8 @@
 ![Typecho](https://img.shields.io/badge/Typecho-%3E%3D1.0-orange)
 ![License](https://img.shields.io/badge/License-Free-green)
 ![Version](https://img.shields.io/badge/Version-pro__0.1.0-blue)
+[![GitHub Release](https://img.shields.io/github/v/release/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro)](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/releases)
+[![Release Workflow](https://img.shields.io/github/actions/workflow/status/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/release.yml?label=release)](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/actions/workflows/release.yml)
 
 > 一个功能强大的 Typecho 媒体库管理插件，提供完整的媒体文件管理、预览、编辑和优化功能。
 
@@ -29,7 +31,27 @@
 
 ## 📦 安装说明
 
-1. **下载插件**
+### 方式一：从 Release 下载（推荐）
+
+1. **下载最新版本**
+
+   访问 [Releases 页面](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/releases) 下载最新版本的 ZIP 文件
+
+2. **解压并上传**
+
+   解压下载的 ZIP 文件，将 `MediaLibrary` 文件夹上传到 Typecho 的 `usr/plugins/` 目录下
+
+3. **激活插件**
+
+   登录 Typecho 后台，进入「控制台」→「插件」→「MediaLibrary」，点击启用
+
+4. **配置插件**
+
+   启用后，在插件设置页面进行相关配置
+
+### 方式二：从源码安装
+
+1. **克隆仓库**
    ```bash
    git clone https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro.git
    ```

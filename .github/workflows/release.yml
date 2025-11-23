@@ -1,0 +1,97 @@
+name: Create Release
+
+on:
+  workflow_dispatch:  # 仅支持手动触发
+    inputs:
+      tag_name:
+        description: 'Tag name (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整的 git 历史，用于生成更新日志
+
+      - name: Get tag name
+        id: tag
+        run: echo "TAG_NAME=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -n "${{ steps.prev_tag.outputs.PREV_TAG }}" ]; then
+            echo "## 更新内容" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+
+            # 获取两个标签之间的提交
+            git log ${{ steps.prev_tag.outputs.PREV_TAG }}..${{ steps.tag.outputs.TAG_NAME }} \
+              --pretty=format:"- %s (%h)" \
+              --no-merges >> CHANGELOG.md
+          else
+            echo "## 更新内容" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "首个发布版本" >> CHANGELOG.md
+          fi
+
+          # 输出到环境变量
+          {
+            echo 'CHANGELOG<<EOF'
+            cat CHANGELOG.md
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
+      - name: Create plugin ZIP
+        run: |
+          # 创建临时目录
+          mkdir -p dist/MediaLibrary
+
+          # 复制插件文件（排除开发文件，但保留 README.md）
+          rsync -av --progress . dist/MediaLibrary/ \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.gitignore' \
+            --exclude='.claude' \
+            --exclude='dist' \
+            --exclude='.DS_Store'
+
+          # 进入 dist 目录并打包
+          cd dist
+          zip -r MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip MediaLibrary/
+
+          # 生成 SHA256 校验和
+          sha256sum MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip > MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256
+
+          # 移动到根目录
+          mv MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip ../
+          mv MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256 ../
+
+          # 显示文件信息
+          cd ..
+          ls -lh MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip
+          cat MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG_NAME }}
+          name: MediaLibrary ${{ steps.tag.outputs.TAG_NAME }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
+          files: |
+            MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip
+            MediaLibrary-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
