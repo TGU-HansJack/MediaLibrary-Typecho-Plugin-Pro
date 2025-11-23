@@ -35,6 +35,9 @@ if ($request->get('action')) {
 // 获取插件配置
 $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
 extract($configOptions);
+$webdavStatus = MediaLibrary_PanelHelper::getWebDAVStatus($configOptions);
+$storageStatusList = MediaLibrary_PanelHelper::getStorageStatusList($webdavStatus);
+$showWebDAVManager = !empty($webdavStatus['enabled']);
 
 // 获取系统上传限制
 $phpMaxFilesize = function_exists('ini_get') ? trim(ini_get('upload_max_filesize')) : '2M';
@@ -140,6 +143,10 @@ $cssVersion = '3.3.0'; // 精简布局版本
                             </div>
                         </div>
 
+                        <?php if ($showWebDAVManager): ?>
+                            <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/webdav-manager.php'; ?>
+                        <?php endif; ?>
+
                         <!-- 固定底部分页 -->
                         <div class="media-pagination-fixed">
                             <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/pagination.php'; ?>
@@ -184,7 +191,11 @@ window.mediaLibraryConfig = {
     adminStaticUrl: '<?php echo $options->adminStaticUrl; ?>',
     pluginUrl: '<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary',
     hasExifTool: <?php echo MediaLibrary_ExifPrivacy::isExifToolAvailable() ? 'true' : 'false'; ?>,
-    hasPhpExif: <?php echo extension_loaded('exif') ? 'true' : 'false'; ?>
+    hasPhpExif: <?php echo extension_loaded('exif') ? 'true' : 'false'; ?>,
+    enableWebDAV: <?php echo $webdavStatus['enabled'] ? 'true' : 'false'; ?>,
+    webdavConfigured: <?php echo $webdavStatus['configured'] ? 'true' : 'false'; ?>,
+    webdavConnected: <?php echo $webdavStatus['connected'] ? 'true' : 'false'; ?>,
+    webdavRoot: '<?php echo addslashes($webdavStatus['root']); ?>'
 };
 </script>
 

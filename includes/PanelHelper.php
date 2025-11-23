@@ -1,5 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 
 /**
  * 面板助手类 - 处理面板显示逻辑
@@ -22,9 +23,15 @@ class MediaLibrary_PanelHelper
             $enableImageMagick = is_array($config->enableImageMagick) ? in_array('1', $config->enableImageMagick) : ($config->enableImageMagick == '1');
             $enableFFmpeg = is_array($config->enableFFmpeg) ? in_array('1', $config->enableFFmpeg) : ($config->enableFFmpeg == '1');
             $enableVideoCompress = is_array($config->enableVideoCompress) ? in_array('1', $config->enableVideoCompress) : ($config->enableVideoCompress == '1');
+            $enableWebDAV = is_array($config->enableWebDAV) ? in_array('1', $config->enableWebDAV) : ($config->enableWebDAV == '1');
             $gdQuality = intval($config->gdQuality ?? 80);
             $videoQuality = intval($config->videoQuality ?? 23);
             $videoCodec = $config->videoCodec ?? 'libx264';
+            $webdavEndpoint = isset($config->webdavEndpoint) ? trim($config->webdavEndpoint) : '';
+            $webdavBasePath = isset($config->webdavBasePath) ? trim($config->webdavBasePath) : '/';
+            $webdavUsername = isset($config->webdavUsername) ? trim($config->webdavUsername) : '';
+            $webdavPassword = isset($config->webdavPassword) ? (string)$config->webdavPassword : '';
+            $webdavVerifySSL = !isset($config->webdavVerifySSL) || (is_array($config->webdavVerifySSL) ? in_array('1', $config->webdavVerifySSL) : ($config->webdavVerifySSL == '1'));
         } catch (Exception $e) {
             $enableGetID3 = false;
             $enableExif = false;
@@ -32,9 +39,15 @@ class MediaLibrary_PanelHelper
             $enableImageMagick = false;
             $enableFFmpeg = false;
             $enableVideoCompress = false;
+            $enableWebDAV = false;
             $gdQuality = 80;
             $videoQuality = 23;
             $videoCodec = 'libx264';
+            $webdavEndpoint = '';
+            $webdavBasePath = '/';
+            $webdavUsername = '';
+            $webdavPassword = '';
+            $webdavVerifySSL = true;
         }
         
         return [
@@ -44,9 +57,16 @@ class MediaLibrary_PanelHelper
             'enableImageMagick' => $enableImageMagick,
             'enableFFmpeg' => $enableFFmpeg,
             'enableVideoCompress' => $enableVideoCompress,
+            'enableWebDAV' => $enableWebDAV,
             'gdQuality' => $gdQuality,
             'videoQuality' => $videoQuality,
-            'videoCodec' => $videoCodec
+            'videoCodec' => $videoCodec,
+            'webdavEndpoint' => $webdavEndpoint,
+            'webdavBasePath' => self::normalizeWebDAVPath($webdavBasePath),
+            'webdavUsername' => $webdavUsername,
+            'webdavPassword' => $webdavPassword,
+            'webdavVerifySSL' => $webdavVerifySSL,
+            'webdavTimeout' => 10
         ];
     }
     
@@ -264,5 +284,111 @@ class MediaLibrary_PanelHelper
         }
         
         return $info;
+    }
+
+    /**
+     * 获取 WebDAV 连接状态
+     */
+    public static function getWebDAVStatus($configOptions)
+    {
+        $status = [
+            'enabled' => !empty($configOptions['enableWebDAV']),
+            'configured' => false,
+            'connected' => false,
+            'message' => 'WebDAV 未启用',
+            'root' => isset($configOptions['webdavBasePath']) ? $configOptions['webdavBasePath'] : '/'
+        ];
+
+        if (!$status['enabled']) {
+            return $status;
+        }
+
+        $hasCredentials = !empty($configOptions['webdavEndpoint']) &&
+            !empty($configOptions['webdavUsername']) &&
+            ($configOptions['webdavPassword'] !== '');
+
+        $status['configured'] = $hasCredentials;
+        $status['message'] = $hasCredentials ? '尝试连接 WebDAV ...' : '请完善 WebDAV 配置';
+
+        if (!$hasCredentials) {
+            return $status;
+        }
+
+        try {
+            $client = new MediaLibrary_WebDAVClient($configOptions);
+            $status['connected'] = $client->ping();
+            $status['message'] = $status['connected'] ? 'WebDAV 服务连接正常' : '无法连接 WebDAV 服务';
+        } catch (Exception $e) {
+            $status['message'] = 'WebDAV 连接异常：' . $e->getMessage();
+        }
+
+        return $status;
+    }
+
+    /**
+     * 生成存储状态列表
+     */
+    public static function getStorageStatusList($webdavStatus)
+    {
+        $list = [];
+
+        $list[] = [
+            'key' => 'local',
+            'name' => '本地存储',
+            'icon' => '📁',
+            'class' => 'active',
+            'badge' => '活跃',
+            'description' => '使用 Typecho 默认上传目录'
+        ];
+
+        $webdavClass = 'disabled';
+        $webdavBadge = $webdavStatus['enabled'] ? '未配置' : '未启用';
+        $webdavDesc = $webdavStatus['message'];
+
+        if ($webdavStatus['enabled']) {
+            if (!$webdavStatus['configured']) {
+                $webdavClass = 'disabled';
+                $webdavBadge = '未配置';
+            } elseif ($webdavStatus['connected']) {
+                $webdavClass = 'active';
+                $webdavBadge = '已连接';
+            } else {
+                $webdavClass = 'error';
+                $webdavBadge = '连接异常';
+            }
+        }
+
+        $list[] = [
+            'key' => 'webdav',
+            'name' => 'WebDAV',
+            'icon' => '☁️',
+            'class' => $webdavClass,
+            'badge' => $webdavBadge,
+            'description' => $webdavDesc
+        ];
+
+        $list[] = [
+            'key' => 'object',
+            'name' => '对象存储',
+            'icon' => '🌐',
+            'class' => 'disabled',
+            'badge' => '开发中',
+            'description' => '后续版本将提供常见对象存储适配'
+        ];
+
+        return $list;
+    }
+
+    /**
+     * 规范化 WebDAV 基础路径
+     */
+    private static function normalizeWebDAVPath($path)
+    {
+        $path = trim((string)$path);
+        if ($path === '' || $path === '/') {
+            return '/';
+        }
+
+        return '/' . trim($path, '/');
     }
 }

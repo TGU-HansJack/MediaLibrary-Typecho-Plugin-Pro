@@ -6,27 +6,22 @@
     <div class="sidebar-section">
         <h3 class="sidebar-title">存储类型</h3>
         <div class="sidebar-content">
-            <ul class="storage-list">
-                <li class="storage-item active">
-                    <span class="storage-icon">📁</span>
-                    <span class="storage-name">本地存储</span>
-                    <span class="storage-badge">活跃</span>
-                </li>
-                <?php
-                // 检查是否启用了其他存储类型（如果有相关配置）
-                // 这里可以根据实际插件配置扩展
-                ?>
-                <li class="storage-item disabled">
-                    <span class="storage-icon">☁️</span>
-                    <span class="storage-name">WebDAV</span>
-                    <span class="storage-badge">未配置</span>
-                </li>
-                <li class="storage-item disabled">
-                    <span class="storage-icon">🌐</span>
-                    <span class="storage-name">对象存储</span>
-                    <span class="storage-badge">未配置</span>
-                </li>
-            </ul>
+            <?php if (!empty($storageStatusList)): ?>
+                <ul class="storage-list">
+                    <?php foreach ($storageStatusList as $storageItem): ?>
+                        <li class="storage-item <?php echo htmlspecialchars($storageItem['class']); ?>" title="<?php echo htmlspecialchars($storageItem['description']); ?>">
+                            <span class="storage-icon"><?php echo $storageItem['icon']; ?></span>
+                            <div class="storage-text">
+                                <span class="storage-name"><?php echo htmlspecialchars($storageItem['name']); ?></span>
+                                <span class="storage-desc"><?php echo htmlspecialchars($storageItem['description']); ?></span>
+                            </div>
+                            <span class="storage-badge"><?php echo htmlspecialchars($storageItem['badge']); ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php else: ?>
+                <p class="storage-empty">暂无存储状态信息</p>
+            <?php endif; ?>
         </div>
     </div>
 

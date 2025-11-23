@@ -46,6 +46,10 @@
             ?>
                 <button class="btn subtle" id="privacy-btn" style="display:none;" disabled>隐私检测</button>
             <?php endif; ?>
+
+            <?php if (!empty($webdavStatus['enabled'])): ?>
+                <button class="btn ghost" id="webdav-manager-btn" type="button">WebDAV 管理</button>
+            <?php endif; ?>
         </div>
     </div>
 </div>

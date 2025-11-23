@@ -600,6 +600,7 @@ jQuery(function($) {
         // 添加其他配置选项
         self::addImageProcessingOptions($form, $envInfo);
         self::addVideoProcessingOptions($form, $envInfo);
+        self::addWebDAVOptions($form);
     }
 
     /**
@@ -689,6 +690,57 @@ jQuery(function($) {
             '默认视频编码器', 
             '选择视频压缩使用的编码器');
         $form->addInput($videoCodec);
+    }
+
+    /**
+     * 添加 WebDAV 配置选项
+     */
+    private static function addWebDAVOptions($form)
+    {
+        $optionConfig = Helper::options()->plugin('MediaLibrary');
+        $defaultEndpoint = isset($optionConfig->webdavEndpoint) ? $optionConfig->webdavEndpoint : '';
+        $defaultBasePath = isset($optionConfig->webdavBasePath) ? $optionConfig->webdavBasePath : '/';
+        $defaultUsername = isset($optionConfig->webdavUsername) ? $optionConfig->webdavUsername : '';
+        $defaultPassword = isset($optionConfig->webdavPassword) ? $optionConfig->webdavPassword : '';
+        $defaultVerify = !isset($optionConfig->webdavVerifySSL) || $optionConfig->webdavVerifySSL;
+
+        $webdavSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
+        $webdavSection->html('<h3 style="margin-top:30px">WebDAV 存储</h3>');
+        $form->addItem($webdavSection);
+
+        $enableWebDAV = new Typecho_Widget_Helper_Form_Element_Checkbox('enableWebDAV',
+            array('1' => '启用 WebDAV 文件管理'),
+            array(),
+            '启用 WebDAV',
+            '启用后可在媒体库中管理远程 WebDAV 文件（列出、上传、删除等操作）');
+        $form->addInput($enableWebDAV);
+
+        $webdavEndpoint = new Typecho_Widget_Helper_Form_Element_Text('webdavEndpoint', null, $defaultEndpoint,
+            'WebDAV 服务地址',
+            '完整的 WebDAV 根地址，例如 <code>https://example.com/remote.php/dav/files/username</code>');
+        $form->addInput($webdavEndpoint);
+
+        $webdavBasePath = new Typecho_Widget_Helper_Form_Element_Text('webdavBasePath', null, $defaultBasePath ?: '/',
+            '默认子路径',
+            '可选填，默认为根目录，填写后将作为 WebDAV 面板的起始目录（例如 <code>/typecho</code>）');
+        $form->addInput($webdavBasePath);
+
+        $webdavUsername = new Typecho_Widget_Helper_Form_Element_Text('webdavUsername', null, $defaultUsername,
+            'WebDAV 用户名',
+            '用于 Basic Auth 的用户名');
+        $form->addInput($webdavUsername);
+
+        $webdavPassword = new Typecho_Widget_Helper_Form_Element_Password('webdavPassword', null, $defaultPassword,
+            'WebDAV 密码',
+            '用于 Basic Auth 的密码');
+        $form->addInput($webdavPassword);
+
+        $webdavVerifySSL = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavVerifySSL',
+            array('1' => '验证 SSL 证书'),
+            $defaultVerify ? array('1') : array(),
+            'SSL 验证',
+            '如果 WebDAV 服务使用自签名证书，可取消勾选以跳过 SSL 验证（不推荐）');
+        $form->addInput($webdavVerifySSL);
     }
 
     /**

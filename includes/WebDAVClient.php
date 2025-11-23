@@ -1,0 +1,370 @@
+<?php
+if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+
+/**
+ * 简单的 WebDAV 客户端，提供列目录、上传、删除等基础操作
+ */
+class MediaLibrary_WebDAVClient
+{
+    private $endpoint;
+    private $basePath;
+    private $baseUri;
+    private $username;
+    private $password;
+    private $verifySSL;
+    private $timeout;
+    private $rootPrefix;
+
+    public function __construct(array $config)
+    {
+        if (!function_exists('curl_init')) {
+            throw new Exception('服务器未启用 cURL 扩展，无法使用 WebDAV 功能');
+        }
+
+        $endpoint = isset($config['webdavEndpoint']) ? trim($config['webdavEndpoint']) : '';
+        if ($endpoint === '') {
+            throw new Exception('未配置 WebDAV 服务器地址');
+        }
+
+        $this->endpoint = rtrim($endpoint, '/');
+        $this->basePath = self::normalizeBasePath(isset($config['webdavBasePath']) ? $config['webdavBasePath'] : '/');
+        $this->baseUri = rtrim($this->endpoint, '/') . ($this->basePath === '/' ? '' : $this->basePath);
+        $this->username = isset($config['webdavUsername']) ? (string)$config['webdavUsername'] : '';
+        $this->password = isset($config['webdavPassword']) ? (string)$config['webdavPassword'] : '';
+        $this->verifySSL = empty($config['webdavVerifySSL']) ? false : true;
+        $this->timeout = isset($config['webdavTimeout']) ? max(3, intval($config['webdavTimeout'])) : 10;
+
+        $endpointPath = parse_url($this->endpoint, PHP_URL_PATH);
+        $endpointPath = $endpointPath ? rtrim($endpointPath, '/') : '';
+        $basePart = $this->basePath === '/' ? '' : $this->basePath;
+        $combined = $endpointPath . $basePart;
+        $this->rootPrefix = $combined === '' ? '/' : $combined;
+    }
+
+    /**
+     * 测试连接
+     */
+    public function ping()
+    {
+        try {
+            $this->propfind('/', 0);
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * 列出目录内容
+     */
+    public function listDirectory($path = '/')
+    {
+        $normalizedPath = $this->normalizeRelativePath($path);
+        list($response,) = $this->propfind($normalizedPath, 1);
+
+        if ($response === null || $response === '') {
+            return [
+                'path' => $normalizedPath,
+                'items' => []
+            ];
+        }
+
+        $xml = @simplexml_load_string($response);
+        if (!$xml) {
+            throw new Exception('无法解析 WebDAV 响应');
+        }
+        $xml->registerXPathNamespace('d', 'DAV:');
+
+        $items = [];
+        foreach ($xml->xpath('d:response') as $node) {
+            $hrefNode = $node->xpath('d:href');
+            if (!$hrefNode || empty($hrefNode[0])) {
+                continue;
+            }
+
+            $relative = $this->extractRelativePath((string)$hrefNode[0]);
+            if ($relative === false) {
+                continue;
+            }
+
+            if ($this->isSamePath($normalizedPath, $relative)) {
+                continue; // 跳过当前目录本身
+            }
+
+            $propNodes = $node->xpath('d:propstat/d:prop');
+            if (!$propNodes || empty($propNodes[0])) {
+                continue;
+            }
+
+            $prop = $propNodes[0];
+            $isDir = !empty($prop->xpath('d:resourcetype/d:collection'));
+            $nameNode = $prop->xpath('d:displayname');
+            $name = $nameNode && !empty($nameNode[0]) ? (string)$nameNode[0] : '';
+            $name = $name !== '' ? $name : basename($relative);
+
+            $sizeNode = $prop->xpath('d:getcontentlength');
+            $size = $isDir ? 0 : ($sizeNode && !empty($sizeNode[0]) ? intval($sizeNode[0]) : 0);
+
+            $typeNode = $prop->xpath('d:getcontenttype');
+            $mime = $typeNode && !empty($typeNode[0]) ? (string)$typeNode[0] : '';
+
+            $modifiedNode = $prop->xpath('d:getlastmodified');
+            $modified = $modifiedNode && !empty($modifiedNode[0]) ? (string)$modifiedNode[0] : '';
+            if ($modified !== '') {
+                $timestamp = strtotime($modified);
+                if ($timestamp) {
+                    $modified = date('Y-m-d H:i', $timestamp);
+                }
+            }
+
+            $items[] = [
+                'name' => $name,
+                'path' => $relative,
+                'is_dir' => $isDir,
+                'size' => $size,
+                'mime' => $mime,
+                'modified' => $modified,
+                'public_url' => $this->buildPublicUrl($relative)
+            ];
+        }
+
+        usort($items, function ($a, $b) {
+            if ($a['is_dir'] && !$b['is_dir']) {
+                return -1;
+            }
+            if ($b['is_dir'] && !$a['is_dir']) {
+                return 1;
+            }
+            return strcasecmp($a['name'], $b['name']);
+        });
+
+        return [
+            'path' => $normalizedPath,
+            'items' => $items
+        ];
+    }
+
+    /**
+     * 新建目录
+     */
+    public function createDirectory($path)
+    {
+        $target = $this->normalizeRelativePath($path);
+        if ($target === '/') {
+            throw new Exception('不能创建根目录');
+        }
+
+        $url = $this->buildUrl($target);
+        $ch = $this->prepareCurl($url);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'MKCOL');
+        $this->executeCurl($ch);
+        return true;
+    }
+
+    /**
+     * 删除文件或目录
+     */
+    public function delete($path)
+    {
+        $target = $this->normalizeRelativePath($path);
+        if ($target === '/') {
+            throw new Exception('不能删除根目录');
+        }
+
+        $url = $this->buildUrl($target);
+        $ch = $this->prepareCurl($url);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        $this->executeCurl($ch);
+        return true;
+    }
+
+    /**
+     * 上传文件
+     */
+    public function uploadFile($targetPath, $localFile, $mime = 'application/octet-stream')
+    {
+        $target = $this->normalizeRelativePath($targetPath);
+        if (!file_exists($localFile)) {
+            throw new Exception('上传的临时文件不存在');
+        }
+
+        $url = $this->buildUrl($target);
+        $ch = $this->prepareCurl($url);
+        $fp = fopen($localFile, 'rb');
+        if (!$fp) {
+            throw new Exception('无法读取上传文件');
+        }
+
+        curl_setopt($ch, CURLOPT_UPLOAD, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+        curl_setopt($ch, CURLOPT_INFILE, $fp);
+        curl_setopt($ch, CURLOPT_INFILESIZE, filesize($localFile));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: ' . ($mime ?: 'application/octet-stream')));
+
+        try {
+            $this->executeCurl($ch);
+        } finally {
+            fclose($fp);
+        }
+
+        return true;
+    }
+
+    /**
+     * 构建公开访问地址
+     */
+    public function buildPublicUrl($path)
+    {
+        $normalized = $this->normalizeRelativePath($path);
+        $base = rtrim($this->baseUri, '/');
+
+        if ($normalized === '/') {
+            return $base . '/';
+        }
+
+        $segments = array_filter(explode('/', $normalized));
+        $encoded = array_map('rawurlencode', $segments);
+        return $base . '/' . implode('/', $encoded);
+    }
+
+    /**
+     * 发送 PROPFIND 请求
+     */
+    private function propfind($path, $depth = 1)
+    {
+        $url = $this->buildUrl($path);
+        $ch = $this->prepareCurl($url);
+
+        $body = '<?xml version="1.0" encoding="utf-8"?>'
+            . '<d:propfind xmlns:d="DAV:">'
+            . '<d:prop>'
+            . '<d:displayname/><d:resourcetype/><d:getcontentlength/><d:getcontenttype/><d:getlastmodified/>'
+            . '</d:prop>'
+            . '</d:propfind>';
+
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PROPFIND');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Depth: ' . intval($depth),
+            'Content-Type: application/xml; charset="utf-8"'
+        ));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+
+        return $this->executeCurl($ch, true);
+    }
+
+    private function prepareCurl($url)
+    {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_USERPWD, $this->username . ':' . $this->password);
+        curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->verifySSL);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->verifySSL ? 2 : 0);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+        return $ch;
+    }
+
+    private function executeCurl($ch, $allowEmptyResponse = true)
+    {
+        $response = curl_exec($ch);
+        if ($response === false) {
+            $error = curl_error($ch);
+            $code = curl_errno($ch);
+            curl_close($ch);
+            throw new Exception('WebDAV 请求失败：' . $error . ' (#' . $code . ')');
+        }
+
+        $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($status >= 400) {
+            throw new Exception('WebDAV 请求失败 (HTTP ' . $status . ')');
+        }
+
+        if (!$allowEmptyResponse && $response === '') {
+            throw new Exception('WebDAV 返回空响应');
+        }
+
+        return array($response, $status);
+    }
+
+    private static function normalizeBasePath($path)
+    {
+        $path = trim((string)$path);
+        if ($path === '' || $path === '/') {
+            return '/';
+        }
+
+        return '/' . trim($path, '/');
+    }
+
+    private function normalizeRelativePath($path)
+    {
+        $path = trim((string)$path);
+        if ($path === '' || $path === '/') {
+            return '/';
+        }
+
+        $path = str_replace('\\', '/', $path);
+        $segments = explode('/', $path);
+        $safe = array();
+        foreach ($segments as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                continue;
+            }
+            $safe[] = $segment;
+        }
+
+        if (empty($safe)) {
+            return '/';
+        }
+
+        return '/' . implode('/', $safe);
+    }
+
+    private function extractRelativePath($href)
+    {
+        if ($href === '') {
+            return false;
+        }
+
+        $path = parse_url($href, PHP_URL_PATH);
+        if ($path === null) {
+            $path = $href;
+        }
+        $path = rawurldecode($path);
+        if ($path === '') {
+            $path = '/';
+        }
+
+        $prefix = rtrim($this->rootPrefix, '/');
+        if ($prefix !== '' && strpos($path, $prefix) === 0) {
+            $path = substr($path, strlen($prefix));
+        }
+
+        return '/' . ltrim($path, '/');
+    }
+
+    private function buildUrl($path)
+    {
+        $normalized = $this->normalizeRelativePath($path);
+        $base = rtrim($this->baseUri, '/');
+
+        if ($normalized === '/') {
+            return $base . '/';
+        }
+
+        return $base . $normalized;
+    }
+
+    private function isSamePath($a, $b)
+    {
+        return rtrim($a, '/') === rtrim($b, '/');
+    }
+}
+

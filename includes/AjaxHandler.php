@@ -2,6 +2,7 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 
 /**
  * Ajax请求处理类
@@ -72,6 +73,22 @@ class MediaLibrary_AjaxHandler
                     
                 case 'remove_exif':
                     self::handleRemoveExifAction($request, $db, $enableExif);
+                    break;
+
+                case 'webdav_list':
+                    self::handleWebDAVListAction($request, $configOptions);
+                    break;
+
+                case 'webdav_create_folder':
+                    self::handleWebDAVCreateFolderAction($request, $configOptions);
+                    break;
+
+                case 'webdav_delete':
+                    self::handleWebDAVDeleteAction($request, $configOptions);
+                    break;
+
+                case 'webdav_upload':
+                    self::handleWebDAVUploadAction($request, $configOptions);
                     break;
                     
                 default:
@@ -649,6 +666,231 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         ], !empty($result['success']) ? 'info' : 'error');
         
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    }
+
+
+    /**
+     * WebDAV 列表
+     */
+    private static function handleWebDAVListAction($request, $configOptions)
+    {
+        $path = $request->get('path', '/');
+
+        try {
+            $client = self::getWebDAVClient($configOptions);
+            $result = $client->listDirectory($path);
+
+            $items = [];
+            foreach ($result['items'] as $item) {
+                $items[] = [
+                    'name' => $item['name'],
+                    'path' => $item['path'],
+                    'is_dir' => $item['is_dir'] ? 1 : 0,
+                    'size' => $item['size'],
+                    'size_human' => $item['is_dir'] ? '-' : MediaLibrary_FileOperations::formatFileSize($item['size']),
+                    'modified' => $item['modified'],
+                    'mime' => $item['mime'],
+                    'public_url' => $item['public_url']
+                ];
+            }
+
+            MediaLibrary_Logger::log('webdav_list', '读取 WebDAV 目录', [
+                'path' => $result['path'],
+                'count' => count($items)
+            ]);
+
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'current_path' => $result['path'],
+                    'items' => $items
+                ]
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_list', 'WebDAV 列表失败: ' . $e->getMessage(), [
+                'path' => $path
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => 'WebDAV 操作失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * WebDAV 创建文件夹
+     */
+    private static function handleWebDAVCreateFolderAction($request, $configOptions)
+    {
+        $parentPath = self::normalizeWebDAVPath($request->get('path', '/'));
+        $name = trim($request->get('name', ''));
+
+        if ($name === '' || preg_match('/[\\\\\/]/', $name)) {
+            echo json_encode(['success' => false, 'message' => '文件夹名称不合法'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $target = self::joinWebDAVPath($parentPath, $name);
+
+        try {
+            $client = self::getWebDAVClient($configOptions);
+            $client->createDirectory($target);
+
+            MediaLibrary_Logger::log('webdav_create_folder', '创建 WebDAV 目录成功', [
+                'path' => $target
+            ]);
+
+            echo json_encode(['success' => true, 'message' => '目录创建成功'], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_create_folder', '创建目录失败: ' . $e->getMessage(), [
+                'path' => $target
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => 'WebDAV 操作失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * WebDAV 删除
+     */
+    private static function handleWebDAVDeleteAction($request, $configOptions)
+    {
+        $target = self::normalizeWebDAVPath($request->get('target', ''));
+
+        if ($target === '/' || $target === '') {
+            echo json_encode(['success' => false, 'message' => '不能删除根目录'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $client = self::getWebDAVClient($configOptions);
+            $client->delete($target);
+
+            MediaLibrary_Logger::log('webdav_delete', '删除 WebDAV 文件/目录成功', [
+                'path' => $target
+            ]);
+
+            echo json_encode(['success' => true, 'message' => '删除成功'], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_delete', '删除失败: ' . $e->getMessage(), [
+                'path' => $target
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => 'WebDAV 操作失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * WebDAV 上传
+     */
+    private static function handleWebDAVUploadAction($request, $configOptions)
+    {
+        if (empty($_FILES['file'])) {
+            echo json_encode(['success' => false, 'message' => '请选择要上传的文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $path = self::normalizeWebDAVPath($request->get('path', '/'));
+        $files = self::normalizeUploadFiles($_FILES['file']);
+
+        if (empty($files)) {
+            echo json_encode(['success' => false, 'message' => '未检测到有效文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $uploaded = [];
+        try {
+            $client = self::getWebDAVClient($configOptions);
+            foreach ($files as $file) {
+                $target = self::joinWebDAVPath($path, $file['name']);
+                $client->uploadFile($target, $file['tmp_name'], $file['type']);
+                $uploaded[] = [
+                    'name' => $file['name'],
+                    'path' => $target
+                ];
+            }
+
+            MediaLibrary_Logger::log('webdav_upload', '上传到 WebDAV 成功', [
+                'path' => $path,
+                'count' => count($uploaded)
+            ]);
+
+            echo json_encode(['success' => true, 'message' => '上传完成', 'files' => $uploaded], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_upload', '上传失败: ' . $e->getMessage(), [
+                'path' => $path
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => 'WebDAV 上传失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    private static function getWebDAVClient($configOptions)
+    {
+        if (empty($configOptions['enableWebDAV'])) {
+            throw new Exception('WebDAV 功能未启用');
+        }
+        if (empty($configOptions['webdavEndpoint']) || empty($configOptions['webdavUsername'])) {
+            throw new Exception('WebDAV 配置不完整');
+        }
+
+        return new MediaLibrary_WebDAVClient($configOptions);
+    }
+
+    private static function normalizeWebDAVPath($path)
+    {
+        $path = trim((string)$path);
+        if ($path === '' || $path === '/') {
+            return '/';
+        }
+
+        $path = str_replace('\\', '/', $path);
+        $segments = explode('/', $path);
+        $safe = [];
+        foreach ($segments as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                continue;
+            }
+            $safe[] = $segment;
+        }
+
+        if (empty($safe)) {
+            return '/';
+        }
+
+        return '/' . implode('/', $safe);
+    }
+
+    private static function joinWebDAVPath($base, $name)
+    {
+        $base = self::normalizeWebDAVPath($base);
+        $name = trim($name, '/');
+        if ($base === '/') {
+            return '/' . $name;
+        }
+        return rtrim($base, '/') . '/' . $name;
+    }
+
+    private static function normalizeUploadFiles($file)
+    {
+        $normalized = [];
+        if (is_array($file['name'])) {
+            $count = count($file['name']);
+            for ($i = 0; $i < $count; $i++) {
+                if ($file['error'][$i] !== UPLOAD_ERR_OK) {
+                    continue;
+                }
+                $normalized[] = [
+                    'name' => $file['name'][$i],
+                    'tmp_name' => $file['tmp_name'][$i],
+                    'type' => isset($file['type'][$i]) ? $file['type'][$i] : 'application/octet-stream'
+                ];
+            }
+        } else {
+            if ($file['error'] === UPLOAD_ERR_OK) {
+                $normalized[] = [
+                    'name' => $file['name'],
+                    'tmp_name' => $file['tmp_name'],
+                    'type' => isset($file['type']) ? $file['type'] : 'application/octet-stream'
+                ];
+            }
+        }
+
+        return $normalized;
     }
 
     /**
