@@ -100,9 +100,12 @@ $rangeDescription = $total > 0
 $totalPages = $total > 0 ? ceil($total / $pageSize) : 1;
 
 $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
+
+// 版本号控制 - 用于强制刷新缓存
+$cssVersion = '3.0.0'; // Windows 11 风格版本
 ?>
 
-<link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/panel.css">
+<link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/panel.css?v=<?php echo $cssVersion; ?>">
 
 <div class="main">
     <div class="body container">
@@ -184,8 +187,8 @@ $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php
 <script src="<?php $options->adminStaticUrl('js', 'jquery.js'); ?>"></script>
 
 <!-- 引入ECharts -->
-<script src="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/js/echarts.min.js"></script>
-<script src="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/js/image-editor.js"></script>
+<script src="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/js/echarts.min.js?v=<?php echo $cssVersion; ?>"></script>
+<script src="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/js/image-editor.js?v=<?php echo $cssVersion; ?>"></script>
 
 <script>
 window.mediaLibraryCurrentUrl = '<?php echo $currentUrl; ?>';
@@ -211,7 +214,7 @@ window.mediaLibraryConfig = {
 };
 </script>
 
-<script src="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/js/panel.js"></script>
+<script src="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/js/panel.js?v=<?php echo $cssVersion; ?>"></script>
 
 <?php
 include 'copyright.php';
