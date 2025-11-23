@@ -38,6 +38,10 @@
 
     /* 过渡 */
     --transition: 100ms ease;
+
+    /* 侧栏宽度 */
+    --sidebar-width: 260px;
+    --pagination-height: 60px;
 }
 
 /* 深色模式 */
@@ -68,7 +72,275 @@
     max-width: 100%;
     margin: 0;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding-bottom: var(--pagination-height);
+    position: relative;
 }
+
+/* 主布局 - 侧栏 + 内容 */
+.media-layout {
+    display: flex;
+    gap: 0;
+    flex: 1;
+    background: var(--ml-surface);
+}
+
+/* 左侧侧栏 */
+.media-sidebar {
+    width: var(--sidebar-width);
+    background: var(--ml-card);
+    border-right: 1px solid var(--ml-border);
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 140px);
+    flex-shrink: 0;
+}
+
+.sidebar-section {
+    border-bottom: 1px solid var(--ml-border);
+    padding: var(--space-lg);
+}
+
+.sidebar-section:last-child {
+    border-bottom: none;
+}
+
+.sidebar-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ml-text);
+    margin: 0 0 var(--space-md) 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-title .toggle-icon {
+    font-size: 10px;
+    transition: transform var(--transition);
+    opacity: 0.6;
+}
+
+.sidebar-title.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.sidebar-content {
+    font-size: 13px;
+}
+
+/* 功能列表 */
+.feature-list,
+.storage-list,
+.filter-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.feature-item,
+.storage-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    color: var(--ml-text-secondary);
+}
+
+.feature-item.enabled {
+    color: var(--ml-success);
+}
+
+.feature-item.disabled {
+    color: var(--ml-muted);
+}
+
+.feature-icon {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.feature-name {
+    flex: 1;
+    font-size: 13px;
+}
+
+/* 存储列表 */
+.storage-item {
+    padding: var(--space-md);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-sm);
+    background: var(--ml-surface);
+    border: 1px solid var(--ml-border);
+}
+
+.storage-item.active {
+    background: var(--ml-primary-light);
+    border-color: var(--ml-primary);
+    color: var(--ml-primary);
+}
+
+.storage-item.disabled {
+    opacity: 0.6;
+}
+
+.storage-icon {
+    font-size: 16px;
+}
+
+.storage-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.storage-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    background: var(--ml-card);
+    border: 1px solid var(--ml-border);
+}
+
+.storage-item.active .storage-badge {
+    background: var(--ml-primary);
+    color: #fff;
+    border-color: var(--ml-primary);
+}
+
+/* 筛选列表 */
+.filter-item {
+    margin-bottom: var(--space-xs);
+}
+
+.filter-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--ml-text);
+    transition: background var(--transition);
+}
+
+.filter-link:hover {
+    background: var(--ml-surface);
+}
+
+.filter-item.active .filter-link {
+    background: var(--ml-primary-light);
+    color: var(--ml-primary);
+    font-weight: 500;
+}
+
+.filter-icon {
+    font-size: 16px;
+}
+
+.filter-name {
+    flex: 1;
+}
+
+.filter-count {
+    font-size: 12px;
+    color: var(--ml-text-secondary);
+    background: var(--ml-surface);
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    min-width: 30px;
+    text-align: center;
+}
+
+.filter-item.active .filter-count {
+    background: var(--ml-primary);
+    color: #fff;
+}
+
+/* 统计网格 */
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-md);
+    background: var(--ml-surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--ml-border);
+}
+
+.stat-label {
+    font-size: 11px;
+    color: var(--ml-text-secondary);
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--ml-text);
+}
+
+.storage-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md);
+    background: var(--ml-primary-light);
+    border-radius: var(--radius);
+    border: 1px solid var(--ml-primary);
+}
+
+.storage-label {
+    font-size: 12px;
+    color: var(--ml-primary);
+    font-weight: 500;
+}
+
+.storage-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ml-primary);
+}
+
+/* 右侧主内容区 */
+.media-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--ml-card);
+    overflow-x: hidden;
+}
+
+/* 固定底部分页 */
+.media-pagination-fixed {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--ml-card);
+    border-top: 1px solid var(--ml-border);
+    padding: var(--space-md) var(--space-lg);
+    z-index: 100;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.media-pagination-fixed .pagination {
+    margin: 0;
+    padding: 0;
+    border-top: none;
+}
+
 
 /* 标题栏 - Windows 11 风格 */
 .typecho-page-title {
@@ -1083,6 +1355,51 @@
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+    /* 侧栏在移动端隐藏或折叠 */
+    .media-layout {
+        flex-direction: column;
+    }
+
+    .media-sidebar {
+        width: 100%;
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--ml-border);
+    }
+
+    /* 侧栏部分在移动端可折叠 */
+    .sidebar-section {
+        padding: var(--space-md);
+    }
+
+    .sidebar-title {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--space-sm);
+    }
+
+    .stat-item {
+        padding: var(--space-sm);
+    }
+
+    .stat-value {
+        font-size: 16px;
+    }
+
+    /* 调整固定分页 */
+    .media-pagination-fixed {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .media-library-container {
+        padding-bottom: calc(var(--pagination-height) + 10px);
+    }
+
     .media-viewport {
         padding: var(--space-lg);
         border-radius: var(--radius-md);

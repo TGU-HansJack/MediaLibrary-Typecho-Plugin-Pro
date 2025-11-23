@@ -102,7 +102,7 @@ $totalPages = $total > 0 ? ceil($total / $pageSize) : 1;
 $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
 
 // 版本号控制 - 用于强制刷新缓存
-$cssVersion = '3.0.0'; // Windows 11 风格版本
+$cssVersion = '3.1.0'; // 侧栏布局版本
 ?>
 
 <link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/panel.css?v=<?php echo $cssVersion; ?>">
@@ -113,61 +113,35 @@ $cssVersion = '3.0.0'; // Windows 11 风格版本
             <div class="col-mb-12">
                 <div class="media-viewport">
                     <div class="media-library-container">
-                        <div class="media-hero">
-                            <div class="hero-text">
-                                <span class="hero-eyebrow">Media Library</span>
-                                <div class="typecho-page-title">
-                                    <h2>媒体库管理</h2>
-                                    <p>现代化的媒体总览，共 <?php echo number_format($total); ?> 个文件</p>
+                        <!-- 标题栏 -->
+                        <div class="typecho-page-title">
+                            <h2>媒体库管理</h2>
+                            <p>现代化的媒体总览，共 <?php echo number_format($total); ?> 个文件 | <?php echo $rangeDescription; ?></p>
+                        </div>
+
+                        <!-- 主内容区域：左侧边栏 + 右侧内容 -->
+                        <div class="media-layout">
+                            <!-- 左侧侧栏 -->
+                            <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/sidebar.php'; ?>
+
+                            <!-- 右侧主内容 -->
+                            <div class="media-main">
+                                <div class="media-panel">
+                                    <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/toolbar.php'; ?>
+
+                                    <div class="media-panel-body">
+                                        <?php if ($view === 'grid'): ?>
+                                            <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/grid-view.php'; ?>
+                                        <?php else: ?>
+                                            <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/list-view.php'; ?>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                                <div class="hero-meta">
-                                    <span class="meta-chip">筛选：<?php echo $currentFilterLabel; ?></span>
-                                    <span class="meta-chip">视图：<?php echo $currentViewLabel; ?></span>
-                                    <span class="meta-chip">上传限制：<?php echo strtoupper($phpMaxFilesize); ?></span>
-                                </div>
-                                <p class="hero-range"><?php echo $rangeDescription; ?></p>
-                            </div>
-                            <div class="hero-card">
-                                <span class="label">文件总数</span>
-                                <strong><?php echo number_format($total); ?></strong>
-                                <span class="hint">共 <?php echo $totalPages; ?> 页</span>
                             </div>
                         </div>
 
-                        <div class="media-stat-grid">
-                            <div class="stat-card">
-                                <span class="label">图片</span>
-                                <span class="value"><?php echo $imagesCount; ?></span>
-                                <span class="hint">当前页</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="label">视频</span>
-                                <span class="value"><?php echo $videosCount; ?></span>
-                                <span class="hint"><?php echo $audioCount; ?> 条音频</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="label">文档</span>
-                                <span class="value"><?php echo $documentsCount; ?></span>
-                                <span class="hint">含 PDF / Office</span>
-                            </div>
-                            <div class="stat-card accent">
-                                <span class="label">本页容量</span>
-                                <span class="value"><?php echo $currentPageFootprint; ?></span>
-                                <span class="hint">上传限制 <?php echo strtoupper($phpMaxFilesize); ?></span>
-                            </div>
-                        </div>
-
-                        <div class="media-panel">
-                            <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/toolbar.php'; ?>
-
-                            <div class="media-panel-body">
-                                <?php if ($view === 'grid'): ?>
-                                    <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/grid-view.php'; ?>
-                                <?php else: ?>
-                                    <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/list-view.php'; ?>
-                                <?php endif; ?>
-                            </div>
-
+                        <!-- 固定底部分页 -->
+                        <div class="media-pagination-fixed">
                             <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/pagination.php'; ?>
                         </div>
                     </div>

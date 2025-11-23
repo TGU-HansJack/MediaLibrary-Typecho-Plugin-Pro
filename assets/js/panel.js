@@ -1899,7 +1899,86 @@ parseSize: function(size) {
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
     MediaLibrary.init();
+
+    // 初始化侧栏功能
+    initSidebar();
 });
+
+// 侧栏功能初始化
+function initSidebar() {
+    // 移动端侧栏折叠功能
+    if (window.innerWidth <= 768) {
+        var sidebarSections = document.querySelectorAll('.sidebar-section');
+
+        sidebarSections.forEach(function(section, index) {
+            var title = section.querySelector('.sidebar-title');
+            var content = section.querySelector('.sidebar-content');
+
+            if (title && content) {
+                // 默认展开文件类型筛选，其他折叠
+                if (index !== 2) { // 第三个section是文件类型筛选
+                    content.style.display = 'none';
+                    title.classList.add('collapsed');
+                }
+
+                // 添加点击事件
+                title.addEventListener('click', function() {
+                    if (content.style.display === 'none') {
+                        content.style.display = 'block';
+                        title.classList.remove('collapsed');
+                    } else {
+                        content.style.display = 'none';
+                        title.classList.add('collapsed');
+                    }
+                });
+
+                // 添加折叠指示器
+                if (!title.querySelector('.toggle-icon')) {
+                    var icon = document.createElement('span');
+                    icon.className = 'toggle-icon';
+                    icon.innerHTML = '▼';
+                    title.appendChild(icon);
+                }
+            }
+        });
+    }
+
+    // 监听窗口大小变化
+    var resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            // 桌面端时重置所有内容为可见
+            if (window.innerWidth > 768) {
+                var contents = document.querySelectorAll('.sidebar-content');
+                contents.forEach(function(content) {
+                    content.style.display = 'block';
+                });
+
+                var titles = document.querySelectorAll('.sidebar-title');
+                titles.forEach(function(title) {
+                    title.classList.remove('collapsed');
+                });
+            }
+        }, 250);
+    });
+
+    // 高亮当前筛选项
+    highlightActiveFilter();
+}
+
+// 高亮当前激活的筛选项
+function highlightActiveFilter() {
+    var currentType = window.mediaLibraryType || 'all';
+    var filterItems = document.querySelectorAll('.filter-item');
+
+    filterItems.forEach(function(item) {
+        var link = item.querySelector('.filter-link');
+        if (link && link.href.indexOf('type=' + currentType) > -1) {
+            item.classList.add('active');
+        }
+    });
+}
 
 // 导出到全局
 window.MediaLibrary = MediaLibrary;
