@@ -14,6 +14,11 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogActio
 class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 {
     /**
+     * @var string 当前使用的日志 Action 名称
+     */
+    private static $logActionSlug = 'medialibrarylogs';
+
+    /**
      * 激活插件方法,如果激活失败,直接抛出异常
      * 
      * @access public
@@ -57,14 +62,33 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
      */
     private static function ensureLogActionRegistered()
     {
-        $actions = Helper::options()->action;
-        $current = is_array($actions) && isset($actions['medialibrarylogs'])
-            ? $actions['medialibrarylogs']
-            : null;
+        $expectedClass = 'MediaLibrary_LogAction';
+        $preferredSlug = 'medialibrarylogs';
+        $legacySlugs = array('medialibraryLogs', 'medialibrary-logs');
 
-        if ($current !== 'MediaLibrary_LogAction') {
-            Helper::addAction('medialibrarylogs', 'MediaLibrary_LogAction');
+        $actions = Helper::options()->action;
+        if (is_object($actions) && method_exists($actions, 'toArray')) {
+            $actions = $actions->toArray();
+        } elseif (!is_array($actions)) {
+            $actions = array();
         }
+
+        $currentClass = isset($actions[$preferredSlug]) ? $actions[$preferredSlug] : null;
+        if ($currentClass !== $expectedClass) {
+            if ($currentClass) {
+                Helper::removeAction($preferredSlug);
+            }
+            Helper::addAction($preferredSlug, $expectedClass);
+        }
+
+        foreach ($legacySlugs as $legacySlug) {
+            if (isset($actions[$legacySlug])) {
+                Helper::removeAction($legacySlug);
+            }
+        }
+
+        self::$logActionSlug = $preferredSlug;
+        return $preferredSlug;
     }
 
     /**
@@ -334,7 +358,21 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 .ml-log-status.is-error{color:#b32700;}
 </style>';
 
-        $logEndpoint = addslashes(Typecho_Common::url('action/medialibrarylogs', Helper::options()->index));
+        $baseIndex = Helper::options()->index;
+        $slugs = array_unique(array_filter(array(
+            self::$logActionSlug,
+            'medialibrarylogs',
+            'medialibraryLogs',
+            'medialibrary-logs'
+        )));
+
+        $logEndpoints = array();
+        foreach ($slugs as $slug) {
+            $logEndpoints[] = Typecho_Common::url('action/' . $slug, $baseIndex);
+            $logEndpoints[] = Typecho_Common::url('index.php/action/' . $slug, $baseIndex);
+        }
+        $logEndpoints = array_values(array_unique($logEndpoints));
+        $logEndpointsJson = json_encode($logEndpoints, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         echo '<script>
 jQuery(function($) {
@@ -351,11 +389,40 @@ jQuery(function($) {
             }
         });
     }
-
-    var logEndpoint = "' . $logEndpoint . '";
+    var logEndpoints = ' . $logEndpointsJson . ';
+    var endpointIndex = 0;
+    var logEndpoint = logEndpoints[endpointIndex] || "";
     var $logList = $("#ml-log-list");
     var $status = $("#ml-log-status");
     var statusTimer = null;
+
+    function tryNextLogEndpoint() {
+        if (endpointIndex < logEndpoints.length - 1) {
+            endpointIndex++;
+            logEndpoint = logEndpoints[endpointIndex];
+            if (window.console && console.warn) {
+                console.warn("[MediaLibrary] 日志接口切换为:", logEndpoint);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function handleEndpointFallback(xhr, retryFn) {
+        if (xhr && xhr.status === 404 && tryNextLogEndpoint()) {
+            setStatus("日志接口不可用，尝试备用接口...", "loading");
+            retryFn();
+            return true;
+        }
+        return false;
+    }
+
+    function formatAjaxError(base, xhr) {
+        if (xhr && xhr.status) {
+            base += "（HTTP " + xhr.status + "）";
+        }
+        return base;
+    }
 
     function setStatus(message, type) {
         if (statusTimer) {
@@ -425,9 +492,20 @@ jQuery(function($) {
         });
     }
 
-    function fetchLogs() {
-        setLogButtonsDisabled(true);
-        setStatus("正在加载日志...", "loading");
+    function fetchLogs(options) {
+        options = options || {};
+        var isRetry = !!options.isRetry;
+
+        if (!logEndpoint) {
+            setStatus("未能解析日志接口地址", "error");
+            return;
+        }
+
+        if (!isRetry) {
+            setLogButtonsDisabled(true);
+            setStatus("正在加载日志...", "loading");
+        }
+
         $.get(logEndpoint, { do: "get_logs", limit: 200 }, function(res) {
             if (res.success) {
                 renderLogs(res.logs || []);
@@ -435,9 +513,47 @@ jQuery(function($) {
             } else {
                 setStatus(res.message || "无法获取日志", "error");
             }
-        }).fail(function() {
-            setStatus("请求日志失败，请稍后重试", "error");
-        }).always(function() {
+            setLogButtonsDisabled(false);
+        }).fail(function(xhr) {
+            if (handleEndpointFallback(xhr, function() {
+                fetchLogs({ isRetry: true });
+            })) {
+                return;
+            }
+            setStatus(formatAjaxError("请求日志失败，请稍后重试", xhr), "error");
+            setLogButtonsDisabled(false);
+        });
+    }
+
+    function clearLogs(options) {
+        options = options || {};
+        var isRetry = !!options.isRetry;
+
+        if (!logEndpoint) {
+            setStatus("未能解析日志接口地址", "error");
+            return;
+        }
+
+        if (!isRetry) {
+            setLogButtonsDisabled(true);
+            setStatus("正在清空日志...", "loading");
+        }
+
+        $.post(logEndpoint, { do: "clear_logs" }, function(res) {
+            if (res.success) {
+                renderLogs([]);
+                setStatus(res.message || "日志已清空", "success");
+            } else {
+                setStatus(res.message || "清空失败", "error");
+            }
+            setLogButtonsDisabled(false);
+        }).fail(function(xhr) {
+            if (handleEndpointFallback(xhr, function() {
+                clearLogs({ isRetry: true });
+            })) {
+                return;
+            }
+            setStatus(formatAjaxError("请求失败，请稍后再试", xhr), "error");
             setLogButtonsDisabled(false);
         });
     }
@@ -450,20 +566,7 @@ jQuery(function($) {
         if (!confirm("确定要清空所有日志吗？该操作不可恢复。")) {
             return;
         }
-        setLogButtonsDisabled(true);
-        setStatus("正在清空日志...", "loading");
-        $.post(logEndpoint, { do: "clear_logs" }, function(res) {
-            if (res.success) {
-                renderLogs([]);
-                setStatus(res.message || "日志已清空", "success");
-            } else {
-                setStatus(res.message || "清空失败", "error");
-            }
-        }).fail(function() {
-            setStatus("请求失败，请稍后再试", "error");
-        }).always(function() {
-            setLogButtonsDisabled(false);
-        });
+        clearLogs();
     });
 
     fetchLogs();
