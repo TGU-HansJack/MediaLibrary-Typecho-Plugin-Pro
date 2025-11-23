@@ -66,7 +66,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
     /**
      * 获取插件配置面板
-     * 
+     *
      * @access public
      * @param Typecho_Widget_Helper_Form $form 配置面板
      * @return void
@@ -74,15 +74,326 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     public static function config(Typecho_Widget_Helper_Form $form)
     {
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
-        
+        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
+
+        // 显示版本信息和更新检测
+        self::displayVersionInfo($form);
+
         // 系统环境检测
         $envInfo = MediaLibrary_EnvironmentCheck::checkEnvironment();
-        
+
         // 环境状态显示
         self::displayEnvironmentInfo($form, $envInfo);
-        
+
+        // 显示详细检测信息（默认折叠）
+        self::displayDetailedChecks($form);
+
         // 添加配置选项
         self::addConfigOptions($form, $envInfo);
+
+        // 添加 JavaScript 和 CSS
+        self::addConfigPageAssets();
+    }
+
+    /**
+     * 显示版本信息和更新检测
+     */
+    private static function displayVersionInfo($form)
+    {
+        $currentVersion = MediaLibrary_EnvironmentCheck::getCurrentVersion();
+        $repoUrl = MediaLibrary_PluginUpdater::getRepoUrl();
+
+        $versionHtml = '<div style="background:#fff;padding:20px;border:1px solid #ddd;border-radius:4px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">';
+        $versionHtml .= '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">';
+        $versionHtml .= '<div>';
+        $versionHtml .= '<h3 style="margin:0 0 5px 0;color:#333;">媒体库管理插件</h3>';
+        $versionHtml .= '<p style="margin:0;color:#666;">当前版本: <strong>' . htmlspecialchars($currentVersion) . '</strong></p>';
+        $versionHtml .= '</div>';
+        $versionHtml .= '<div>';
+        $versionHtml .= '<button type="button" id="check-update-btn" class="btn btn-s" style="margin-right:10px;">检查更新</button>';
+        $versionHtml .= '<a href="' . htmlspecialchars($repoUrl) . '" target="_blank" class="btn btn-s">访问 GitHub</a>';
+        $versionHtml .= '</div>';
+        $versionHtml .= '</div>';
+
+        // 更新信息显示区域
+        $versionHtml .= '<div id="update-info" style="display:none;margin-top:15px;padding:15px;background:#f0f8ff;border-left:4px solid #0073aa;border-radius:4px;">';
+        $versionHtml .= '<div id="update-content"></div>';
+        $versionHtml .= '</div>';
+
+        // 更新进度显示
+        $versionHtml .= '<div id="update-progress" style="display:none;margin-top:15px;padding:15px;background:#fff3cd;border-left:4px solid #ffc107;border-radius:4px;">';
+        $versionHtml .= '<div id="update-progress-content"></div>';
+        $versionHtml .= '</div>';
+
+        $versionHtml .= '</div>';
+
+        echo $versionHtml;
+    }
+
+    /**
+     * 显示详细检测信息
+     */
+    private static function displayDetailedChecks($form)
+    {
+        $detailHtml = '<div style="margin-bottom:20px;">';
+
+        // 添加折叠按钮
+        $detailHtml .= '<button type="button" id="toggle-detailed-checks" class="btn btn-s" style="margin-bottom:10px;">显示详细检测信息</button>';
+
+        // 详细检测信息容器（默认隐藏）
+        $detailHtml .= '<div id="detailed-checks-container" style="display:none;">';
+
+        // 系统信息
+        $systemInfo = MediaLibrary_EnvironmentCheck::getSystemInfo();
+        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">📊 系统信息</h4>';
+        $detailHtml .= '<table style="width:100%;border-collapse:collapse;">';
+        foreach ($systemInfo as $name => $value) {
+            $detailHtml .= '<tr>';
+            $detailHtml .= '<td style="padding:5px 0;border-bottom:1px solid #eee;width:180px;font-weight:500;">' . htmlspecialchars($name) . '</td>';
+            $detailHtml .= '<td style="padding:5px 0;border-bottom:1px solid #eee;color:#666;">' . htmlspecialchars($value) . '</td>';
+            $detailHtml .= '</tr>';
+        }
+        $detailHtml .= '</table></div>';
+
+        // PHP 扩展检测
+        $extensions = MediaLibrary_EnvironmentCheck::checkPHPExtensions();
+        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">🔌 PHP 扩展检测</h4>';
+        $detailHtml .= '<table style="width:100%;border-collapse:collapse;">';
+        $detailHtml .= '<thead><tr style="background:#e9ecef;">';
+        $detailHtml .= '<th style="padding:8px;text-align:left;border-bottom:2px solid #ddd;">扩展名称</th>';
+        $detailHtml .= '<th style="padding:8px;text-align:left;border-bottom:2px solid #ddd;">描述</th>';
+        $detailHtml .= '<th style="padding:8px;text-align:center;border-bottom:2px solid #ddd;width:80px;">必需</th>';
+        $detailHtml .= '<th style="padding:8px;text-align:center;border-bottom:2px solid #ddd;width:80px;">状态</th>';
+        $detailHtml .= '<th style="padding:8px;text-align:center;border-bottom:2px solid #ddd;width:100px;">版本</th>';
+        $detailHtml .= '</tr></thead><tbody>';
+
+        foreach ($extensions as $ext) {
+            $statusIcon = $ext['status'] ? '<span style="color:#46b450;">✓</span>' : '<span style="color:#dc3232;">✗</span>';
+            $requiredText = $ext['required'] ? '<span style="color:#dc3232;">是</span>' : '<span style="color:#666;">否</span>';
+            $version = $ext['version'] ? $ext['version'] : '-';
+
+            $detailHtml .= '<tr>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;font-weight:500;">' . htmlspecialchars($ext['name']) . '</td>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;color:#666;font-size:13px;">' . htmlspecialchars($ext['description']) . '</td>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">' . $requiredText . '</td>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;font-size:16px;">' . $statusIcon . '</td>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;color:#666;font-size:12px;">' . htmlspecialchars($version) . '</td>';
+            $detailHtml .= '</tr>';
+        }
+        $detailHtml .= '</tbody></table></div>';
+
+        // PHP 函数检测
+        $functions = MediaLibrary_EnvironmentCheck::checkPHPFunctions();
+        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">⚙️ PHP 函数检测</h4>';
+        $detailHtml .= '<table style="width:100%;border-collapse:collapse;">';
+        $detailHtml .= '<thead><tr style="background:#e9ecef;">';
+        $detailHtml .= '<th style="padding:8px;text-align:left;border-bottom:2px solid #ddd;">函数名称</th>';
+        $detailHtml .= '<th style="padding:8px;text-align:left;border-bottom:2px solid #ddd;">描述</th>';
+        $detailHtml .= '<th style="padding:8px;text-align:center;border-bottom:2px solid #ddd;width:80px;">必需</th>';
+        $detailHtml .= '<th style="padding:8px;text-align:center;border-bottom:2px solid #ddd;width:80px;">状态</th>';
+        $detailHtml .= '</tr></thead><tbody>';
+
+        foreach ($functions as $func) {
+            $statusIcon = $func['status'] ? '<span style="color:#46b450;">✓</span>' : '<span style="color:#dc3232;">✗</span>';
+            $requiredText = $func['required'] ? '<span style="color:#dc3232;">是</span>' : '<span style="color:#666;">否</span>';
+
+            $detailHtml .= '<tr>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;font-family:monospace;font-size:13px;">' . htmlspecialchars($func['name']) . '</td>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;color:#666;font-size:13px;">' . htmlspecialchars($func['description']) . '</td>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">' . $requiredText . '</td>';
+            $detailHtml .= '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;font-size:16px;">' . $statusIcon . '</td>';
+            $detailHtml .= '</tr>';
+        }
+        $detailHtml .= '</tbody></table></div>';
+
+        // 文件完整性检测
+        $fileIntegrity = MediaLibrary_EnvironmentCheck::checkFileIntegrity();
+        $integrityStatus = $fileIntegrity['found'] === $fileIntegrity['total'];
+        $integrityColor = $integrityStatus ? '#46b450' : '#dc3232';
+
+        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">📁 文件完整性检测</h4>';
+        $detailHtml .= '<p style="margin:0 0 10px 0;color:' . $integrityColor . ';font-weight:bold;">';
+        $detailHtml .= '发现 ' . $fileIntegrity['found'] . ' / ' . $fileIntegrity['total'] . ' 个文件';
+        if (!empty($fileIntegrity['missing'])) {
+            $detailHtml .= ' (缺失 ' . count($fileIntegrity['missing']) . ' 个)';
+        }
+        $detailHtml .= '</p>';
+
+        if (!empty($fileIntegrity['missing'])) {
+            $detailHtml .= '<p style="margin:10px 0;color:#dc3232;"><strong>缺失的文件:</strong></p>';
+            $detailHtml .= '<ul style="margin:5px 0;padding-left:20px;color:#dc3232;">';
+            foreach ($fileIntegrity['missing'] as $missing) {
+                $detailHtml .= '<li style="font-family:monospace;font-size:12px;">' . htmlspecialchars($missing) . '</li>';
+            }
+            $detailHtml .= '</ul>';
+        }
+
+        $detailHtml .= '<details style="margin-top:10px;"><summary style="cursor:pointer;color:#0073aa;">查看所有文件列表</summary>';
+        $detailHtml .= '<table style="width:100%;border-collapse:collapse;margin-top:10px;">';
+        foreach ($fileIntegrity['files'] as $file) {
+            $statusIcon = $file['exists'] ? '<span style="color:#46b450;">✓</span>' : '<span style="color:#dc3232;">✗</span>';
+            $size = $file['exists'] ? number_format($file['size'] / 1024, 2) . ' KB' : '-';
+
+            $detailHtml .= '<tr>';
+            $detailHtml .= '<td style="padding:5px;border-bottom:1px solid #eee;text-align:center;width:30px;">' . $statusIcon . '</td>';
+            $detailHtml .= '<td style="padding:5px;border-bottom:1px solid #eee;font-family:monospace;font-size:12px;">' . htmlspecialchars($file['path']) . '</td>';
+            $detailHtml .= '<td style="padding:5px;border-bottom:1px solid #eee;color:#666;font-size:12px;">' . htmlspecialchars($file['description']) . '</td>';
+            $detailHtml .= '<td style="padding:5px;border-bottom:1px solid #eee;text-align:right;color:#666;font-size:12px;width:100px;">' . $size . '</td>';
+            $detailHtml .= '</tr>';
+        }
+        $detailHtml .= '</table></details>';
+
+        $detailHtml .= '</div>';
+
+        $detailHtml .= '</div>'; // 结束 detailed-checks-container
+        $detailHtml .= '</div>';
+
+        echo $detailHtml;
+    }
+
+    /**
+     * 添加配置页面的 JavaScript 和 CSS
+     */
+    private static function addConfigPageAssets()
+    {
+        $pluginUrl = Helper::options()->pluginUrl . '/MediaLibrary';
+
+        echo '<script>
+        jQuery(document).ready(function($) {
+            // 折叠/展开详细检测信息
+            $("#toggle-detailed-checks").on("click", function() {
+                var container = $("#detailed-checks-container");
+                var btn = $(this);
+
+                if (container.is(":visible")) {
+                    container.slideUp();
+                    btn.text("显示详细检测信息");
+                } else {
+                    container.slideDown();
+                    btn.text("隐藏详细检测信息");
+                }
+            });
+
+            // 检查更新
+            $("#check-update-btn").on("click", function() {
+                var btn = $(this);
+                var originalText = btn.text();
+
+                btn.prop("disabled", true).text("检查中...");
+                $("#update-info").hide();
+                $("#update-progress").hide();
+
+                $.ajax({
+                    url: "' . $pluginUrl . '/update-handler.php",
+                    type: "POST",
+                    data: { action: "check_update" },
+                    dataType: "json",
+                    success: function(response) {
+                        if (response.success) {
+                            if (response.has_update) {
+                                showUpdateAvailable(response);
+                            } else {
+                                showUpdateInfo("已是最新版本", "您当前使用的是最新版本 " + response.current_version, "success");
+                            }
+                        } else {
+                            showUpdateInfo("检查失败", response.message || "无法检查更新", "error");
+                        }
+                    },
+                    error: function() {
+                        showUpdateInfo("网络错误", "无法连接到更新服务器", "error");
+                    },
+                    complete: function() {
+                        btn.prop("disabled", false).text(originalText);
+                    }
+                });
+            });
+
+            // 显示更新信息
+            function showUpdateInfo(title, message, type) {
+                var icon = type === "success" ? "✓" : "ℹ";
+                var color = type === "success" ? "#46b450" : type === "error" ? "#dc3232" : "#0073aa";
+
+                $("#update-content").html(
+                    "<h4 style=\"margin:0 0 10px 0;color:" + color + ";\">" + icon + " " + title + "</h4>" +
+                    "<p style=\"margin:0;color:#666;\">" + message + "</p>"
+                );
+                $("#update-info").slideDown();
+            }
+
+            // 显示可用更新
+            function showUpdateAvailable(data) {
+                var releaseNotes = data.release_notes ? data.release_notes.replace(/\\n/g, "<br>") : "无更新说明";
+                var releaseDate = data.release_date ? new Date(data.release_date).toLocaleDateString("zh-CN") : "";
+
+                var html = "<h4 style=\"margin:0 0 10px 0;color:#0073aa;\">🎉 发现新版本！</h4>";
+                html += "<p style=\"margin:0 0 10px 0;\"><strong>当前版本:</strong> " + data.current_version + "</p>";
+                html += "<p style=\"margin:0 0 10px 0;\"><strong>最新版本:</strong> " + data.latest_version + "</p>";
+                if (releaseDate) {
+                    html += "<p style=\"margin:0 0 10px 0;\"><strong>发布日期:</strong> " + releaseDate + "</p>";
+                }
+                html += "<div style=\"margin:10px 0;padding:10px;background:#fff;border:1px solid #ddd;border-radius:4px;max-height:200px;overflow-y:auto;\">";
+                html += "<strong>更新说明:</strong><br>" + releaseNotes;
+                html += "</div>";
+                html += "<div style=\"margin-top:15px;\">";
+                html += "<button type=\"button\" id=\"install-update-btn\" class=\"btn btn-primary\" style=\"margin-right:10px;\">立即更新</button>";
+                html += "<a href=\"" + data.html_url + "\" target=\"_blank\" class=\"btn\">查看详情</a>";
+                html += "</div>";
+
+                $("#update-content").html(html);
+                $("#update-info").slideDown();
+
+                // 绑定安装更新按钮
+                $("#install-update-btn").on("click", function() {
+                    if (confirm("确定要更新插件吗？\\n\\n更新前会自动备份当前版本，但仍建议您手动备份重要数据。")) {
+                        installUpdate(data.download_url);
+                    }
+                });
+            }
+
+            // 安装更新
+            function installUpdate(downloadUrl) {
+                $("#install-update-btn").prop("disabled", true).text("更新中...");
+                $("#update-progress-content").html("<p style=\"margin:0;\">正在下载更新...</p>");
+                $("#update-progress").slideDown();
+
+                $.ajax({
+                    url: "' . $pluginUrl . '/update-handler.php",
+                    type: "POST",
+                    data: {
+                        action: "install_update",
+                        download_url: downloadUrl
+                    },
+                    dataType: "json",
+                    timeout: 300000, // 5分钟超时
+                    success: function(response) {
+                        if (response.success) {
+                            $("#update-progress-content").html(
+                                "<p style=\"margin:0;color:#46b450;\">✓ " + response.message + "</p>"
+                            );
+                            setTimeout(function() {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            $("#update-progress-content").html(
+                                "<p style=\"margin:0;color:#dc3232;\">✗ " + response.message + "</p>"
+                            );
+                            $("#install-update-btn").prop("disabled", false).text("重试");
+                        }
+                    },
+                    error: function() {
+                        $("#update-progress-content").html(
+                            "<p style=\"margin:0;color:#dc3232;\">✗ 更新失败，请稍后重试或手动下载安装</p>"
+                        );
+                        $("#install-update-btn").prop("disabled", false).text("重试");
+                    }
+                });
+            }
+        });
+        </script>';
     }
 
     /**
