@@ -1,8 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
-require_once __DIR__ . '/includes/UpdateAction.php';
-
 /**
  * 媒体库管理插件，可以在后台对整体文件信息的查看和编辑、上传和删除，图片压缩和隐私检测，多媒体预览，文章编辑器中预览和插入的简单媒体库
  * 
@@ -24,8 +22,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
-        
-        Helper::addAction('media-library-update', 'MediaLibrary_UpdateAction');
         
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -79,12 +75,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
-        try {
-            Helper::addAction('media-library-update', 'MediaLibrary_UpdateAction');
-        } catch (Typecho_Plugin_Exception $e) {
-            // Ignore if the action has already been registered.
-        }
-
         // 显示版本信息和更新检测
         self::displayVersionInfo($form);
 
@@ -119,19 +109,10 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $versionHtml .= '<p style="margin:0;color:#666;">当前版本: <strong>' . htmlspecialchars($currentVersion) . '</strong></p>';
         $versionHtml .= '</div>';
         $versionHtml .= '<div>';
-        $versionHtml .= '<button type="button" id="check-update-btn" class="btn btn-s" style="margin-right:10px;">检查更新</button>';
-        $versionHtml .= '<a href="' . htmlspecialchars($repoUrl) . '" target="_blank" class="btn btn-s">访问 GitHub</a>';
+        $versionHtml .= '<a href="' . htmlspecialchars($repoUrl) . '" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">';
+        $versionHtml .= '<img src="https://img.shields.io/badge/GitHub-Repo-181717?logo=github&logoColor=white" alt="GitHub Repository" style="height:28px;">';
+        $versionHtml .= '</a>';
         $versionHtml .= '</div>';
-        $versionHtml .= '</div>';
-
-        // 更新信息显示区域
-        $versionHtml .= '<div id="update-info" style="display:none;margin-top:15px;padding:15px;background:#f0f8ff;border-left:4px solid #0073aa;border-radius:4px;">';
-        $versionHtml .= '<div id="update-content"></div>';
-        $versionHtml .= '</div>';
-
-        // 更新进度显示
-        $versionHtml .= '<div id="update-progress" style="display:none;margin-top:15px;padding:15px;background:#fff3cd;border-left:4px solid #ffc107;border-radius:4px;">';
-        $versionHtml .= '<div id="update-progress-content"></div>';
         $versionHtml .= '</div>';
 
         $versionHtml .= '</div>';
@@ -270,7 +251,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     private static function addConfigPageAssets()
     {
         $pluginUrl = Helper::options()->pluginUrl . '/MediaLibrary';
-        $updateActionUrl = Typecho_Common::url('action/media-library-update', Helper::options()->index);
 
         ob_start();
         Helper::options()->adminStaticUrl('js', 'jquery.js');
@@ -295,121 +275,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
                     btn.text("隐藏详细检测信息");
                 }
             });
-
-            // 检查更新
-            $("#check-update-btn").on("click", function() {
-                var btn = $(this);
-                var originalText = btn.text();
-
-                btn.prop("disabled", true).text("检查中...");
-                $("#update-info").hide();
-                $("#update-progress").hide();
-
-                $.ajax({
-                    url: "' . $updateActionUrl . '",
-                    type: "POST",
-                    data: { action: "check_update" },
-                    dataType: "json",
-                    success: function(response) {
-                        if (response.success) {
-                            if (response.has_update) {
-                                showUpdateAvailable(response);
-                            } else {
-                                showUpdateInfo("已是最新版本", "您当前使用的是最新版本 " + response.current_version, "success");
-                            }
-                        } else {
-                            showUpdateInfo("检查失败", response.message || "无法检查更新", "error");
-                        }
-                    },
-                    error: function() {
-                        showUpdateInfo("网络错误", "无法连接到更新服务器", "error");
-                    },
-                    complete: function() {
-                        btn.prop("disabled", false).text(originalText);
-                    }
-                });
-            });
-
-            // 显示更新信息
-            function showUpdateInfo(title, message, type) {
-                var icon = type === "success" ? "✓" : "ℹ";
-                var color = type === "success" ? "#46b450" : type === "error" ? "#dc3232" : "#0073aa";
-
-                $("#update-content").html(
-                    "<h4 style=\"margin:0 0 10px 0;color:" + color + ";\">" + icon + " " + title + "</h4>" +
-                    "<p style=\"margin:0;color:#666;\">" + message + "</p>"
-                );
-                $("#update-info").slideDown();
-            }
-
-            // 显示可用更新
-            function showUpdateAvailable(data) {
-                var releaseNotes = data.release_notes ? data.release_notes.replace(/\\n/g, "<br>") : "无更新说明";
-                var releaseDate = data.release_date ? new Date(data.release_date).toLocaleDateString("zh-CN") : "";
-
-                var html = "<h4 style=\"margin:0 0 10px 0;color:#0073aa;\">🎉 发现新版本！</h4>";
-                html += "<p style=\"margin:0 0 10px 0;\"><strong>当前版本:</strong> " + data.current_version + "</p>";
-                html += "<p style=\"margin:0 0 10px 0;\"><strong>最新版本:</strong> " + data.latest_version + "</p>";
-                if (releaseDate) {
-                    html += "<p style=\"margin:0 0 10px 0;\"><strong>发布日期:</strong> " + releaseDate + "</p>";
-                }
-                html += "<div style=\"margin:10px 0;padding:10px;background:#fff;border:1px solid #ddd;border-radius:4px;max-height:200px;overflow-y:auto;\">";
-                html += "<strong>更新说明:</strong><br>" + releaseNotes;
-                html += "</div>";
-                html += "<div style=\"margin-top:15px;\">";
-                html += "<button type=\"button\" id=\"install-update-btn\" class=\"btn btn-primary\" style=\"margin-right:10px;\">立即更新</button>";
-                html += "<a href=\"" + data.html_url + "\" target=\"_blank\" class=\"btn\">查看详情</a>";
-                html += "</div>";
-
-                $("#update-content").html(html);
-                $("#update-info").slideDown();
-
-                // 绑定安装更新按钮
-                $("#install-update-btn").on("click", function() {
-                    if (confirm("确定要更新插件吗？\\n\\n更新前会自动备份当前版本，但仍建议您手动备份重要数据。")) {
-                        installUpdate(data.download_url);
-                    }
-                });
-            }
-
-            // 安装更新
-            function installUpdate(downloadUrl) {
-                $("#install-update-btn").prop("disabled", true).text("更新中...");
-                $("#update-progress-content").html("<p style=\"margin:0;\">正在下载更新...</p>");
-                $("#update-progress").slideDown();
-
-                $.ajax({
-                    url: "' . $updateActionUrl . '",
-                    type: "POST",
-                    data: {
-                        action: "install_update",
-                        download_url: downloadUrl
-                    },
-                    dataType: "json",
-                    timeout: 300000, // 5分钟超时
-                    success: function(response) {
-                        if (response.success) {
-                            $("#update-progress-content").html(
-                                "<p style=\"margin:0;color:#46b450;\">✓ " + response.message + "</p>"
-                            );
-                            setTimeout(function() {
-                                location.reload();
-                            }, 2000);
-                        } else {
-                            $("#update-progress-content").html(
-                                "<p style=\"margin:0;color:#dc3232;\">✗ " + response.message + "</p>"
-                            );
-                            $("#install-update-btn").prop("disabled", false).text("重试");
-                        }
-                    },
-                    error: function() {
-                        $("#update-progress-content").html(
-                            "<p style=\"margin:0;color:#dc3232;\">✗ 更新失败，请稍后重试或手动下载安装</p>"
-                        );
-                        $("#install-update-btn").prop("disabled", false).text("重试");
-                    }
-                });
-            }
         });
         </script>';
     }
