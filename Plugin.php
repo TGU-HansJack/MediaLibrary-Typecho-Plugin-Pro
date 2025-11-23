@@ -428,7 +428,7 @@ jQuery(function($) {
     function fetchLogs() {
         setLogButtonsDisabled(true);
         setStatus("正在加载日志...", "loading");
-        $.get(logEndpoint, { action: "get_logs", limit: 200 }, function(res) {
+        $.get(logEndpoint, { do: "get_logs", limit: 200 }, function(res) {
             if (res.success) {
                 renderLogs(res.logs || []);
                 setStatus("日志已更新", "success");
@@ -452,7 +452,7 @@ jQuery(function($) {
         }
         setLogButtonsDisabled(true);
         setStatus("正在清空日志...", "loading");
-        $.post(logEndpoint, { action: "clear_logs" }, function(res) {
+        $.post(logEndpoint, { do: "clear_logs" }, function(res) {
             if (res.success) {
                 renderLogs([]);
                 setStatus(res.message || "日志已清空", "success");
