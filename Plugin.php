@@ -370,6 +370,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         foreach ($slugs as $slug) {
             $logEndpoints[] = Typecho_Common::url('action/' . $slug, $baseIndex);
             $logEndpoints[] = Typecho_Common::url('index.php/action/' . $slug, $baseIndex);
+            $logEndpoints[] = Typecho_Common::url('index.php?action=' . $slug, $baseIndex);
         }
         $logEndpoints = array_values(array_unique($logEndpoints));
         $logEndpointsJson = json_encode($logEndpoints, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
