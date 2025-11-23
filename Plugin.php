@@ -1,8 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
-require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogAction.php';
-
 /**
  * 媒体库管理插件，可以在后台对整体文件信息的查看和编辑、上传和删除，图片压缩和隐私检测，多媒体预览，文章编辑器中预览和插入的简单媒体库
  * 
@@ -13,10 +11,6 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogActio
  */
 class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 {
-    /**
-     * @var string 当前使用的日志 Action 名称
-     */
-    private static $logActionSlug = 'medialibrarylogs';
 
     /**
      * 激活插件方法,如果激活失败,直接抛出异常
@@ -29,7 +23,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
-        self::ensureLogActionRegistered();
         
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -50,47 +43,10 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 移除控制台菜单
         Helper::removePanel(3, 'MediaLibrary/panel.php');
-        Helper::removeAction('medialibrarylogs');
-        Helper::removeAction('medialibraryLogs');
-        Helper::removeAction('medialibrary-logs');
         
         return '媒体库插件已禁用！';
     }
     
-    /**
-     * Ensure log action route exists (self-heals after updates without re-activation)
-     */
-    private static function ensureLogActionRegistered()
-    {
-        $expectedClass = 'MediaLibrary_LogAction';
-        $preferredSlug = 'medialibrarylogs';
-        $legacySlugs = array('medialibraryLogs', 'medialibrary-logs');
-
-        $actions = Helper::options()->action;
-        if (is_object($actions) && method_exists($actions, 'toArray')) {
-            $actions = $actions->toArray();
-        } elseif (!is_array($actions)) {
-            $actions = array();
-        }
-
-        $currentClass = isset($actions[$preferredSlug]) ? $actions[$preferredSlug] : null;
-        if ($currentClass !== $expectedClass) {
-            if ($currentClass) {
-                Helper::removeAction($preferredSlug);
-            }
-            Helper::addAction($preferredSlug, $expectedClass);
-        }
-
-        foreach ($legacySlugs as $legacySlug) {
-            if (isset($actions[$legacySlug])) {
-                Helper::removeAction($legacySlug);
-            }
-        }
-
-        self::$logActionSlug = $preferredSlug;
-        return $preferredSlug;
-    }
-
     /**
      * 在写作页面添加媒体库
      */
@@ -121,7 +77,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
-        self::ensureLogActionRegistered();
         // 显示版本信息和更新检测
         self::displayVersionInfo($form);
 
@@ -301,17 +256,37 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     private static function displayLogViewer()
     {
         $logFile = MediaLibrary_Logger::getLogFile();
+        $isReadable = $logFile && is_file($logFile) && is_readable($logFile);
+        $rawContent = '';
+
+        if ($isReadable) {
+            $rawContent = (string) @file_get_contents($logFile);
+        }
+
+        $logSize = $isReadable ? number_format(filesize($logFile)) . ' B' : null;
+        $logUpdated = $isReadable ? date('Y-m-d H:i:s', filemtime($logFile)) : null;
+        $logMetaParts = array();
+
+        if ($logUpdated) {
+            $logMetaParts[] = '最后更新：' . $logUpdated;
+        }
+        if ($logSize) {
+            $logMetaParts[] = '大小：' . $logSize;
+        }
+
+        $logMetaText = $logMetaParts ? implode(' ｜ ', $logMetaParts) : '日志文件尚未生成或无法读取。';
+        $displayContent = trim($rawContent) !== '' ? htmlspecialchars($rawContent) : '暂无日志内容。';
+
         $logHtml = '<div class="ml-log-viewer">';
         $logHtml .= '<div class="ml-log-head">';
         $logHtml .= '<div><h4 style="margin:0 0 6px 0;">处理流程日志</h4>';
-        $logHtml .= '<p style="margin:0;color:#666;font-size:13px;">查看所有操作的实时记录，点击每行可展开详细信息</p></div>';
-        $logHtml .= '<div class="ml-log-actions">';
-        $logHtml .= '<button type="button" class="btn btn-s" id="ml-refresh-logs">刷新日志</button>';
-        $logHtml .= '<button type="button" class="btn btn-s" id="ml-clear-logs" style="background:#dc3232;color:#fff;margin-left:10px;">清空日志</button>';
-        $logHtml .= '</div></div>';
-        $logHtml .= '<div class="ml-log-meta">日志文件位置：<code style="font-size:12px;">' . htmlspecialchars($logFile) . '</code></div>';
-        $logHtml .= '<div id="ml-log-status" class="ml-log-status"></div>';
-        $logHtml .= '<div id="ml-log-list" class="ml-log-list"><div class="ml-log-empty">正在加载日志...</div></div>';
+        $logHtml .= '<p style="margin:0;color:#666;font-size:13px;">以下内容来自日志文件，可直接滚动查看。</p></div>';
+        $logHtml .= '</div>';
+        $logHtml .= '<div class="ml-log-meta">日志文件位置：<code style="font-size:12px;">' . htmlspecialchars($logFile) . '</code>';
+        $logHtml .= '<div class="ml-log-meta-extra">' . htmlspecialchars($logMetaText) . '</div></div>';
+        $logHtml .= '<div class="ml-log-raw-wrap">';
+        $logHtml .= '<pre class="ml-log-raw">' . $displayContent . '</pre>';
+        $logHtml .= '</div>';
         $logHtml .= '</div>';
 
         echo $logHtml;
@@ -322,8 +297,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
      */
     private static function addConfigPageAssets()
     {
-        $pluginUrl = Helper::options()->pluginUrl . '/MediaLibrary';
-
         ob_start();
         Helper::options()->adminStaticUrl('js', 'jquery.js');
         $jquerySource = trim(ob_get_clean());
@@ -334,46 +307,16 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
         echo '<style>
 .ml-log-viewer{background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;margin:20px 0 30px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
-.ml-log-head{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;margin-bottom:10px;}
-.ml-log-actions button{margin-left:0;}
-.ml-log-meta{font-size:12px;color:#777;margin-bottom:8px;}
-.ml-log-list{border-top:1px solid #eee;}
-.ml-log-item{border-bottom:1px solid #f3f3f3;}
-.ml-log-summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 0;cursor:pointer;}
-.ml-log-summary:hover{color:#0073aa;}
-.ml-log-time{font-weight:600;color:#333;}
-.ml-log-level{padding:2px 6px;border-radius:4px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;}
-.ml-log-level.level-info{background:#e3f6ed;color:#24613f;}
-.ml-log-level.level-warning{background:#fff4e5;color:#7c4a03;}
-.ml-log-level.level-error{background:#fdecea;color:#a82812;}
-.ml-log-level.level-debug{background:#eef2ff;color:#1d3d8f;}
-.ml-log-action{font-weight:600;color:#555;}
-.ml-log-message{color:#555;flex:1;min-width:160px;}
-.ml-log-user{margin-left:auto;color:#666;font-size:12px;}
-.ml-log-detail{display:none;background:#f7f9fb;padding:12px;border-radius:4px;margin-bottom:12px;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
-.ml-log-empty{padding:30px;text-align:center;color:#888;}
-.ml-log-status{min-height:18px;font-size:12px;margin-bottom:10px;}
-.ml-log-status.is-loading{color:#555;}
-.ml-log-status.is-success{color:#2b6c4b;}
-.ml-log-status.is-error{color:#b32700;}
+.ml-log-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;flex-wrap:wrap;margin-bottom:10px;}
+.ml-log-meta{font-size:12px;color:#777;margin-bottom:10px;line-height:1.6;}
+.ml-log-meta code{font-size:12px;}
+.ml-log-meta-extra{margin-top:4px;}
+.ml-log-raw-wrap{border:1px solid #eee;background:#0f172a;color:#e2e8f0;border-radius:6px;max-height:420px;overflow:auto;padding:16px;font-family:SFMono-Regular,Consolas,\"Liberation Mono\",Menlo,monospace;font-size:13px;}
+.ml-log-raw{margin:0;white-space:pre-wrap;word-break:break-word;}
+.ml-log-raw-wrap::-webkit-scrollbar{width:8px;height:8px;}
+.ml-log-raw-wrap::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:4px;}
+.ml-log-raw-wrap:hover::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.35);}
 </style>';
-
-        $baseIndex = Helper::options()->index;
-        $slugs = array_unique(array_filter(array(
-            self::$logActionSlug,
-            'medialibrarylogs',
-            'medialibraryLogs',
-            'medialibrary-logs'
-        )));
-
-        $logEndpoints = array();
-        foreach ($slugs as $slug) {
-            $logEndpoints[] = Typecho_Common::url('action/' . $slug, $baseIndex);
-            $logEndpoints[] = Typecho_Common::url('index.php/action/' . $slug, $baseIndex);
-            $logEndpoints[] = Typecho_Common::url('index.php?action=' . $slug, $baseIndex);
-        }
-        $logEndpoints = array_values(array_unique($logEndpoints));
-        $logEndpointsJson = json_encode($logEndpoints, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         echo '<script>
 jQuery(function($) {
@@ -390,187 +333,6 @@ jQuery(function($) {
             }
         });
     }
-    var logEndpoints = ' . $logEndpointsJson . ';
-    var endpointIndex = 0;
-    var logEndpoint = logEndpoints[endpointIndex] || "";
-    var $logList = $("#ml-log-list");
-    var $status = $("#ml-log-status");
-    var statusTimer = null;
-
-    function tryNextLogEndpoint() {
-        if (endpointIndex < logEndpoints.length - 1) {
-            endpointIndex++;
-            logEndpoint = logEndpoints[endpointIndex];
-            if (window.console && console.warn) {
-                console.warn("[MediaLibrary] 日志接口切换为:", logEndpoint);
-            }
-            return true;
-        }
-        return false;
-    }
-
-    function handleEndpointFallback(xhr, retryFn) {
-        if (xhr && xhr.status === 404 && tryNextLogEndpoint()) {
-            setStatus("日志接口不可用，尝试备用接口...", "loading");
-            retryFn();
-            return true;
-        }
-        return false;
-    }
-
-    function formatAjaxError(base, xhr) {
-        if (xhr && xhr.status) {
-            base += "（HTTP " + xhr.status + "）";
-        }
-        return base;
-    }
-
-    function setStatus(message, type) {
-        if (statusTimer) {
-            clearTimeout(statusTimer);
-            statusTimer = null;
-        }
-        if (!message) {
-            $status.text("").removeClass("is-loading is-success is-error").show();
-            return;
-        }
-        $status
-            .removeClass("is-loading is-success is-error")
-            .addClass("is-" + type)
-            .text(message)
-            .show();
-
-        if (type !== "loading") {
-            statusTimer = setTimeout(function() {
-                $status.fadeOut(200, function() {
-                    $(this).text("").removeClass("is-loading is-success is-error").show();
-                });
-            }, 2500);
-        }
-    }
-
-    function setLogButtonsDisabled(disabled) {
-        $("#ml-refresh-logs, #ml-clear-logs").prop("disabled", disabled);
-    }
-
-    function renderLogs(logs) {
-        $logList.empty();
-        if (!logs || !logs.length) {
-            $logList.append("<div class=\"ml-log-empty\">暂无日志记录</div>");
-            return;
-        }
-
-        logs.forEach(function(log) {
-            var $item = $("<div>").addClass("ml-log-item");
-            var $summary = $("<div>").addClass("ml-log-summary");
-            var level = (log.level || "info").toLowerCase();
-            var levelText = level.toUpperCase();
-            var userLabel = "系统";
-            if (log.user && (log.user.screenName || log.user.name)) {
-                userLabel = log.user.screenName || log.user.name;
-                if (log.user.group) {
-                    userLabel += " · " + log.user.group;
-                }
-            }
-
-            $("<span>").addClass("ml-log-time").text(log.timestamp || "-").appendTo($summary);
-            $("<span>").addClass("ml-log-level level-" + level).text(levelText).appendTo($summary);
-            $("<span>").addClass("ml-log-action").text("[" + (log.action || "unknown") + "]").appendTo($summary);
-            $("<span>").addClass("ml-log-message").text(log.message || "").appendTo($summary);
-            $("<span>").addClass("ml-log-user").text(userLabel).appendTo($summary);
-
-            var $detail = $("<pre>").addClass("ml-log-detail");
-            $detail.text(JSON.stringify(log, null, 2));
-            $detail.hide();
-
-            $summary.on("click", function() {
-                $detail.slideToggle(140);
-                $item.toggleClass("is-open");
-            });
-
-            $item.append($summary).append($detail);
-            $logList.append($item);
-        });
-    }
-
-    function fetchLogs(options) {
-        options = options || {};
-        var isRetry = !!options.isRetry;
-
-        if (!logEndpoint) {
-            setStatus("未能解析日志接口地址", "error");
-            return;
-        }
-
-        if (!isRetry) {
-            setLogButtonsDisabled(true);
-            setStatus("正在加载日志...", "loading");
-        }
-
-        $.get(logEndpoint, { do: "get_logs", limit: 200 }, function(res) {
-            if (res.success) {
-                renderLogs(res.logs || []);
-                setStatus("日志已更新", "success");
-            } else {
-                setStatus(res.message || "无法获取日志", "error");
-            }
-            setLogButtonsDisabled(false);
-        }).fail(function(xhr) {
-            if (handleEndpointFallback(xhr, function() {
-                fetchLogs({ isRetry: true });
-            })) {
-                return;
-            }
-            setStatus(formatAjaxError("请求日志失败，请稍后重试", xhr), "error");
-            setLogButtonsDisabled(false);
-        });
-    }
-
-    function clearLogs(options) {
-        options = options || {};
-        var isRetry = !!options.isRetry;
-
-        if (!logEndpoint) {
-            setStatus("未能解析日志接口地址", "error");
-            return;
-        }
-
-        if (!isRetry) {
-            setLogButtonsDisabled(true);
-            setStatus("正在清空日志...", "loading");
-        }
-
-        $.post(logEndpoint, { do: "clear_logs" }, function(res) {
-            if (res.success) {
-                renderLogs([]);
-                setStatus(res.message || "日志已清空", "success");
-            } else {
-                setStatus(res.message || "清空失败", "error");
-            }
-            setLogButtonsDisabled(false);
-        }).fail(function(xhr) {
-            if (handleEndpointFallback(xhr, function() {
-                clearLogs({ isRetry: true });
-            })) {
-                return;
-            }
-            setStatus(formatAjaxError("请求失败，请稍后再试", xhr), "error");
-            setLogButtonsDisabled(false);
-        });
-    }
-
-    $("#ml-refresh-logs").on("click", function() {
-        fetchLogs();
-    });
-
-    $("#ml-clear-logs").on("click", function() {
-        if (!confirm("确定要清空所有日志吗？该操作不可恢复。")) {
-            return;
-        }
-        clearLogs();
-    });
-
-    fetchLogs();
 });
 </script>';
     }
