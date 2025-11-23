@@ -108,18 +108,23 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $repoUrl = MediaLibrary_PluginUpdater::getRepoUrl();
 
         $versionHtml = '<div style="background:#fff;padding:20px;border:1px solid #ddd;border-radius:4px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">';
-        $versionHtml .= '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">';
-        $versionHtml .= '<div>';
-        $versionHtml .= '<h3 style="margin:0 0 5px 0;color:#333;">媒体库管理插件</h3>';
-        $versionHtml .= '<p style="margin:0;color:#666;">当前版本: <strong>' . htmlspecialchars($currentVersion) . '</strong></p>';
-        $versionHtml .= '</div>';
-        $versionHtml .= '<div>';
-        $versionHtml .= '<a href="' . htmlspecialchars($repoUrl) . '" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">';
-        $versionHtml .= '<img src="https://img.shields.io/badge/GitHub-Repo-181717?logo=github&logoColor=white" alt="GitHub Repository" style="height:28px;">';
-        $versionHtml .= '</a>';
-        $versionHtml .= '</div>';
-        $versionHtml .= '</div>';
+        $versionHtml .= '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
 
+        // PHP 语言徽章
+        $versionHtml .= '<img src="https://img.shields.io/badge/PHP-777BB4?logo=php&logoColor=white" alt="PHP" style="height:32px;">';
+
+        // 版本号徽章
+        $versionHtml .= '<img src="https://img.shields.io/badge/version-' . urlencode($currentVersion) . '-blue" alt="Version" style="height:32px;">';
+
+        // GitHub 仓库徽章
+        $versionHtml .= '<a href="' . htmlspecialchars($repoUrl) . '" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">';
+        $versionHtml .= '<img src="https://img.shields.io/badge/GitHub-MediaLibrary-181717?logo=github&logoColor=white" alt="GitHub Repository" style="height:32px;">';
+        $versionHtml .= '</a>';
+
+        // License 徽章
+        $versionHtml .= '<img src="https://img.shields.io/badge/license-MIT-green" alt="License" style="height:32px;">';
+
+        $versionHtml .= '</div>';
         $versionHtml .= '</div>';
 
         echo $versionHtml;
