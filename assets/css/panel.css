@@ -1209,6 +1209,89 @@
     width: 120px;
 }
 
+/* 上传存储选择 */
+.upload-storage-control {
+    border: 1px solid #e8eaed;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    background: #fff;
+}
+
+.upload-storage-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #3c4043;
+    margin-bottom: 12px;
+}
+
+.upload-storage-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.storage-pill {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background: #f8f9fa;
+}
+
+.storage-pill input[type="radio"] {
+    margin-top: 4px;
+}
+
+.storage-pill-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.storage-pill-name {
+    font-weight: 600;
+    color: #202124;
+}
+
+.storage-pill-desc {
+    font-size: 12px;
+    color: #5f6368;
+}
+.storage-pill input:checked {
+    accent-color: #1a73e8;
+}
+
+.storage-pill:not(.disabled):hover {
+    border-color: #1a73e8;
+    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.15);
+}
+
+.storage-pill.active {
+    border-color: #1a73e8;
+    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.2);
+    background: #fff;
+}
+
+.storage-pill.active .storage-pill-name {
+    color: #1a73e8;
+}
+
+.storage-pill.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.upload-storage-hint {
+    font-size: 13px;
+    color: #5f6368;
+}
+
 /* 上传区域样式 */
 .upload-area {
     border: 2px dashed #dadce0;

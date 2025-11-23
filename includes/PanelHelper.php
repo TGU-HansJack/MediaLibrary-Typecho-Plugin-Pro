@@ -1,22 +1,22 @@
-<?php
+﻿<?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 
 /**
- * 面板助手类 - 处理面板显示逻辑
+ * 闈㈡澘鍔╂墜绫?- 澶勭悊闈㈡澘鏄剧ず閫昏緫
  */
 class MediaLibrary_PanelHelper
 {
     /**
-     * 获取插件配置
+     * 鑾峰彇鎻掍欢閰嶇疆
      * 
-     * @return array 配置选项
+     * @return array 閰嶇疆閫夐」
      */
     public static function getPluginConfig()
     {
         try {
             $config = Helper::options()->plugin('MediaLibrary');
-            // 兼容复选框和旧版本配置
+            // 鍏煎澶嶉€夋鍜屾棫鐗堟湰閰嶇疆
             $enableGetID3 = is_array($config->enableGetID3) ? in_array('1', $config->enableGetID3) : ($config->enableGetID3 == '1');
             $enableExif = is_array($config->enableExif) ? in_array('1', $config->enableExif) : ($config->enableExif == '1');
             $enableGD = is_array($config->enableGD) ? in_array('1', $config->enableGD) : ($config->enableGD == '1');
@@ -71,22 +71,22 @@ class MediaLibrary_PanelHelper
     }
     
     /**
-     * 获取媒体列表
+     * 鑾峰彇濯掍綋鍒楄〃
      * 
-     * @param Typecho_Db $db 数据库连接
-     * @param int $page 当前页码
-     * @param int $pageSize 每页显示数量
-     * @param string $keywords 搜索关键词
-     * @param string $type 文件类型过滤
-     * @param string $storage 存储类型过滤 (all, local, webdav)
-     * @return array 媒体列表数据
+     * @param Typecho_Db $db 鏁版嵁搴撹繛鎺?
+     * @param int $page 褰撳墠椤电爜
+     * @param int $pageSize 姣忛〉鏄剧ず鏁伴噺
+     * @param string $keywords 鎼滅储鍏抽敭璇?
+     * @param string $type 鏂囦欢绫诲瀷杩囨护
+     * @param string $storage 瀛樺偍绫诲瀷杩囨护 (all, local, webdav)
+     * @return array 濯掍綋鍒楄〃鏁版嵁
      */
     public static function getMediaList($db, $page, $pageSize, $keywords, $type, $storage = 'all')
     {
-        // 构建查询 - 添加去重和更严格的条件
+        // 鏋勫缓鏌ヨ - 娣诲姞鍘婚噸鍜屾洿涓ユ牸鐨勬潯浠?
         $select = $db->select()->from('table.contents')
             ->where('table.contents.type = ?', 'attachment')
-            ->where('table.contents.status = ?', 'publish')  // 只查询已发布的附件
+            ->where('table.contents.status = ?', 'publish')  // 鍙煡璇㈠凡鍙戝竷鐨勯檮浠?
             ->order('table.contents.created', Typecho_Db::SORT_DESC);
 
         if (!empty($keywords)) {
@@ -95,15 +95,25 @@ class MediaLibrary_PanelHelper
 
         // 存储类型筛选
         // WebDAV 文件在上传时会在 text 字段中添加 'storage' => 'webdav' 标记
+        $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
         if ($storage !== 'all') {
             if ($storage === 'webdav') {
-                // 筛选 WebDAV 文件：查找 text 字段包含 webdav 存储标记的文件
-                $select->where('table.contents.text LIKE ?', '%s:7:"storage";s:6:"webdav"%');
+                $select->where('table.contents.text LIKE BINARY ?', $webdavMarker);
             } elseif ($storage === 'local') {
-                // 筛选本地文件：排除带有 webdav 标记的文件
-                $select->where('table.contents.text NOT LIKE ?', '%s:7:"storage";s:6:"webdav"%');
+                $select->where('(table.contents.text IS NULL OR table.contents.text = "" OR table.contents.text NOT LIKE BINARY ?)', $webdavMarker);
             }
         }
+
+
+            } elseif ($storage === 'local') {
+
+                $select->where('(table.contents.text IS NULL OR table.contents.text = "" OR table.contents.text NOT LIKE BINARY ?)', $webdavMarker);
+
+            }
+
+        }
+
+
 
         if ($type !== 'all') {
             switch ($type) {
@@ -122,20 +132,20 @@ class MediaLibrary_PanelHelper
             }
         }
         
-        // 获取总数 - 使用 DISTINCT 避免重复计数
+        // 鑾峰彇鎬绘暟 - 浣跨敤 DISTINCT 閬垮厤閲嶅璁℃暟
         $totalQuery = clone $select;
         $total = $db->fetchObject($totalQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
         
-        // 分页查询 - 添加 DISTINCT 和 GROUP BY
+        // 鍒嗛〉鏌ヨ - 娣诲姞 DISTINCT 鍜?GROUP BY
         $offset = ($page - 1) * $pageSize;
         $attachments = $db->fetchAll($select->group('table.contents.cid')->limit($pageSize)->offset($offset));
         
-        // 处理附件数据 - 添加去重逻辑
-        $processedCids = array(); // 用于跟踪已处理的 CID
+        // 澶勭悊闄勪欢鏁版嵁 - 娣诲姞鍘婚噸閫昏緫
+        $processedCids = array(); // 鐢ㄤ簬璺熻釜宸插鐞嗙殑 CID
         $uniqueAttachments = array();
         
         foreach ($attachments as $attachment) {
-            // 跳过已处理的 CID
+            // 璺宠繃宸插鐞嗙殑 CID
             if (in_array($attachment['cid'], $processedCids)) {
                 continue;
             }
@@ -181,10 +191,10 @@ class MediaLibrary_PanelHelper
             }
             
             if (!isset($attachment['title']) || empty($attachment['title'])) {
-                $attachment['title'] = isset($attachmentData['name']) ? $attachmentData['name'] : '未命名文件';
+                $attachment['title'] = isset($attachmentData['name']) ? $attachmentData['name'] : '鏈懡鍚嶆枃浠?;
             }
             
-            // 获取所属文章信息
+            // 鑾峰彇鎵€灞炴枃绔犱俊鎭?
             $attachment['parent_post'] = self::getParentPost($db, $attachment['cid']);
             
             $uniqueAttachments[] = $attachment;
@@ -197,11 +207,11 @@ class MediaLibrary_PanelHelper
     }
     
     /**
-     * 获取文件所属文章
+     * 鑾峰彇鏂囦欢鎵€灞炴枃绔?
      * 
-     * @param Typecho_Db $db 数据库连接
-     * @param int $attachmentCid 附件ID
-     * @return array 所属文章信息
+     * @param Typecho_Db $db 鏁版嵁搴撹繛鎺?
+     * @param int $attachmentCid 闄勪欢ID
+     * @return array 鎵€灞炴枃绔犱俊鎭?
      */
     public static function getParentPost($db, $attachmentCid)
     {
@@ -232,11 +242,11 @@ class MediaLibrary_PanelHelper
     }
     
     /**
-     * 获取详细文件信息
+     * 鑾峰彇璇︾粏鏂囦欢淇℃伅
      * 
-     * @param string $filePath 文件路径
-     * @param bool $enableGetID3 是否启用GetID3
-     * @return array 文件详情
+     * @param string $filePath 鏂囦欢璺緞
+     * @param bool $enableGetID3 鏄惁鍚敤GetID3
+     * @return array 鏂囦欢璇︽儏
      */
     public static function getDetailedFileInfo($filePath, $enableGetID3 = false)
     {
@@ -260,7 +270,7 @@ class MediaLibrary_PanelHelper
             finfo_close($finfoMime);
         }
         
-        // 只有启用 GetID3 才使用
+        // 鍙湁鍚敤 GetID3 鎵嶄娇鐢?
         if ($enableGetID3 && file_exists(__TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/lib/getid3/getid3.php')) {
             try {
                 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/lib/getid3/getid3.php';
@@ -280,11 +290,11 @@ class MediaLibrary_PanelHelper
                 }
                 
                 if (isset($fileInfo['video']['resolution_x']) && isset($fileInfo['video']['resolution_y'])) {
-                    $info['dimensions'] = $fileInfo['video']['resolution_x'] . ' × ' . $fileInfo['video']['resolution_y'];
+                    $info['dimensions'] = $fileInfo['video']['resolution_x'] . ' 脳 ' . $fileInfo['video']['resolution_y'];
                 }
                 
                 if (isset($fileInfo['audio']['channels'])) {
-                    $info['channels'] = $fileInfo['audio']['channels'] . ' 声道';
+                    $info['channels'] = $fileInfo['audio']['channels'] . ' 澹伴亾';
                 }
                 
                 if (isset($fileInfo['audio']['sample_rate'])) {
@@ -292,7 +302,7 @@ class MediaLibrary_PanelHelper
                 }
                 
             } catch (Exception $e) {
-                // GetID3 分析失败，忽略错误
+                // GetID3 鍒嗘瀽澶辫触锛屽拷鐣ラ敊璇?
             }
         }
         
@@ -300,7 +310,7 @@ class MediaLibrary_PanelHelper
     }
 
     /**
-     * 获取 WebDAV 连接状态
+     * 鑾峰彇 WebDAV 杩炴帴鐘舵€?
      */
     public static function getWebDAVStatus($configOptions)
     {
@@ -308,7 +318,7 @@ class MediaLibrary_PanelHelper
             'enabled' => !empty($configOptions['enableWebDAV']),
             'configured' => false,
             'connected' => false,
-            'message' => 'WebDAV 未启用',
+            'message' => 'WebDAV 鏈惎鐢?,
             'root' => isset($configOptions['webdavBasePath']) ? $configOptions['webdavBasePath'] : '/'
         ];
 
@@ -321,7 +331,7 @@ class MediaLibrary_PanelHelper
             ($configOptions['webdavPassword'] !== '');
 
         $status['configured'] = $hasCredentials;
-        $status['message'] = $hasCredentials ? '尝试连接 WebDAV ...' : '请完善 WebDAV 配置';
+        $status['message'] = $hasCredentials ? '灏濊瘯杩炴帴 WebDAV ...' : '璇峰畬鍠?WebDAV 閰嶇疆';
 
         if (!$hasCredentials) {
             return $status;
@@ -330,16 +340,16 @@ class MediaLibrary_PanelHelper
         try {
             $client = new MediaLibrary_WebDAVClient($configOptions);
             $status['connected'] = $client->ping();
-            $status['message'] = $status['connected'] ? 'WebDAV 服务连接正常' : '无法连接 WebDAV 服务';
+            $status['message'] = $status['connected'] ? 'WebDAV 鏈嶅姟杩炴帴姝ｅ父' : '鏃犳硶杩炴帴 WebDAV 鏈嶅姟';
         } catch (Exception $e) {
-            $status['message'] = 'WebDAV 连接异常：' . $e->getMessage();
+            $status['message'] = 'WebDAV 杩炴帴寮傚父锛? . $e->getMessage();
         }
 
         return $status;
     }
 
     /**
-     * 生成存储状态列表
+     * 鐢熸垚瀛樺偍鐘舵€佸垪琛?
      */
     public static function getStorageStatusList($webdavStatus)
     {
@@ -347,34 +357,34 @@ class MediaLibrary_PanelHelper
 
         $list[] = [
             'key' => 'local',
-            'name' => '本地存储',
-            'icon' => '📁',
+            'name' => '鏈湴瀛樺偍',
+            'icon' => '馃搧',
             'class' => 'active',
-            'badge' => '活跃',
-            'description' => '使用 Typecho 默认上传目录'
+            'badge' => '娲昏穬',
+            'description' => '浣跨敤 Typecho 榛樿涓婁紶鐩綍'
         ];
 
         $webdavClass = 'disabled';
-        $webdavBadge = $webdavStatus['enabled'] ? '未配置' : '未启用';
+        $webdavBadge = $webdavStatus['enabled'] ? '鏈厤缃? : '鏈惎鐢?;
         $webdavDesc = $webdavStatus['message'];
 
         if ($webdavStatus['enabled']) {
             if (!$webdavStatus['configured']) {
                 $webdavClass = 'disabled';
-                $webdavBadge = '未配置';
+                $webdavBadge = '鏈厤缃?;
             } elseif ($webdavStatus['connected']) {
                 $webdavClass = 'active';
-                $webdavBadge = '已连接';
+                $webdavBadge = '宸茶繛鎺?;
             } else {
                 $webdavClass = 'error';
-                $webdavBadge = '连接异常';
+                $webdavBadge = '杩炴帴寮傚父';
             }
         }
 
         $list[] = [
             'key' => 'webdav',
             'name' => 'WebDAV',
-            'icon' => '☁️',
+            'icon' => '鈽侊笍',
             'class' => $webdavClass,
             'badge' => $webdavBadge,
             'description' => $webdavDesc
@@ -382,18 +392,18 @@ class MediaLibrary_PanelHelper
 
         $list[] = [
             'key' => 'object',
-            'name' => '对象存储',
-            'icon' => '🌐',
+            'name' => '瀵硅薄瀛樺偍',
+            'icon' => '馃寪',
             'class' => 'disabled',
-            'badge' => '开发中',
-            'description' => '后续版本将提供常见对象存储适配'
+            'badge' => '寮€鍙戜腑',
+            'description' => '鍚庣画鐗堟湰灏嗘彁渚涘父瑙佸璞″瓨鍌ㄩ€傞厤'
         ];
 
         return $list;
     }
 
     /**
-     * 规范化 WebDAV 基础路径
+     * 瑙勮寖鍖?WebDAV 鍩虹璺緞
      */
     private static function normalizeWebDAVPath($path)
     {

@@ -7,6 +7,57 @@
                 <span class="modal-close">&times;</span>
             </div>
             <div class="modal-body">
+                <?php
+                $defaultUploadStorage = ($storage && $storage !== 'all') ? $storage : 'local';
+                $uploadStorageOptions = array(
+                    array(
+                        'value' => 'local',
+                        'label' => '本地存储',
+                        'description' => '保存到服务器的上传目录',
+                        'available' => true
+                    )
+                );
+                if (!empty($webdavStatus['enabled'])) {
+                    $uploadStorageOptions[] = array(
+                        'value' => 'webdav',
+                        'label' => 'WebDAV',
+                        'description' => $webdavStatus['message'],
+                        'available' => !empty($webdavStatus['configured']) && !empty($webdavStatus['connected'])
+                    );
+                }
+                $hasDefaultUploadStorage = false;
+                foreach ($uploadStorageOptions as $storageOption) {
+                    if ($storageOption['value'] === $defaultUploadStorage && !empty($storageOption['available'])) {
+                        $hasDefaultUploadStorage = true;
+                        break;
+                    }
+                }
+                if (!$hasDefaultUploadStorage) {
+                    $defaultUploadStorage = 'local';
+                }
+                ?>
+                <div class="upload-storage-control">
+                    <div class="upload-storage-label">选择存储位置</div>
+                    <div class="upload-storage-options">
+                        <?php foreach ($uploadStorageOptions as $storageOption): ?>
+                            <label class="storage-pill <?php echo empty($storageOption['available']) ? 'disabled' : ''; ?>">
+                                <input type="radio"
+                                    name="upload-storage"
+                                    value="<?php echo $storageOption['value']; ?>"
+                                    data-label="<?php echo htmlspecialchars($storageOption['label']); ?>"
+                                    <?php if ($storageOption['value'] === $defaultUploadStorage): ?>checked<?php endif; ?>
+                                    <?php if (empty($storageOption['available'])): ?>disabled<?php endif; ?>>
+                                <div class="storage-pill-text">
+                                    <span class="storage-pill-name"><?php echo htmlspecialchars($storageOption['label']); ?></span>
+                                    <?php if (!empty($storageOption['description'])): ?>
+                                        <span class="storage-pill-desc"><?php echo htmlspecialchars($storageOption['description']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="upload-storage-hint">当前上传至：<strong id="upload-storage-current-label"><?php echo $defaultUploadStorage === 'webdav' ? 'WebDAV' : '本地存储'; ?></strong></div>
+                </div>
                 <div id="upload-area" class="upload-area">
                     <p>拖拽文件到此处或点击选择文件</p>
                     <a href="#" id="upload-file-btn" class="btn btn-primary">选择文件</a>
