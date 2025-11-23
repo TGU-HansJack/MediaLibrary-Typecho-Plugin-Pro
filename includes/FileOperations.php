@@ -1,6 +1,8 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
+
 /**
  * 文件操作工具类
  */
@@ -35,6 +37,10 @@ class MediaLibrary_FileOperations
             }
         }
         
+        MediaLibrary_Logger::log('delete', '删除操作完成', [
+            'requested_cids' => $cids,
+            'deleted' => $deleteCount
+        ]);
         return ['success' => true, 'message' => "成功删除 {$deleteCount} 个文件"];
     }
     
@@ -52,6 +58,9 @@ class MediaLibrary_FileOperations
             ->where('cid = ? AND type = ?', $cid, 'attachment'));
             
         if (!$attachment) {
+            MediaLibrary_Logger::log('get_info', '获取文件信息失败：文件不存在', [
+                'cid' => $cid
+            ], 'error');
             return ['success' => false, 'message' => '文件不存在'];
         }
         
@@ -65,6 +74,10 @@ class MediaLibrary_FileOperations
             'path' => $attachmentData['path']
         ];
         
+        MediaLibrary_Logger::log('get_info', '获取文件信息成功', [
+            'cid' => $cid,
+            'title' => $attachment['title']
+        ]);
         return ['success' => true, 'data' => $info];
     }
     

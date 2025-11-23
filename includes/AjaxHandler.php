@@ -1,6 +1,8 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
+
 /**
  * Ajax请求处理类
  */
@@ -73,9 +75,17 @@ class MediaLibrary_AjaxHandler
                     break;
                     
                 default:
+                    MediaLibrary_Logger::log('ajax_unknown', '收到未知的操作请求', [
+                        'action' => $action
+                    ], 'warning');
                     echo json_encode(['success' => false, 'message' => '未知操作'], JSON_UNESCAPED_UNICODE);
             }
         } catch (Exception $e) {
+            MediaLibrary_Logger::log('ajax_error', '操作失败: ' . $e->getMessage(), [
+                'action' => $action,
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 'error');
             echo json_encode(['success' => false, 'message' => '操作失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
         exit;
@@ -88,6 +98,7 @@ class MediaLibrary_AjaxHandler
     {
         $cids = $request->getArray('cids');
         if (empty($cids)) {
+            MediaLibrary_Logger::log('delete', '删除操作失败：未选择文件', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择要删除的文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -116,6 +127,10 @@ class MediaLibrary_AjaxHandler
             }
         }
         
+        MediaLibrary_Logger::log('delete', '删除操作完成', [
+            'requested_cids' => $cids,
+            'deleted' => $deleteCount
+        ]);
         echo json_encode(['success' => true, 'message' => "成功删除 {$deleteCount} 个文件"], JSON_UNESCAPED_UNICODE);
     }
     
@@ -125,6 +140,7 @@ class MediaLibrary_AjaxHandler
     private static function handleUploadAction()
     {
         if (empty($_FILES)) {
+            MediaLibrary_Logger::log('upload', '上传失败：没有文件上传', [], 'warning');
             echo json_encode(['success' => false, 'message' => '没有文件上传'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -135,11 +151,21 @@ class MediaLibrary_AjaxHandler
             $result = $upload->upload($_FILES);
             
             if ($result) {
+                MediaLibrary_Logger::log('upload', '上传成功', [
+                    'files' => self::summarizeUploadedFiles(),
+                    'result' => $result
+                ]);
                 echo json_encode(['success' => true, 'count' => 1, 'data' => $result], JSON_UNESCAPED_UNICODE);
             } else {
+                MediaLibrary_Logger::log('upload', '上传失败：上传返回空结果', [
+                    'files' => self::summarizeUploadedFiles()
+                ], 'error');
                 echo json_encode(['success' => false, 'message' => '上传失败'], JSON_UNESCAPED_UNICODE);
             }
         } catch (Exception $e) {
+            MediaLibrary_Logger::log('upload', '上传失败: ' . $e->getMessage(), [
+                'files' => self::summarizeUploadedFiles()
+            ], 'error');
             echo json_encode(['success' => false, 'message' => '上传失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
     }
@@ -151,6 +177,7 @@ class MediaLibrary_AjaxHandler
     {
         $cid = intval($request->get('cid'));
         if (!$cid) {
+            MediaLibrary_Logger::log('get_info', '获取文件信息失败：无效的文件ID', [], 'warning');
             echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -159,6 +186,9 @@ class MediaLibrary_AjaxHandler
             ->where('cid = ? AND type = ?', $cid, 'attachment'));
             
         if (!$attachment) {
+            MediaLibrary_Logger::log('get_info', '获取文件信息失败：文件不存在', [
+                'cid' => $cid
+            ], 'error');
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -191,6 +221,10 @@ class MediaLibrary_AjaxHandler
             'detailed_info' => $detailedInfo
         ];
         
+        MediaLibrary_Logger::log('get_info', '获取文件信息成功', [
+            'cid' => $cid,
+            'title' => $info['title']
+        ]);
         echo json_encode(['success' => true, 'data' => $info], JSON_UNESCAPED_UNICODE);
     }
     
@@ -207,6 +241,7 @@ class MediaLibrary_AjaxHandler
         $customName = $request->get('custom_name', '');
         
         if (empty($cids)) {
+            MediaLibrary_Logger::log('compress_images', '压缩图片失败：未选择文件', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择要压缩的图片'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -227,6 +262,14 @@ class MediaLibrary_AjaxHandler
             $results[] = $result;
         }
         
+        MediaLibrary_Logger::log('compress_images', '批量图片压缩完成', [
+            'cids' => $cids,
+            'quality' => $quality,
+            'output_format' => $outputFormat,
+            'method' => $compressMethod,
+            'replace_original' => $replaceOriginal,
+            'results' => $results
+        ]);
         echo json_encode(['success' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
     }
     
@@ -242,6 +285,7 @@ class MediaLibrary_AjaxHandler
         $customName = $request->get('custom_name', '');
         
         if (empty($cids)) {
+            MediaLibrary_Logger::log('compress_videos', '压缩视频失败：未选择文件', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择要压缩的视频'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -261,6 +305,13 @@ class MediaLibrary_AjaxHandler
             $results[] = $result;
         }
         
+        MediaLibrary_Logger::log('compress_videos', '批量视频压缩完成', [
+            'cids' => $cids,
+            'quality' => $quality,
+            'codec' => $codec,
+            'replace_original' => $replaceOriginal,
+            'results' => $results
+        ]);
         echo json_encode(['success' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
     }
 
@@ -281,11 +332,16 @@ private static function handleCropImageAction($request, $db, $options, $user)
     $useLibrary = $request->get('use_library', 'gd');
     
     if (!$cid) {
+        MediaLibrary_Logger::log('crop_image', '裁剪失败：无效的文件ID', [], 'warning');
         echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
         return;
     }
     
     if ($width <= 0 || $height <= 0) {
+        MediaLibrary_Logger::log('crop_image', '裁剪失败：无效的裁剪尺寸', [
+            'width' => $width,
+            'height' => $height
+        ], 'warning');
         echo json_encode(['success' => false, 'message' => '无效的裁剪尺寸'], JSON_UNESCAPED_UNICODE);
         return;
     }
@@ -293,6 +349,13 @@ private static function handleCropImageAction($request, $db, $options, $user)
     $result = MediaLibrary_ImageEditor::cropImage(
         $cid, $x, $y, $width, $height, $replaceOriginal, $customName, $useLibrary, $db, $options, $user
     );
+    MediaLibrary_Logger::log('crop_image', $result['message'], [
+        'cid' => $cid,
+        'replace_original' => $replaceOriginal,
+        'custom_name' => $customName,
+        'use_library' => $useLibrary,
+        'result' => $result
+    ], !empty($result['success']) ? 'info' : 'error');
     
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
 }
@@ -310,6 +373,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     $useLibrary = $request->get('use_library', 'gd');
     
     if (!$cid) {
+        MediaLibrary_Logger::log('add_watermark', '水印失败：无效的文件ID', [], 'warning');
         echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
         return;
     }
@@ -353,6 +417,9 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         // 水印缩放比例
         $watermarkConfig['scale'] = floatval($request->get('watermark_scale', 1));
     } else {
+        MediaLibrary_Logger::log('add_watermark', '水印失败：不支持的水印类型', [
+            'type' => $watermarkConfig['type']
+        ], 'warning');
         echo json_encode(['success' => false, 'message' => '不支持的水印类型'], JSON_UNESCAPED_UNICODE);
         return;
     }
@@ -360,6 +427,14 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     $result = MediaLibrary_ImageEditor::addWatermark(
         $cid, $watermarkConfig, $replaceOriginal, $customName, $useLibrary, $db, $options, $user
     );
+    MediaLibrary_Logger::log('add_watermark', $result['message'], [
+        'cid' => $cid,
+        'config' => $watermarkConfig,
+        'replace_original' => $replaceOriginal,
+        'custom_name' => $customName,
+        'use_library' => $useLibrary,
+        'result' => $result
+    ], !empty($result['success']) ? 'info' : 'error');
     
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
 }
@@ -375,12 +450,18 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         $hasPhpExif = extension_loaded('exif');
         
         if (!$enableExif || (!$hasExifTool && !$hasPhpExif)) {
+            MediaLibrary_Logger::log('check_privacy', 'EXIF检测失败：功能未启用或无可用工具', [
+                'enable_exif' => $enableExif,
+                'has_exiftool' => $hasExifTool,
+                'has_exif_extension' => $hasPhpExif
+            ], 'warning');
             echo json_encode(['success' => false, 'message' => 'EXIF功能未启用或无可用的EXIF工具'], JSON_UNESCAPED_UNICODE);
             return;
         }
         
         $cids = $request->getArray('cids');
         if (empty($cids)) {
+            MediaLibrary_Logger::log('check_privacy', 'EXIF检测失败：未选择图片', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择要检测的图片'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -391,6 +472,10 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             $results[] = $result;
         }
         
+        MediaLibrary_Logger::log('check_privacy', '隐私检测完成', [
+            'cids' => $cids,
+            'results' => $results
+        ]);
         echo json_encode(['success' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
     }
     
@@ -401,6 +486,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     {
         $cids = $request->getArray('cids');
         if (empty($cids)) {
+            MediaLibrary_Logger::log('get_gps_data', '获取GPS数据失败：未选择图片', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择图片文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -438,6 +524,10 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             }
         }
         
+        MediaLibrary_Logger::log('get_gps_data', 'GPS 数据获取完成', [
+            'cids' => $cids,
+            'count' => count($gpsData)
+        ]);
         echo json_encode(['success' => true, 'data' => $gpsData], JSON_UNESCAPED_UNICODE);
     }
     
@@ -448,6 +538,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     {
         $cids = $request->getArray('cids');
         if (empty($cids)) {
+            MediaLibrary_Logger::log('smart_suggestion', '获取智能建议失败：未选择图片', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择图片文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -475,6 +566,10 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             }
         }
         
+        MediaLibrary_Logger::log('smart_suggestion', '智能压缩建议生成完毕', [
+            'cids' => $cids,
+            'count' => count($suggestions)
+        ]);
         echo json_encode(['success' => true, 'suggestions' => $suggestions], JSON_UNESCAPED_UNICODE);
     }
     
@@ -489,12 +584,18 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         $hasGD = extension_loaded('gd');
         
         if (!$enableExif || (!$hasExifTool && !$hasGD)) {
+            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：功能未启用或缺少工具', [
+                'enable_exif' => $enableExif,
+                'has_exiftool' => $hasExifTool,
+                'has_gd' => $hasGD
+            ], 'warning');
             echo json_encode(['success' => false, 'message' => 'EXIF功能未启用或无可用的EXIF清除工具'], JSON_UNESCAPED_UNICODE);
             return;
         }
         
         $cid = intval($request->get('cid'));
         if (!$cid) {
+            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：无效的文件ID', [], 'warning');
             echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -503,30 +604,49 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             ->where('cid = ? AND type = ?', $cid, 'attachment'));
             
         if (!$attachment) {
+            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不存在', [
+                'cid' => $cid
+            ], 'error');
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
         
         $attachmentData = @unserialize($attachment['text']);
         if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
+            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件数据损坏', [
+                'cid' => $cid
+            ], 'error');
             echo json_encode(['success' => false, 'message' => '文件数据错误'], JSON_UNESCAPED_UNICODE);
             return;
         }
         
         $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
         if (!file_exists($filePath)) {
+            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不存在于磁盘', [
+                'cid' => $cid,
+                'path' => $attachmentData['path']
+            ], 'error');
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
         
         // 检查是否为图片
         if (strpos($attachmentData['mime'], 'image/') !== 0) {
+            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不是图片', [
+                'cid' => $cid,
+                'mime' => $attachmentData['mime']
+            ], 'warning');
             echo json_encode(['success' => false, 'message' => '只能清除图片文件的EXIF信息'], JSON_UNESCAPED_UNICODE);
             return;
         }
         
         // 智能清除EXIF信息
         $result = MediaLibrary_ExifPrivacy::removeImageExif($filePath, $attachmentData['mime']);
+        MediaLibrary_Logger::log('remove_exif', $result['message'], [
+            'cid' => $cid,
+            'path' => $attachmentData['path'],
+            'result' => $result
+        ], !empty($result['success']) ? 'info' : 'error');
         
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
@@ -559,5 +679,36 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         }
 
         return $text;
+    }
+
+    /**
+     * 汇总上传文件的基本信息
+     *
+     * @return array
+     */
+    private static function summarizeUploadedFiles()
+    {
+        $summary = [];
+        foreach ($_FILES as $field => $file) {
+            if (is_array($file['name'])) {
+                foreach ($file['name'] as $index => $name) {
+                    $summary[] = [
+                        'field' => $field,
+                        'name' => $name,
+                        'type' => isset($file['type'][$index]) ? $file['type'][$index] : null,
+                        'size' => isset($file['size'][$index]) ? intval($file['size'][$index]) : null
+                    ];
+                }
+            } else {
+                $summary[] = [
+                    'field' => $field,
+                    'name' => isset($file['name']) ? $file['name'] : null,
+                    'type' => isset($file['type']) ? $file['type'] : null,
+                    'size' => isset($file['size']) ? intval($file['size']) : null
+                ];
+            }
+        }
+
+        return $summary;
     }
 }

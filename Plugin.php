@@ -75,6 +75,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
+        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
         // 显示版本信息和更新检测
         self::displayVersionInfo($form);
 
@@ -89,6 +90,9 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
         // 添加配置选项
         self::addConfigOptions($form, $envInfo);
+
+        // 日志查看器
+        self::displayLogViewer();
 
         // 添加 JavaScript 和 CSS
         self::addConfigPageAssets();
@@ -246,6 +250,28 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     }
 
     /**
+     * 显示日志查看器
+     */
+    private static function displayLogViewer()
+    {
+        $logFile = MediaLibrary_Logger::getLogFile();
+        $logHtml = '<div class="ml-log-viewer">';
+        $logHtml .= '<div class="ml-log-head">';
+        $logHtml .= '<div><h4 style="margin:0 0 6px 0;">处理流程日志</h4>';
+        $logHtml .= '<p style="margin:0;color:#666;font-size:13px;">查看所有操作的实时记录，点击每行可展开详细信息</p></div>';
+        $logHtml .= '<div class="ml-log-actions">';
+        $logHtml .= '<button type="button" class="btn btn-s" id="ml-refresh-logs">刷新日志</button>';
+        $logHtml .= '<button type="button" class="btn btn-s" id="ml-clear-logs" style="background:#dc3232;color:#fff;margin-left:10px;">清空日志</button>';
+        $logHtml .= '</div></div>';
+        $logHtml .= '<div class="ml-log-meta">日志文件位置：<code style="font-size:12px;">' . htmlspecialchars($logFile) . '</code></div>';
+        $logHtml .= '<div id="ml-log-status" class="ml-log-status"></div>';
+        $logHtml .= '<div id="ml-log-list" class="ml-log-list"><div class="ml-log-empty">正在加载日志...</div></div>';
+        $logHtml .= '</div>';
+
+        echo $logHtml;
+    }
+
+    /**
      * 添加配置页面的 JavaScript 和 CSS
      */
     private static function addConfigPageAssets()
@@ -260,23 +286,167 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
             echo '<script src="' . $jquerySource . '"></script>';
         }
 
-        echo '<script>
-        jQuery(document).ready(function($) {
-            // 折叠/展开详细检测信息
-            $("#toggle-detailed-checks").on("click", function() {
-                var container = $("#detailed-checks-container");
-                var btn = $(this);
+        echo '<style>
+.ml-log-viewer{background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;margin:20px 0 30px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.ml-log-head{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;margin-bottom:10px;}
+.ml-log-actions button{margin-left:0;}
+.ml-log-meta{font-size:12px;color:#777;margin-bottom:8px;}
+.ml-log-list{border-top:1px solid #eee;}
+.ml-log-item{border-bottom:1px solid #f3f3f3;}
+.ml-log-summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 0;cursor:pointer;}
+.ml-log-summary:hover{color:#0073aa;}
+.ml-log-time{font-weight:600;color:#333;}
+.ml-log-level{padding:2px 6px;border-radius:4px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;}
+.ml-log-level.level-info{background:#e3f6ed;color:#24613f;}
+.ml-log-level.level-warning{background:#fff4e5;color:#7c4a03;}
+.ml-log-level.level-error{background:#fdecea;color:#a82812;}
+.ml-log-level.level-debug{background:#eef2ff;color:#1d3d8f;}
+.ml-log-action{font-weight:600;color:#555;}
+.ml-log-message{color:#555;flex:1;min-width:160px;}
+.ml-log-user{margin-left:auto;color:#666;font-size:12px;}
+.ml-log-detail{display:none;background:#f7f9fb;padding:12px;border-radius:4px;margin-bottom:12px;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
+.ml-log-empty{padding:30px;text-align:center;color:#888;}
+.ml-log-status{min-height:18px;font-size:12px;margin-bottom:10px;}
+.ml-log-status.is-loading{color:#555;}
+.ml-log-status.is-success{color:#2b6c4b;}
+.ml-log-status.is-error{color:#b32700;}
+</style>';
 
-                if (container.is(":visible")) {
-                    container.slideUp();
-                    btn.text("显示详细检测信息");
-                } else {
-                    container.slideDown();
-                    btn.text("隐藏详细检测信息");
-                }
-            });
+        $logEndpoint = addslashes($pluginUrl . '/log-handler.php');
+
+        echo '<script>
+jQuery(function($) {
+    var $toggleBtn = $("#toggle-detailed-checks");
+    if ($toggleBtn.length) {
+        $toggleBtn.on("click", function() {
+            var $container = $("#detailed-checks-container");
+            if ($container.is(":visible")) {
+                $container.slideUp();
+                $toggleBtn.text("显示详细检测信息");
+            } else {
+                $container.slideDown();
+                $toggleBtn.text("隐藏详细检测信息");
+            }
         });
-        </script>';
+    }
+
+    var logEndpoint = "' . $logEndpoint . '";
+    var $logList = $("#ml-log-list");
+    var $status = $("#ml-log-status");
+    var statusTimer = null;
+
+    function setStatus(message, type) {
+        if (statusTimer) {
+            clearTimeout(statusTimer);
+            statusTimer = null;
+        }
+        if (!message) {
+            $status.text("").removeClass("is-loading is-success is-error").show();
+            return;
+        }
+        $status
+            .removeClass("is-loading is-success is-error")
+            .addClass("is-" + type)
+            .text(message)
+            .show();
+
+        if (type !== "loading") {
+            statusTimer = setTimeout(function() {
+                $status.fadeOut(200, function() {
+                    $(this).text("").removeClass("is-loading is-success is-error").show();
+                });
+            }, 2500);
+        }
+    }
+
+    function setLogButtonsDisabled(disabled) {
+        $("#ml-refresh-logs, #ml-clear-logs").prop("disabled", disabled);
+    }
+
+    function renderLogs(logs) {
+        $logList.empty();
+        if (!logs || !logs.length) {
+            $logList.append("<div class=\"ml-log-empty\">暂无日志记录</div>");
+            return;
+        }
+
+        logs.forEach(function(log) {
+            var $item = $("<div>").addClass("ml-log-item");
+            var $summary = $("<div>").addClass("ml-log-summary");
+            var level = (log.level || "info").toLowerCase();
+            var levelText = level.toUpperCase();
+            var userLabel = "系统";
+            if (log.user && (log.user.screenName || log.user.name)) {
+                userLabel = log.user.screenName || log.user.name;
+                if (log.user.group) {
+                    userLabel += " · " + log.user.group;
+                }
+            }
+
+            $("<span>").addClass("ml-log-time").text(log.timestamp || "-").appendTo($summary);
+            $("<span>").addClass("ml-log-level level-" + level).text(levelText).appendTo($summary);
+            $("<span>").addClass("ml-log-action").text("[" + (log.action || "unknown") + "]").appendTo($summary);
+            $("<span>").addClass("ml-log-message").text(log.message || "").appendTo($summary);
+            $("<span>").addClass("ml-log-user").text(userLabel).appendTo($summary);
+
+            var $detail = $("<pre>").addClass("ml-log-detail");
+            $detail.text(JSON.stringify(log, null, 2));
+            $detail.hide();
+
+            $summary.on("click", function() {
+                $detail.slideToggle(140);
+                $item.toggleClass("is-open");
+            });
+
+            $item.append($summary).append($detail);
+            $logList.append($item);
+        });
+    }
+
+    function fetchLogs() {
+        setLogButtonsDisabled(true);
+        setStatus("正在加载日志...", "loading");
+        $.get(logEndpoint, { action: "get_logs", limit: 200 }, function(res) {
+            if (res.success) {
+                renderLogs(res.logs || []);
+                setStatus("日志已更新", "success");
+            } else {
+                setStatus(res.message || "无法获取日志", "error");
+            }
+        }).fail(function() {
+            setStatus("请求日志失败，请稍后重试", "error");
+        }).always(function() {
+            setLogButtonsDisabled(false);
+        });
+    }
+
+    $("#ml-refresh-logs").on("click", function() {
+        fetchLogs();
+    });
+
+    $("#ml-clear-logs").on("click", function() {
+        if (!confirm("确定要清空所有日志吗？该操作不可恢复。")) {
+            return;
+        }
+        setLogButtonsDisabled(true);
+        setStatus("正在清空日志...", "loading");
+        $.post(logEndpoint, { action: "clear_logs" }, function(res) {
+            if (res.success) {
+                renderLogs([]);
+                setStatus(res.message || "日志已清空", "success");
+            } else {
+                setStatus(res.message || "清空失败", "error");
+            }
+        }).fail(function() {
+            setStatus("请求失败，请稍后再试", "error");
+        }).always(function() {
+            setLogButtonsDisabled(false);
+        });
+    });
+
+    fetchLogs();
+});
+</script>';
     }
 
     /**
