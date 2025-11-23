@@ -1,6 +1,8 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogAction.php';
+
 /**
  * 媒体库管理插件，可以在后台对整体文件信息的查看和编辑、上传和删除，图片压缩和隐私检测，多媒体预览，文章编辑器中预览和插入的简单媒体库
  * 
@@ -22,6 +24,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
+        Helper::addAction('medialibrary-logs', 'MediaLibrary_LogAction');
         
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -42,6 +45,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 移除控制台菜单
         Helper::removePanel(3, 'MediaLibrary/panel.php');
+        Helper::removeAction('medialibrary-logs');
         
         return '媒体库插件已禁用！';
     }
@@ -73,6 +77,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
      */
     public static function config(Typecho_Widget_Helper_Form $form)
     {
+        Helper::addAction('medialibrary-logs', 'MediaLibrary_LogAction');
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
@@ -312,7 +317,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 .ml-log-status.is-error{color:#b32700;}
 </style>';
 
-        $logEndpoint = addslashes($pluginUrl . '/log-handler.php');
+        $logEndpoint = addslashes(Typecho_Common::url('action/medialibrary-logs', Helper::options()->index));
 
         echo '<script>
 jQuery(function($) {
