@@ -108,21 +108,21 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $repoUrl = MediaLibrary_PluginUpdater::getRepoUrl();
 
         $versionHtml = '<div style="background:#fff;padding:20px;border:1px solid #ddd;border-radius:4px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">';
-        $versionHtml .= '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+        $versionHtml .= '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
 
         // PHP 语言徽章
-        $versionHtml .= '<img src="https://img.shields.io/badge/PHP-777BB4?logo=php&logoColor=white" alt="PHP" style="height:32px;">';
+        $versionHtml .= '<img src="https://img.shields.io/badge/PHP-777BB4?logo=php&logoColor=white" alt="PHP" style="height:16px;display:block;">';
 
         // 版本号徽章
-        $versionHtml .= '<img src="https://img.shields.io/badge/version-' . urlencode($currentVersion) . '-blue" alt="Version" style="height:32px;">';
+        $versionHtml .= '<img src="https://img.shields.io/badge/version-' . urlencode($currentVersion) . '-blue" alt="Version" style="height:16px;display:block;">';
 
         // GitHub 仓库徽章
-        $versionHtml .= '<a href="' . htmlspecialchars($repoUrl) . '" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;">';
-        $versionHtml .= '<img src="https://img.shields.io/badge/GitHub-MediaLibrary-181717?logo=github&logoColor=white" alt="GitHub Repository" style="height:32px;">';
+        $versionHtml .= '<a href="' . htmlspecialchars($repoUrl) . '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;line-height:1;">';
+        $versionHtml .= '<img src="https://img.shields.io/badge/GitHub-MediaLibrary-181717?logo=github&logoColor=white" alt="GitHub Repository" style="height:16px;display:block;">';
         $versionHtml .= '</a>';
 
         // License 徽章
-        $versionHtml .= '<img src="https://img.shields.io/badge/license-MIT-green" alt="License" style="height:32px;">';
+        $versionHtml .= '<img src="https://img.shields.io/badge/license-MIT-green" alt="License" style="height:16px;display:block;">';
 
         $versionHtml .= '</div>';
         $versionHtml .= '</div>';
