@@ -4,7 +4,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6-yellow?logo=javascript&logoColor=white)
 ![Typecho](https://img.shields.io/badge/Typecho-%3E%3D1.0-orange)
 ![License](https://img.shields.io/badge/License-Free-green)
-![Version](https://img.shields.io/badge/Version-Free_Version-blue)
+![Version](https://img.shields.io/badge/Version-pro__0.1.0-blue)
 
 > 一个功能强大的 Typecho 媒体库管理插件，提供完整的媒体文件管理、预览、编辑和优化功能。
 

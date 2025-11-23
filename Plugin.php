@@ -6,8 +6,8 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * 
  * @package MediaLibrary
  * @author HansJack
- * @version free_version
- * @link http://bbs.tiango.wiki/
+ * @version pro_0.1.0
+ * @link http://www.hansjack.com/
  */
 class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 {
