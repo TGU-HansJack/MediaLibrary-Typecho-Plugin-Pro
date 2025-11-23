@@ -24,7 +24,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
-        Helper::addAction('medialibraryLogs', 'MediaLibrary_LogAction');
+        Helper::addAction('medialibrarylogs', 'MediaLibrary_LogAction');
         
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -45,7 +45,9 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 移除控制台菜单
         Helper::removePanel(3, 'MediaLibrary/panel.php');
+        Helper::removeAction('medialibrarylogs');
         Helper::removeAction('medialibraryLogs');
+        Helper::removeAction('medialibrary-logs');
         
         return '媒体库插件已禁用！';
     }
@@ -77,7 +79,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
      */
     public static function config(Typecho_Widget_Helper_Form $form)
     {
-        Helper::addAction('medialibraryLogs', 'MediaLibrary_LogAction');
+        Helper::addAction('medialibrarylogs', 'MediaLibrary_LogAction');
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
@@ -317,7 +319,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 .ml-log-status.is-error{color:#b32700;}
 </style>';
 
-        $logEndpoint = addslashes(Typecho_Common::url('action/medialibraryLogs', Helper::options()->index));
+        $logEndpoint = addslashes(Typecho_Common::url('action/medialibrarylogs', Helper::options()->index));
 
         echo '<script>
 jQuery(function($) {
