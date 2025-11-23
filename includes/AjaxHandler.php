@@ -327,11 +327,11 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     
     // 水印透明度
     $watermarkConfig['opacity'] = intval($request->get('watermark_opacity', 70));
-    
+
     // 如果是文本水印
     if ($watermarkConfig['type'] === 'text') {
         // 文本内容
-        $watermarkConfig['text'] = $request->get('watermark_text', '');
+        $watermarkConfig['text'] = self::sanitizeWatermarkText($request->get('watermark_text', ''));
         
         // 字体大小和颜色
         $watermarkConfig['fontSize'] = intval($request->get('watermark_font_size', 24));
@@ -529,5 +529,35 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         $result = MediaLibrary_ExifPrivacy::removeImageExif($filePath, $attachmentData['mime']);
         
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * 规范化水印文本，避免编码问题导致乱码
+     *
+     * @param string $text
+     * @return string
+     */
+    private static function sanitizeWatermarkText($text)
+    {
+        $text = trim((string)$text);
+        if ($text === '') {
+            return '';
+        }
+
+        $text = preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F]/u', '', $text);
+
+        if (function_exists('mb_detect_encoding')) {
+            $encoding = mb_detect_encoding($text, ['UTF-8', 'GBK', 'GB2312', 'BIG5', 'ISO-8859-1'], true);
+            if ($encoding && $encoding !== 'UTF-8') {
+                $text = mb_convert_encoding($text, 'UTF-8', $encoding);
+            }
+        } else {
+            $converted = @iconv('GBK', 'UTF-8//IGNORE', $text);
+            if ($converted !== false) {
+                $text = $converted;
+            }
+        }
+
+        return $text;
     }
 }

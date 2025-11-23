@@ -511,7 +511,7 @@ class MediaLibrary_ImageEditor
             
             // 文本水印
             if ($type === 'text') {
-                $text = $config['text'];
+                $text = self::normalizeWatermarkText($config['text']);
                 $fontSize = isset($config['fontSize']) ? intval($config['fontSize']) : 24;
                 $fontColor = isset($config['color']) ? $config['color'] : '#ffffff';
                 
@@ -527,23 +527,21 @@ class MediaLibrary_ImageEditor
                 }
                 
                 // 指定字体路径
-                $fontPath = isset($config['fontPath']) ? $config['fontPath'] : __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttf';
-                
-                if (!file_exists($fontPath)) {
-                    // 使用备用字体
-                    $fontPath = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttc';
-                    if (!file_exists($fontPath)) {
-                        // 使用系统默认字体
-                        $fontPath = 5; // 使用GD内置字体
-                    }
+                $preferredFont = isset($config['fontPath']) ? $config['fontPath'] : __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttf';
+                $resolvedFont = self::resolveFontPath($preferredFont);
+                $useBuiltinFont = false;
+                if (!$resolvedFont) {
+                    // 使用GD内置字体作为兜底，虽然不支持完整中文，但可避免报错
+                    $resolvedFont = 5;
+                    $useBuiltinFont = true;
                 }
                 
                 // 计算文本尺寸
-                if (is_int($fontPath)) {
-                    $textWidth = strlen($text) * imagefontwidth($fontPath);
-                    $textHeight = imagefontheight($fontPath);
+                if ($useBuiltinFont) {
+                    $textWidth = strlen($text) * imagefontwidth($resolvedFont);
+                    $textHeight = imagefontheight($resolvedFont);
                 } else {
-                    $box = imagettfbbox($fontSize, 0, $fontPath, $text);
+                    $box = imagettfbbox($fontSize, 0, $resolvedFont, $text);
                     $textWidth = abs($box[4] - $box[0]);
                     $textHeight = abs($box[5] - $box[1]);
                 }
@@ -585,15 +583,17 @@ class MediaLibrary_ImageEditor
                     $text = "© " . date('Y') . " - 版权所有";
                     $fontSize = max(12, intval($sourceWidth / 50));
                 }
+
+                $text = self::normalizeWatermarkText($text);
                 
                 // 创建文本颜色
                 $textColor = imagecolorallocatealpha($srcImage, $r, $g, $b, 127 - ($opacity * 1.27));
                 
                 // 绘制文本
-                if (is_int($fontPath)) {
-                    imagestring($srcImage, $fontPath, $x, $y, $text, $textColor);
+                if ($useBuiltinFont) {
+                    imagestring($srcImage, $resolvedFont, $x, $y, $text, $textColor);
                 } else {
-                    imagettftext($srcImage, $fontSize, 0, $x, $y + $textHeight, $textColor, $fontPath, $text);
+                    imagettftext($srcImage, $fontSize, 0, $x, $y + $textHeight, $textColor, $resolvedFont, $text);
                 }
             }
             // 图像水印
@@ -824,19 +824,16 @@ class MediaLibrary_ImageEditor
             
             // 文本水印
             if ($type === 'text') {
-                $text = $config['text'];
+                $text = self::normalizeWatermarkText($config['text']);
                 $fontSize = isset($config['fontSize']) ? intval($config['fontSize']) : 24;
                 $fontColor = isset($config['color']) ? $config['color'] : '#ffffff';
                 
                 // 指定字体路径
-                $fontPath = isset($config['fontPath']) ? $config['fontPath'] : __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttf';
+                $preferredFont = isset($config['fontPath']) ? $config['fontPath'] : __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttf';
+                $fontPath = self::resolveFontPath($preferredFont);
                 
-                if (!file_exists($fontPath)) {
-                    // 使用备用字体
-                    $fontPath = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttc';
-                    if (!file_exists($fontPath)) {
-                        return ['success' => false, 'message' => 'Imagick需要有效的字体文件'];
-                    }
+                if (!$fontPath) {
+                    return ['success' => false, 'message' => '未找到可用的字体文件，请在插件 fonts 目录或系统中安装中文字体'];
                 }
                 
                 // 使用预设文本样式
@@ -847,6 +844,8 @@ class MediaLibrary_ImageEditor
                     $text = "© " . date('Y') . " - 版权所有";
                     $fontSize = max(12, intval($sourceWidth / 50));
                 }
+
+                $text = self::normalizeWatermarkText($text);
                 
                 // 创建绘制对象
                 $draw = new ImagickDraw();
@@ -983,5 +982,89 @@ class MediaLibrary_ImageEditor
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Imagick水印错误: ' . $e->getMessage()];
         }
+    }
+
+    /**
+     * 将水印文本规范为UTF-8并去除不可见字符
+     *
+     * @param string $text
+     * @return string
+     */
+    private static function normalizeWatermarkText($text)
+    {
+        $text = trim((string)$text);
+        if ($text === '') {
+            return '';
+        }
+
+        $text = preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F]/u', '', $text);
+
+        if (function_exists('mb_detect_encoding')) {
+            $encoding = mb_detect_encoding($text, ['UTF-8', 'GBK', 'GB2312', 'BIG5', 'ISO-8859-1'], true);
+            if ($encoding && $encoding !== 'UTF-8') {
+                $text = mb_convert_encoding($text, 'UTF-8', $encoding);
+            }
+        } else {
+            $converted = @iconv('GBK', 'UTF-8//IGNORE', $text);
+            if ($converted !== false) {
+                $text = $converted;
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * 查找可用的字体文件路径，优先使用插件内字体，其次尝试系统常见字体
+     *
+     * @param string|null $preferredPath
+     * @return string|null
+     */
+    private static function resolveFontPath($preferredPath = null)
+    {
+        $candidates = [];
+        if (!empty($preferredPath)) {
+            $candidates[] = $preferredPath;
+        }
+
+        $fontDir = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/';
+        $fallbackFonts = [
+            'msyh.ttf',
+            'msyh.ttc',
+            'simhei.ttf',
+            'simkai.ttf',
+            'simsun.ttc',
+            'SourceHanSansSC-Regular.otf',
+            'NotoSansSC-Regular.otf'
+        ];
+        foreach ($fallbackFonts as $fontFile) {
+            $candidates[] = $fontDir . $fontFile;
+        }
+
+        $systemRoot = getenv('SystemRoot');
+        if ($systemRoot) {
+            $systemRoot = rtrim($systemRoot, '\\/');
+            $candidates[] = $systemRoot . '/Fonts/msyh.ttc';
+            $candidates[] = $systemRoot . '/Fonts/simhei.ttf';
+            $candidates[] = $systemRoot . '/Fonts/simsun.ttc';
+        }
+
+        $candidates = array_merge($candidates, [
+            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf',
+            '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
+            '/Library/Fonts/STHeiti Light.ttc',
+            '/Library/Fonts/STHeiti Medium.ttc',
+            '/System/Library/Fonts/STHeiti Light.ttc'
+        ]);
+
+        foreach ($candidates as $candidate) {
+            if ($candidate && file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 }

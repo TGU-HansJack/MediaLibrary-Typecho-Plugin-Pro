@@ -21,6 +21,37 @@
     var watermarkStartY = 0;
     var isMovingWatermark = false;
     var watermarkScale = 1.0;
+
+    /**
+     * 计算裁剪预览的缩放比例，避免容器宽度为0导致的除零
+     */
+    function getCropScale() {
+        if (!originalImageWidth) {
+            return 1;
+        }
+        var containerWidth = $('#crop-image-container').width();
+        if (!containerWidth || containerWidth <= 0) {
+            return 1;
+        }
+        return containerWidth / originalImageWidth;
+    }
+
+    /**
+     * 计算水印预览的缩放比例
+     */
+    function getWatermarkScale() {
+        if (!originalImageWidth) {
+            return 1;
+        }
+        var previewWidth = $('#watermark-preview-image').width();
+        if (!previewWidth || previewWidth <= 0) {
+            previewWidth = $('#watermark-image-container').width();
+        }
+        if (!previewWidth || previewWidth <= 0) {
+            return 1;
+        }
+        return previewWidth / originalImageWidth;
+    }
     
     /**
      * 裁剪功能初始化
@@ -48,9 +79,19 @@
             resetCropInterface();
             
             // 加载图片
-            $('#crop-image').attr('src', imageUrl).on('load', function() {
+            var cropImage = $('#crop-image');
+            cropImage.off('load').one('load', function() {
                 originalImageWidth = this.naturalWidth;
                 originalImageHeight = this.naturalHeight;
+                
+                // 将容器尺寸锁定为当前渲染的图片尺寸，保证拖拽与实际像素对应
+                var cropContainer = $('#crop-image-container');
+                var displayedWidth = this.clientWidth || cropImage.width() || originalImageWidth;
+                var displayedHeight = this.clientHeight || cropImage.height() || originalImageHeight;
+                cropContainer.css({
+                    width: displayedWidth + 'px',
+                    height: displayedHeight + 'px'
+                });
                 
                 // 设置裁剪框初始大小（默认为图片的80%）
                 var cropBoxWidth = Math.round(originalImageWidth * 0.8);
@@ -58,11 +99,10 @@
                 
                 // 居中裁剪框
                 var cropBoxLeft = Math.round((originalImageWidth - cropBoxWidth) / 2);
-                var cropBoxTop = Math.round((originalImageHeight - cropBoxTop) / 2);
+                var cropBoxTop = Math.round((originalImageHeight - cropBoxHeight) / 2);
                 
-                // 调整裁剪容器尺寸
-                var containerWidth = $('#crop-image-container').width();
-                var scale = containerWidth / originalImageWidth;
+                // 缩放比例
+                var scale = getCropScale();
                 
                 // 应用裁剪框
                 $('#crop-box').css({
@@ -76,8 +116,8 @@
                 updateCropInfo(cropBoxLeft, cropBoxTop, cropBoxWidth, cropBoxHeight);
                 
                 // 显示模态框
-                $('#crop-modal').show();
-            });
+                $('#crop-modal').css('display', 'flex');
+            }).attr('src', imageUrl);
         });
         
         // 处理裁剪框拖动
@@ -103,8 +143,10 @@
             
             var cropBox = $('#crop-box');
             var cropContainer = $('#crop-image-container');
-            var containerOffset = cropContainer.offset();
-            var scale = cropContainer.width() / originalImageWidth;
+            var scale = getCropScale();
+            if (scale <= 0) {
+                scale = 1;
+            }
             
             if (isMovingCrop) {
                 // 移动裁剪框
@@ -124,12 +166,14 @@
                 });
                 
                 // 更新裁剪信息
-                updateCropInfo(
-                    Math.round(newLeft / scale),
-                    Math.round(newTop / scale),
-                    Math.round(cropBox.width() / scale),
-                    Math.round(cropBox.height() / scale)
-                );
+                if (scale > 0) {
+                    updateCropInfo(
+                        Math.round(newLeft / scale),
+                        Math.round(newTop / scale),
+                        Math.round(cropBox.width() / scale),
+                        Math.round(cropBox.height() / scale)
+                    );
+                }
                 
             } else if (activeHandle) {
                 // 调整裁剪框大小
@@ -219,13 +263,15 @@
                     top: newTop + 'px'
                 });
                 
-                // 更新裁剪信息
-                updateCropInfo(
-                    Math.round(newLeft / scale),
-                    Math.round(newTop / scale),
-                    Math.round(newWidth / scale),
-                    Math.round(newHeight / scale)
-                );
+                if (scale > 0) {
+                    // 更新裁剪信息
+                    updateCropInfo(
+                        Math.round(newLeft / scale),
+                        Math.round(newTop / scale),
+                        Math.round(newWidth / scale),
+                        Math.round(newHeight / scale)
+                    );
+                }
             }
             
             cropStartX = e.clientX;
@@ -271,7 +317,7 @@
                 var newHeight = currentWidth / cropRatio;
                 
                 var cropContainer = $('#crop-image-container');
-                var scale = cropContainer.width() / originalImageWidth;
+                var scale = getCropScale();
                 
                 // 确保高度在合理范围内
                 if (newHeight > cropContainer.height()) {
@@ -284,13 +330,15 @@
                     height: newHeight + 'px'
                 });
                 
-                // 更新裁剪信息
-                updateCropInfo(
-                    Math.round(cropBox.position().left / scale),
-                    Math.round(cropBox.position().top / scale),
-                    Math.round(currentWidth / scale),
-                    Math.round(newHeight / scale)
-                );
+                if (scale > 0) {
+                    // 更新裁剪信息
+                    updateCropInfo(
+                        Math.round(cropBox.position().left / scale),
+                        Math.round(cropBox.position().top / scale),
+                        Math.round(currentWidth / scale),
+                        Math.round(newHeight / scale)
+                    );
+                }
             }
         });
         
@@ -308,7 +356,7 @@
                 // 应用自定义尺寸
                 var cropBox = $('#crop-box');
                 var cropContainer = $('#crop-image-container');
-                var scale = cropContainer.width() / originalImageWidth;
+                var scale = getCropScale();
                 
                 var currentWidth = cropBox.width();
                 var newHeight = currentWidth / cropRatio;
@@ -324,13 +372,15 @@
                     height: newHeight + 'px'
                 });
                 
-                // 更新裁剪信息
-                updateCropInfo(
-                    Math.round(cropBox.position().left / scale),
-                    Math.round(cropBox.position().top / scale),
-                    Math.round(currentWidth / scale),
-                    Math.round(newHeight / scale)
-                );
+                if (scale > 0) {
+                    // 更新裁剪信息
+                    updateCropInfo(
+                        Math.round(cropBox.position().left / scale),
+                        Math.round(cropBox.position().top / scale),
+                        Math.round(currentWidth / scale),
+                        Math.round(newHeight / scale)
+                    );
+                }
             }
         });
         
@@ -345,19 +395,19 @@
         
         // 裁剪取消按钮
         $('#cancel-crop').on('click', function() {
-            $('#crop-modal').hide();
+            $('#crop-modal').css('display', 'none');
         });
         
         // 关闭裁剪模态框
         $('#crop-modal .modal-close').on('click', function() {
-            $('#crop-modal').hide();
+            $('#crop-modal').css('display', 'none');
         });
         
         // 应用裁剪按钮
         $('#apply-crop').on('click', function() {
             var cropBox = $('#crop-box');
             var cropContainer = $('#crop-image-container');
-            var scale = cropContainer.width() / originalImageWidth;
+            var scale = getCropScale();
             
             // 获取裁剪参数
             var cropX = Math.round(cropBox.position().left / scale);
@@ -418,7 +468,7 @@
                     } else {
                         alert('裁剪失败: ' + response.message);
                     }
-                    $('#crop-modal').hide();
+                    $('#crop-modal').css('display', 'none');
                 },
                 error: function() {
                     alert('裁剪请求发送失败');
@@ -494,19 +544,28 @@
             resetWatermarkInterface();
             
             // 加载图片
-            $('#watermark-preview-image').attr('src', imageUrl).on('load', function() {
+            var previewImage = $('#watermark-preview-image');
+            previewImage.off('load').one('load', function() {
                 originalImageWidth = this.naturalWidth;
                 originalImageHeight = this.naturalHeight;
-                
-                // 预设初始水印位置（右下角）
-                updateWatermarkPosition('bottom-right');
+
+                var watermarkContainer = $('#watermark-image-container');
+                var displayedWidth = this.clientWidth || previewImage.width() || originalImageWidth;
+                var displayedHeight = this.clientHeight || previewImage.height() || originalImageHeight;
+                watermarkContainer.css({
+                    width: displayedWidth + 'px',
+                    height: displayedHeight + 'px'
+                });
                 
                 // 更新水印预览
                 updateWatermarkPreview();
+
+                // 预设初始水印位置（右下角）
+                updateWatermarkPosition('bottom-right');
                 
                 // 显示模态框
-                $('#watermark-modal').show();
-            });
+                $('#watermark-modal').css('display', 'flex');
+            }).attr('src', imageUrl);
         });
         
         // 监听水印类型变化
@@ -670,12 +729,12 @@
         
         // 水印取消按钮
         $('#cancel-watermark').on('click', function() {
-            $('#watermark-modal').hide();
+            $('#watermark-modal').css('display', 'none');
         });
         
         // 关闭水印模态框
         $('#watermark-modal .modal-close').on('click', function() {
-            $('#watermark-modal').hide();
+            $('#watermark-modal').css('display', 'none');
         });
         
         // 应用水印按钮
@@ -690,8 +749,10 @@
             
             // 获取水印位置坐标
             var watermarkOverlay = $('#watermark-overlay');
-            var container = $('#watermark-image-container');
-            var scale = container.width() / originalImageWidth;
+            var scale = getWatermarkScale();
+            if (scale <= 0) {
+                scale = 1;
+            }
             
             var watermarkX = Math.round(watermarkOverlay.position().left / scale);
             var watermarkY = Math.round(watermarkOverlay.position().top / scale);
@@ -738,7 +799,7 @@
                     } else {
                         alert('添加水印失败: ' + response.message);
                     }
-                    $('#watermark-modal').hide();
+                    $('#watermark-modal').css('display', 'none');
                 },
                 error: function() {
                     alert('水印请求发送失败');
@@ -757,7 +818,8 @@
         $('#watermark-preview-image').attr('src', '');
         $('#watermark-overlay').html('').css({
             left: '10px',
-            top: '10px'
+            top: '10px',
+            opacity: 0.7
         });
         $('#watermark-type').val('text');
         $('#text-watermark-options').show();
@@ -776,6 +838,7 @@
         $('#watermark-position').val('bottom-right');
         $('#watermark-opacity').val('70');
         $('#opacity-value').text('70');
+        $('#watermark-overlay').css('opacity', 0.7);
         $('#watermark-use-library').val('gd');
         $('input[name="watermark-replace-mode"][value="replace"]').prop('checked', true);
         $('#watermark-custom-name-group').hide();
@@ -798,7 +861,15 @@
             var fontSize = $('#watermark-font-size').val();
             var color = $('#watermark-color').val();
             
-            watermarkOverlay.html('<div style="font-size:' + fontSize + 'px; color:' + color + '; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); white-space: nowrap;">' + text + '</div>');
+            var textElement = $('<div></div>')
+                .text(text)
+                .css({
+                    'font-size': fontSize + 'px',
+                    'color': color,
+                    'text-shadow': '1px 1px 2px rgba(0,0,0,0.7)',
+                    'white-space': 'nowrap'
+                });
+            watermarkOverlay.append(textElement);
         }
         // 图片水印预览
         else {
@@ -812,6 +883,16 @@
             });
             watermarkOverlay.append(img);
         }
+
+        var opacity = parseInt($('#watermark-opacity').val(), 10);
+        if (!isNaN(opacity)) {
+            watermarkOverlay.css('opacity', Math.max(0, Math.min(100, opacity)) / 100);
+        }
+
+        var activePosition = $('#watermark-position').val();
+        if (activePosition && activePosition !== 'custom') {
+            updateWatermarkPosition(activePosition);
+        }
     }
     
     /**
@@ -823,10 +904,14 @@
         
         // 延迟执行以确保水印内容已渲染
         setTimeout(function() {
-            var watermarkWidth = watermarkOverlay.width();
-            var watermarkHeight = watermarkOverlay.height();
+            var watermarkWidth = watermarkOverlay.outerWidth();
+            var watermarkHeight = watermarkOverlay.outerHeight();
             var containerWidth = container.width();
             var containerHeight = container.height();
+
+            if (!containerWidth || !containerHeight) {
+                return;
+            }
             
             var left = 10;
             var top = 10;
@@ -865,6 +950,9 @@
                     top = containerHeight - watermarkHeight - 10;
                     break;
             }
+
+            left = Math.max(0, Math.min(left, containerWidth - watermarkWidth));
+            top = Math.max(0, Math.min(top, containerHeight - watermarkHeight));
             
             watermarkOverlay.css({
                 left: left + 'px',
