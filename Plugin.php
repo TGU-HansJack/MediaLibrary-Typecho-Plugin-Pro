@@ -293,10 +293,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $logHtml .= '<div><h4 style="margin:0 0 6px 0;">处理流程日志</h4>';
         $logHtml .= '<p style="margin:0;color:#666;font-size:13px;">以下内容来自日志文件，可直接滚动查看。</p></div>';
         $logHtml .= '</div>';
-        $logHtml .= '<div class="ml-log-actions">';
-        $logHtml .= '<button type="button" class="ml-log-delete-btn" id="ml-clear-log-btn" data-url="' . htmlspecialchars($clearLogUrl) . '">删除日志文件</button>';
-        $logHtml .= '<span class="ml-log-status" id="ml-log-status"></span>';
-        $logHtml .= '</div>';
         $logHtml .= '<div class="ml-log-meta">日志文件位置：<code style="font-size:12px;">' . htmlspecialchars($logFile) . '</code>';
         $logHtml .= '<div class="ml-log-meta-extra" id="ml-log-meta-text">' . htmlspecialchars($logMetaText) . '</div></div>';
         $logHtml .= '<div class="ml-log-raw-wrap">';
@@ -337,13 +333,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         echo '<style>
 .ml-log-viewer{background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;margin:20px 0 30px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
 .ml-log-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;flex-wrap:wrap;margin-bottom:10px;}
-.ml-log-actions{display:flex;justify-content:space-between;align-items:center;margin:15px 0 5px;gap:12px;}
-.ml-log-delete-btn{background:#dc3232;border:1px solid #dc3232;color:#fff;padding:6px 16px;border-radius:4px;font-size:13px;cursor:pointer;transition:background .2s,border-color .2s;}
-.ml-log-delete-btn:hover{background:#b12424;border-color:#b12424;}
-.ml-log-delete-btn[disabled]{opacity:.6;cursor:not-allowed;}
-.ml-log-status{font-size:12px;color:#666;}
-.ml-log-status.success{color:#46b450;}
-.ml-log-status.error{color:#dc3232;}
 .ml-log-meta{font-size:12px;color:#777;margin-bottom:10px;line-height:1.6;}
 .ml-log-meta code{font-size:12px;}
 .ml-log-meta-extra{margin-top:4px;}
@@ -367,51 +356,6 @@ jQuery(function($) {
                 $container.slideDown();
                 $toggleBtn.text("隐藏详细检测信息");
             }
-        });
-    }
-
-    var $clearLogBtn = $("#ml-clear-log-btn");
-    if ($clearLogBtn.length) {
-        var originalText = $clearLogBtn.text();
-        var $status = $("#ml-log-status");
-        $clearLogBtn.on("click", function() {
-            if ($clearLogBtn.prop("disabled")) {
-                return;
-            }
-            if (!window.confirm("确定要删除日志文件吗？")) {
-                return;
-            }
-            var actionUrl = $clearLogBtn.data("url");
-            if (!actionUrl) {
-                return;
-            }
-            $clearLogBtn.prop("disabled", true).text("删除中...");
-            $status.removeClass("success error").text("");
-            $.ajax({
-                url: actionUrl,
-                method: "POST",
-                dataType: "json",
-                data: { do: "clear_logs" }
-            }).done(function(resp) {
-                if (resp && resp.success) {
-                    var message = resp.message || "日志文件已清空。";
-                    $status.text(message).addClass("success");
-                    var $raw = $(".ml-log-raw");
-                    var emptyText = $raw.data("emptyText") || "暂无日志内容。";
-                    $raw.text(emptyText);
-                    $("#ml-log-meta-text").text("日志文件已清空，大小：0 KiB");
-                } else {
-                    var errorMsg = (resp && resp.message) ? resp.message : "清理失败，请稍后再试。";
-                    $status.text(errorMsg).addClass("error");
-                }
-            }).fail(function(jqXHR) {
-                var errorMsg = (jqXHR.responseJSON && jqXHR.responseJSON.message)
-                    ? jqXHR.responseJSON.message
-                    : "清理失败，请稍后再试。";
-                $status.text(errorMsg).addClass("error");
-            }).always(function() {
-                $clearLogBtn.prop("disabled", false).text(originalText);
-            });
         });
     }
 });
@@ -442,11 +386,19 @@ jQuery(function($) {
      */
     private static function addConfigOptions($form, $envInfo)
     {
+        // 日志记录开关
+        $enableLogging = new Typecho_Widget_Helper_Form_Element_Checkbox('enableLogging',
+            array('1' => '启用日志记录'),
+            array(),
+            '日志记录',
+            '启用后将记录插件的操作日志（默认关闭，只保留最新10条日志）');
+        $form->addInput($enableLogging);
+
         // GetID3 功能
-        $enableGetID3 = new Typecho_Widget_Helper_Form_Element_Checkbox('enableGetID3', 
-            array('1' => '启用 GetID3 库'), 
-            array(), 
-            '音视频文件信息读取', 
+        $enableGetID3 = new Typecho_Widget_Helper_Form_Element_Checkbox('enableGetID3',
+            array('1' => '启用 GetID3 库'),
+            array(),
+            '音视频文件信息读取',
             '读取音频、视频文件的详细信息（时长、比特率等）');
         
         if (!$envInfo['GetID3 库']) {

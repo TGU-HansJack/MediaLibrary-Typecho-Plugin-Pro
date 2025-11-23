@@ -35,6 +35,27 @@ class MediaLibrary_Logger
     }
 
     /**
+     * 检查是否启用日志记录
+     *
+     * @return bool
+     */
+    private static function isLoggingEnabled()
+    {
+        try {
+            if (class_exists('Helper')) {
+                $options = Helper::options();
+                $pluginConfig = $options->plugin('MediaLibrary');
+                // 检查是否启用日志记录（默认关闭）
+                return !empty($pluginConfig->enableLogging);
+            }
+        } catch (Exception $e) {
+            // 如果获取配置失败，默认不记录日志
+            return false;
+        }
+        return false;
+    }
+
+    /**
      * 记录日志
      *
      * @param string $action 操作名称
@@ -45,6 +66,11 @@ class MediaLibrary_Logger
      */
     public static function log($action, $message, array $context = [], $level = 'info')
     {
+        // 检查是否启用日志记录
+        if (!self::isLoggingEnabled()) {
+            return;
+        }
+
         $entry = [
             'timestamp' => date('Y-m-d H:i:s'),
             'level' => $level,
@@ -65,7 +91,7 @@ class MediaLibrary_Logger
      * @param int $limit 获取条数
      * @return array
      */
-    public static function getLogs($limit = 200)
+    public static function getLogs($limit = 10)
     {
         $file = self::getLogFile();
         if (!file_exists($file)) {

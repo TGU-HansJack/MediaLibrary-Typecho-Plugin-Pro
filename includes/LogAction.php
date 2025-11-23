@@ -30,7 +30,7 @@ class MediaLibrary_LogAction extends Typecho_Widget implements Widget_Interface_
         $this->user->pass('administrator');
 
         $action = $this->request->get('do', $this->request->get('action', 'get_logs'));
-        $limit = max(1, min(1000, intval($this->request->get('limit', 200))));
+        $limit = max(1, min(1000, intval($this->request->get('limit', 10))));
 
         switch ($action) {
             case 'get_logs':
