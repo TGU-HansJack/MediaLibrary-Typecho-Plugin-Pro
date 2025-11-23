@@ -148,8 +148,11 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
         // 系统信息
         $systemInfo = MediaLibrary_EnvironmentCheck::getSystemInfo();
-        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
-        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">📊 系统信息</h4>';
+        $detailHtml .= '<div class="ml-info-box" data-section="system-info" style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+        $detailHtml .= '<h4 style="margin:0;color:#333;">📊 系统信息</h4>';
+        $detailHtml .= '<button type="button" class="ml-info-copy-btn" data-target="system-info" title="复制系统信息">Copy</button>';
+        $detailHtml .= '</div>';
         $detailHtml .= '<table style="width:100%;border-collapse:collapse;">';
         foreach ($systemInfo as $name => $value) {
             $detailHtml .= '<tr>';
@@ -161,8 +164,11 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
         // PHP 扩展检测
         $extensions = MediaLibrary_EnvironmentCheck::checkPHPExtensions();
-        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
-        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">🔌 PHP 扩展检测</h4>';
+        $detailHtml .= '<div class="ml-info-box" data-section="php-extensions" style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+        $detailHtml .= '<h4 style="margin:0;color:#333;">🔌 PHP 扩展检测</h4>';
+        $detailHtml .= '<button type="button" class="ml-info-copy-btn" data-target="php-extensions" title="复制PHP扩展信息">Copy</button>';
+        $detailHtml .= '</div>';
         $detailHtml .= '<table style="width:100%;border-collapse:collapse;">';
         $detailHtml .= '<thead><tr style="background:#e9ecef;">';
         $detailHtml .= '<th style="padding:8px;text-align:left;border-bottom:2px solid #ddd;">扩展名称</th>';
@@ -189,8 +195,11 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
         // PHP 函数检测
         $functions = MediaLibrary_EnvironmentCheck::checkPHPFunctions();
-        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
-        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">⚙️ PHP 函数检测</h4>';
+        $detailHtml .= '<div class="ml-info-box" data-section="php-functions" style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+        $detailHtml .= '<h4 style="margin:0;color:#333;">⚙️ PHP 函数检测</h4>';
+        $detailHtml .= '<button type="button" class="ml-info-copy-btn" data-target="php-functions" title="复制PHP函数信息">Copy</button>';
+        $detailHtml .= '</div>';
         $detailHtml .= '<table style="width:100%;border-collapse:collapse;">';
         $detailHtml .= '<thead><tr style="background:#e9ecef;">';
         $detailHtml .= '<th style="padding:8px;text-align:left;border-bottom:2px solid #ddd;">函数名称</th>';
@@ -217,8 +226,11 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $integrityStatus = $fileIntegrity['found'] === $fileIntegrity['total'];
         $integrityColor = $integrityStatus ? '#46b450' : '#dc3232';
 
-        $detailHtml .= '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
-        $detailHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">📁 文件完整性检测</h4>';
+        $detailHtml .= '<div class="ml-info-box" data-section="file-integrity" style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:15px;">';
+        $detailHtml .= '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+        $detailHtml .= '<h4 style="margin:0;color:#333;">📁 文件完整性检测</h4>';
+        $detailHtml .= '<button type="button" class="ml-info-copy-btn" data-target="file-integrity" title="复制文件完整性信息">Copy</button>';
+        $detailHtml .= '</div>';
         $detailHtml .= '<p style="margin:0 0 10px 0;color:' . $integrityColor . ';font-weight:bold;">';
         $detailHtml .= '发现 ' . $fileIntegrity['found'] . ' / ' . $fileIntegrity['total'] . ' 个文件';
         if (!empty($fileIntegrity['missing'])) {
@@ -338,6 +350,10 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 .ml-log-copy-btn:hover{background:#005a87;border-color:#005a87;}
 .ml-log-copy-btn.success{background:#46b450;border-color:#46b450;}
 .ml-log-copy-btn[disabled]{opacity:.6;cursor:not-allowed;}
+.ml-info-copy-btn{background:#0073aa;border:1px solid #0073aa;color:#fff;padding:4px 12px;border-radius:3px;font-size:12px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.ml-info-copy-btn:hover{background:#005a87;border-color:#005a87;}
+.ml-info-copy-btn.success{background:#46b450;border-color:#46b450;}
+.ml-info-copy-btn[disabled]{opacity:.6;cursor:not-allowed;}
 .ml-log-meta{font-size:12px;color:#777;margin-bottom:10px;line-height:1.6;}
 .ml-log-meta code{font-size:12px;}
 .ml-log-meta-extra{margin-top:4px;}
@@ -411,6 +427,95 @@ jQuery(function($) {
             $temp.remove();
         }
     }
+
+    // 信息框复制按钮
+    $(".ml-info-copy-btn").on("click", function() {
+        var $btn = $(this);
+        if ($btn.prop("disabled")) {
+            return;
+        }
+
+        var target = $btn.data("target");
+        var $box = $(".ml-info-box[data-section='" + target + "']");
+        if (!$box.length) {
+            return;
+        }
+
+        var originalText = $btn.text();
+
+        // 提取纯文本内容
+        var textContent = extractTextFromBox($box);
+
+        // 使用 Clipboard API
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(textContent).then(function() {
+                $btn.text("✓").addClass("success");
+                setTimeout(function() {
+                    $btn.text(originalText).removeClass("success");
+                }, 2000);
+            }).catch(function(err) {
+                console.error("Failed to copy: ", err);
+                fallbackCopyInfo(textContent, $btn, originalText);
+            });
+        } else {
+            fallbackCopyInfo(textContent, $btn, originalText);
+        }
+    });
+
+    function extractTextFromBox($box) {
+        var lines = [];
+        var title = $box.find("h4").first().text().trim();
+        lines.push(title);
+        lines.push("=".repeat(title.length));
+        lines.push("");
+
+        // 提取表格内容
+        $box.find("table tr").each(function() {
+            var $row = $(this);
+            var cells = [];
+            $row.find("td, th").each(function() {
+                var $cell = $(this);
+                // 移除HTML标签，只保留文本
+                var text = $cell.clone()
+                    .find("span")
+                    .replaceWith(function() { return $(this).text(); })
+                    .end()
+                    .text()
+                    .trim();
+                cells.push(text);
+            });
+            if (cells.length > 0) {
+                lines.push(cells.join(" | "));
+            }
+        });
+
+        // 提取缺失文件列表
+        $box.find("ul li").each(function() {
+            lines.push("- " + $(this).text().trim());
+        });
+
+        return lines.join("\n");
+    }
+
+    function fallbackCopyInfo(text, $btn, originalText) {
+        var $temp = $("<textarea>");
+        $("body").append($temp);
+        $temp.val(text).select();
+        try {
+            var successful = document.execCommand("copy");
+            if (successful) {
+                $btn.text("✓").addClass("success");
+                setTimeout(function() {
+                    $btn.text(originalText).removeClass("success");
+                }, 2000);
+            } else {
+                alert("复制失败，请手动复制");
+            }
+        } catch (err) {
+            alert("复制失败，请手动复制");
+        }
+        $temp.remove();
+    }
 });
 </script>';
     }
@@ -420,17 +525,20 @@ jQuery(function($) {
      */
     private static function displayEnvironmentInfo($form, $envInfo)
     {
-        $envHtml = '<div style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:20px;">';
-        $envHtml .= '<h4 style="margin:0 0 10px 0;color:#333;">系统环境检测</h4>';
+        $envHtml = '<div class="ml-info-box" data-section="environment" style="background:#f9f9f9;padding:15px;border:1px solid #ddd;border-radius:4px;margin-bottom:20px;">';
+        $envHtml .= '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+        $envHtml .= '<h4 style="margin:0;color:#333;">系统环境检测</h4>';
+        $envHtml .= '<button type="button" class="ml-info-copy-btn" data-target="environment" title="复制环境信息">Copy</button>';
+        $envHtml .= '</div>';
         $envHtml .= '<table style="width:100%;border-collapse:collapse;">';
-        
+
         foreach ($envInfo as $name => $status) {
             $statusText = $status ? '<span style="color:#46b450;">✓ 可用</span>' : '<span style="color:#dc3232;">✗ 不可用</span>';
             $envHtml .= '<tr><td style="padding:5px 0;border-bottom:1px solid #eee;width:150px;">' . $name . '</td><td style="padding:5px 0;border-bottom:1px solid #eee;">' . $statusText . '</td></tr>';
         }
-        
+
         $envHtml .= '</table></div>';
-        
+
         echo $envHtml;
     }
 
