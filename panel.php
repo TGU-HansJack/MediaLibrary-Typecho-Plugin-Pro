@@ -25,6 +25,7 @@ $page = max(1, intval($request->get('page', 1)));
 $keywords = trim($request->get('keywords', ''));
 $type = $request->get('type', 'all');
 $view = $request->get('view', 'grid');
+$storage = $request->get('storage', 'all');
 
 // 处理 AJAX 请求
 if ($request->get('action')) {
@@ -49,7 +50,7 @@ if (preg_match("/^([0-9]+)([a-z]{1,2})$/i", $phpMaxFilesize, $matches)) {
 $pageSize = 20;
 
 // 获取媒体列表
-$mediaListData = MediaLibrary_PanelHelper::getMediaList($db, $page, $pageSize, $keywords, $type);
+$mediaListData = MediaLibrary_PanelHelper::getMediaList($db, $page, $pageSize, $keywords, $type, $storage);
 $attachments = $mediaListData['attachments'];
 $total = $mediaListData['total'];
 

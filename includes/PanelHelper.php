@@ -78,19 +78,32 @@ class MediaLibrary_PanelHelper
      * @param int $pageSize 每页显示数量
      * @param string $keywords 搜索关键词
      * @param string $type 文件类型过滤
+     * @param string $storage 存储类型过滤 (all, local, webdav)
      * @return array 媒体列表数据
      */
-    public static function getMediaList($db, $page, $pageSize, $keywords, $type)
+    public static function getMediaList($db, $page, $pageSize, $keywords, $type, $storage = 'all')
     {
         // 构建查询 - 添加去重和更严格的条件
         $select = $db->select()->from('table.contents')
             ->where('table.contents.type = ?', 'attachment')
             ->where('table.contents.status = ?', 'publish')  // 只查询已发布的附件
             ->order('table.contents.created', Typecho_Db::SORT_DESC);
-            
+
         if (!empty($keywords)) {
             $select->where('table.contents.title LIKE ?', '%' . $keywords . '%');
         }
+
+        // 存储类型筛选
+        // 注意：当前所有附件都存储在 Typecho 数据库中（本地存储）
+        // WebDAV 仅作为额外的远程存储备份，不影响数据库记录
+        // 如果未来需要区分 WebDAV 上传的文件，需要在 text 字段添加标记
+        if ($storage !== 'all' && $storage === 'webdav') {
+            // 预留：筛选 WebDAV 文件（需要在上传时添加标记）
+            // 示例：$select->where('table.contents.text LIKE ?', '%webdav%');
+            // 暂时返回空结果，因为当前没有明确的 WebDAV 标记
+            $select->where('1 = 0'); // 返回空结果集
+        }
+        // storage === 'local' 或 'all' 时不做额外筛选，显示所有文件
         
         if ($type !== 'all') {
             switch ($type) {

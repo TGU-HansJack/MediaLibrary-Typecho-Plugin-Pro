@@ -8,14 +8,23 @@
         <div class="sidebar-content">
             <?php if (!empty($storageStatusList)): ?>
                 <ul class="storage-list">
-                    <?php foreach ($storageStatusList as $storageItem): ?>
-                        <li class="storage-item <?php echo htmlspecialchars($storageItem['class']); ?>" title="<?php echo htmlspecialchars($storageItem['description']); ?>">
-                            <span class="storage-icon"><?php echo $storageItem['icon']; ?></span>
-                            <div class="storage-text">
-                                <span class="storage-name"><?php echo htmlspecialchars($storageItem['name']); ?></span>
-                                <span class="storage-desc"><?php echo htmlspecialchars($storageItem['description']); ?></span>
-                            </div>
-                            <span class="storage-badge"><?php echo htmlspecialchars($storageItem['badge']); ?></span>
+                    <?php
+                    $currentStorage = $request->get('storage', 'all');
+                    foreach ($storageStatusList as $storageItem):
+                        $isActive = ($currentStorage === $storageItem['key']) || ($currentStorage === 'all' && $storageItem['key'] === 'local');
+                        $storageUrl = $currentUrl . '&storage=' . $storageItem['key'] . '&page=1';
+                        if ($keywords) $storageUrl .= '&keywords=' . urlencode($keywords);
+                        if ($type !== 'all') $storageUrl .= '&type=' . $type;
+                        if ($view !== 'grid') $storageUrl .= '&view=' . $view;
+                    ?>
+                        <li class="storage-item <?php echo htmlspecialchars($storageItem['class']); ?> <?php echo $isActive ? 'storage-active' : ''; ?>">
+                            <a href="<?php echo $storageUrl; ?>" class="storage-link" title="<?php echo htmlspecialchars($storageItem['description']); ?>">
+                                <span class="storage-icon"><?php echo $storageItem['icon']; ?></span>
+                                <div class="storage-text">
+                                    <span class="storage-name"><?php echo htmlspecialchars($storageItem['name']); ?></span>
+                                </div>
+                                <span class="storage-status-dot"></span>
+                            </a>
                         </li>
                     <?php endforeach; ?>
                 </ul>

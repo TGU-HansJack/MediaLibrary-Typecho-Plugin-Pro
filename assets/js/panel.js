@@ -221,16 +221,6 @@ var MediaLibrary = {
             }
         });
 
-        // WebDAV 面板跳转
-        var webdavBtn = document.getElementById('webdav-manager-btn');
-        if (webdavBtn) {
-            webdavBtn.addEventListener('click', function() {
-                if (window.WebDAVManager) {
-                    WebDAVManager.focus();
-                }
-            });
-        }
-
         // 压缩相关事件
         this.bindCompressEvents();
     },

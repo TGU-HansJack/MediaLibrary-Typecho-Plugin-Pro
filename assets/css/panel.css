@@ -176,17 +176,37 @@
 
 /* 存储列表 */
 .storage-item {
-    padding: var(--space-md);
+    padding: 0;
     border-radius: var(--radius);
     margin-bottom: var(--space-sm);
     background: var(--ml-surface);
     border: 1px solid var(--ml-border);
+    transition: all var(--transition);
 }
 
-.storage-item.active {
+.storage-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    text-decoration: none;
+    color: inherit;
+    width: 100%;
+}
+
+.storage-item:hover {
+    background: var(--ml-border);
+    cursor: pointer;
+}
+
+.storage-item.storage-active {
     background: var(--ml-primary-light);
     border-color: var(--ml-primary);
+}
+
+.storage-item.storage-active .storage-name {
     color: var(--ml-primary);
+    font-weight: 600;
 }
 
 .storage-item.disabled {
@@ -196,6 +216,9 @@
 .storage-item.error {
     border-color: #dc4a4a;
     background: rgba(220, 74, 74, 0.08);
+}
+
+.storage-item.error .storage-name {
     color: #c0392b;
 }
 
@@ -209,18 +232,6 @@
 
 .storage-text {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.storage-desc {
-    font-size: 12px;
-    color: var(--ml-text-secondary);
-    opacity: 0.85;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .storage-empty {
@@ -228,24 +239,46 @@
     color: var(--ml-muted);
 }
 
-.storage-badge {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: var(--radius);
-    background: var(--ml-card);
-    border: 1px solid var(--ml-border);
+/* 状态光点 */
+.storage-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px var(--ml-card), 0 0 4px rgba(0, 0, 0, 0.1);
+    transition: all var(--transition);
 }
 
-.storage-item.active .storage-badge {
-    background: var(--ml-primary);
-    color: #fff;
-    border-color: var(--ml-primary);
+/* 活跃状态 - 绿色光点 */
+.storage-item.active .storage-status-dot {
+    background: #107c10;
+    box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(16, 124, 16, 0.4);
 }
 
-.storage-item.error .storage-badge {
-    background: #dc4a4a;
-    color: #fff;
-    border-color: #dc4a4a;
+/* 未启用状态 - 黄色光点 */
+.storage-item.disabled .storage-status-dot {
+    background: #ffc83d;
+    box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(255, 200, 61, 0.4);
+}
+
+/* 错误状态 - 红色光点 */
+.storage-item.error .storage-status-dot {
+    background: #d13438;
+    box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(209, 52, 56, 0.4);
+}
+
+/* 光点动画效果 - 活跃状态呼吸效果 */
+.storage-item.active .storage-status-dot {
+    animation: pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+    0%, 100% {
+        box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(16, 124, 16, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 2px var(--ml-card), 0 0 12px rgba(16, 124, 16, 0.6);
+    }
 }
 
 /* 筛选列表 */
