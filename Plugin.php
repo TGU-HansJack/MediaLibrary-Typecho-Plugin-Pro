@@ -1,6 +1,8 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
+require_once __DIR__ . '/includes/UpdateAction.php';
+
 /**
  * 媒体库管理插件，可以在后台对整体文件信息的查看和编辑、上传和删除，图片压缩和隐私检测，多媒体预览，文章编辑器中预览和插入的简单媒体库
  * 
@@ -22,6 +24,8 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
+        
+        Helper::addAction('media-library-update', 'MediaLibrary_UpdateAction');
         
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -75,6 +79,11 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
+        try {
+            Helper::addAction('media-library-update', 'MediaLibrary_UpdateAction');
+        } catch (Typecho_Plugin_Exception $e) {
+            // Ignore if the action has already been registered.
+        }
 
         // 显示版本信息和更新检测
         self::displayVersionInfo($form);
@@ -261,6 +270,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     private static function addConfigPageAssets()
     {
         $pluginUrl = Helper::options()->pluginUrl . '/MediaLibrary';
+        $updateActionUrl = Typecho_Common::url('action/media-library-update', Helper::options()->index);
 
         ob_start();
         Helper::options()->adminStaticUrl('js', 'jquery.js');
@@ -296,7 +306,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
                 $("#update-progress").hide();
 
                 $.ajax({
-                    url: "' . $pluginUrl . '/update-handler.php",
+                    url: "' . $updateActionUrl . '",
                     type: "POST",
                     data: { action: "check_update" },
                     dataType: "json",
@@ -369,7 +379,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
                 $("#update-progress").slideDown();
 
                 $.ajax({
-                    url: "' . $pluginUrl . '/update-handler.php",
+                    url: "' . $updateActionUrl . '",
                     type: "POST",
                     data: {
                         action: "install_update",
