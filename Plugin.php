@@ -24,7 +24,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
-        Helper::addAction('medialibrarylogs', 'MediaLibrary_LogAction');
+        self::ensureLogActionRegistered();
         
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -52,6 +52,21 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         return '媒体库插件已禁用！';
     }
     
+    /**
+     * Ensure log action route exists (self-heals after updates without re-activation)
+     */
+    private static function ensureLogActionRegistered()
+    {
+        $actions = Helper::options()->action;
+        $current = is_array($actions) && isset($actions['medialibrarylogs'])
+            ? $actions['medialibrarylogs']
+            : null;
+
+        if ($current !== 'MediaLibrary_LogAction') {
+            Helper::addAction('medialibrarylogs', 'MediaLibrary_LogAction');
+        }
+    }
+
     /**
      * 在写作页面添加媒体库
      */
@@ -82,6 +97,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PluginUpdater.php';
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
+        self::ensureLogActionRegistered();
         // 显示版本信息和更新检测
         self::displayVersionInfo($form);
 
