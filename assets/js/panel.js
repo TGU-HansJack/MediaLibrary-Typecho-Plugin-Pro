@@ -3,6 +3,7 @@ var currentUrl = window.mediaLibraryCurrentUrl;
 var currentKeywords = window.mediaLibraryKeywords || '';
 var currentType = window.mediaLibraryType || 'all';
 var currentView = window.mediaLibraryView || 'grid';
+var currentStorage = window.mediaLibraryStorage || 'all';
 var config = window.mediaLibraryConfig || {};
 
 // 修复分页跳转函数 - 防止打开新标签页
@@ -1452,10 +1453,10 @@ escapeHtml: function(text) {
 
 initUpload: function() {
     var self = this;
-    
+
     var uploader = new plupload.Uploader({
         browse_button: 'upload-file-btn',
-        url: currentUrl + '&action=upload',
+        url: currentUrl + '&action=upload&storage=' + currentStorage,
         runtimes: 'html5,flash,html4',
         flash_swf_url: config.adminStaticUrl + 'Moxie.swf',
         drop_element: 'upload-area',

@@ -119,31 +119,65 @@ class MediaLibrary_AjaxHandler
             echo json_encode(['success' => false, 'message' => '请选择要删除的文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
+        // 获取 WebDAV 配置
+        $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+        $webdavClient = null;
+        if ($configOptions['enableWebDAV']) {
+            try {
+                $webdavClient = new MediaLibrary_WebDAVClient(
+                    $configOptions['webdavUrl'],
+                    $configOptions['webdavUsername'],
+                    $configOptions['webdavPassword']
+                );
+            } catch (Exception $e) {
+                // WebDAV 客户端初始化失败，继续使用本地删除
+                MediaLibrary_Logger::log('delete', 'WebDAV 客户端初始化失败: ' . $e->getMessage(), [], 'warning');
+            }
+        }
+
         $deleteCount = 0;
         foreach ($cids as $cid) {
             $cid = intval($cid);
             $attachment = $db->fetchRow($db->select()->from('table.contents')
                 ->where('cid = ? AND type = ?', $cid, 'attachment'));
-                
+
             if ($attachment) {
                 // 删除物理文件
                 if (isset($attachment['text'])) {
                     $attachmentData = @unserialize($attachment['text']);
                     if (is_array($attachmentData) && isset($attachmentData['path'])) {
                         $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+                        // 首先尝试删除本地文件
                         if (file_exists($filePath)) {
                             @unlink($filePath);
                         }
+
+                        // 如果启用了 WebDAV，也尝试从 WebDAV 删除
+                        if ($webdavClient && isset($attachmentData['webdav_path'])) {
+                            try {
+                                $webdavClient->delete($attachmentData['webdav_path']);
+                                MediaLibrary_Logger::log('delete', 'WebDAV 文件删除成功', [
+                                    'cid' => $cid,
+                                    'path' => $attachmentData['webdav_path']
+                                ]);
+                            } catch (Exception $e) {
+                                MediaLibrary_Logger::log('delete', 'WebDAV 文件删除失败: ' . $e->getMessage(), [
+                                    'cid' => $cid,
+                                    'path' => $attachmentData['webdav_path']
+                                ], 'warning');
+                            }
+                        }
                     }
                 }
-                
+
                 // 删除数据库记录
                 $db->query($db->delete('table.contents')->where('cid = ?', $cid));
                 $deleteCount++;
             }
         }
-        
+
         MediaLibrary_Logger::log('delete', '删除操作完成', [
             'requested_cids' => $cids,
             'deleted' => $deleteCount
@@ -161,20 +195,41 @@ class MediaLibrary_AjaxHandler
             echo json_encode(['success' => false, 'message' => '没有文件上传'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
+        // 获取存储类型参数
+        $storage = isset($_GET['storage']) ? $_GET['storage'] : 'all';
+
         try {
-            // 使用 Typecho 的上传处理
+            // 如果是 WebDAV 存储，使用 WebDAV 上传
+            if ($storage === 'webdav') {
+                $result = self::uploadToWebDAV($_FILES);
+                if ($result['success']) {
+                    MediaLibrary_Logger::log('upload', 'WebDAV 上传成功', [
+                        'files' => self::summarizeUploadedFiles(),
+                        'result' => $result
+                    ]);
+                    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+                } else {
+                    MediaLibrary_Logger::log('upload', 'WebDAV 上传失败: ' . $result['message'], [
+                        'files' => self::summarizeUploadedFiles()
+                    ], 'error');
+                    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+                }
+                return;
+            }
+
+            // 默认使用 Typecho 的本地上传处理
             $upload = \Widget\Upload::alloc();
             $result = $upload->upload($_FILES);
-            
+
             if ($result) {
-                MediaLibrary_Logger::log('upload', '上传成功', [
+                MediaLibrary_Logger::log('upload', '本地上传成功', [
                     'files' => self::summarizeUploadedFiles(),
                     'result' => $result
                 ]);
                 echo json_encode(['success' => true, 'count' => 1, 'data' => $result], JSON_UNESCAPED_UNICODE);
             } else {
-                MediaLibrary_Logger::log('upload', '上传失败：上传返回空结果', [
+                MediaLibrary_Logger::log('upload', '本地上传失败：上传返回空结果', [
                     'files' => self::summarizeUploadedFiles()
                 ], 'error');
                 echo json_encode(['success' => false, 'message' => '上传失败'], JSON_UNESCAPED_UNICODE);
@@ -184,6 +239,104 @@ class MediaLibrary_AjaxHandler
                 'files' => self::summarizeUploadedFiles()
             ], 'error');
             echo json_encode(['success' => false, 'message' => '上传失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 上传文件到 WebDAV
+     */
+    private static function uploadToWebDAV($files)
+    {
+        try {
+            // 获取 WebDAV 配置
+            $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+
+            if (!$configOptions['enableWebDAV']) {
+                return ['success' => false, 'message' => 'WebDAV 未启用'];
+            }
+
+            $client = new MediaLibrary_WebDAVClient(
+                $configOptions['webdavUrl'],
+                $configOptions['webdavUsername'],
+                $configOptions['webdavPassword']
+            );
+
+            // 获取数据库和选项
+            $db = Typecho_Db::get();
+            $options = Typecho_Widget::widget('Widget_Options');
+            $user = Typecho_Widget::widget('Widget_User');
+
+            $uploadedFiles = [];
+            foreach ($files as $file) {
+                if (isset($file['tmp_name']) && isset($file['name'])) {
+                    $fileName = $file['name'];
+                    $remotePath = $configOptions['webdavPath'] . '/' . $fileName;
+                    $content = file_get_contents($file['tmp_name']);
+
+                    // 上传到 WebDAV
+                    if ($client->put($remotePath, $content)) {
+                        // 构建公开访问 URL
+                        $publicUrl = rtrim($configOptions['webdavUrl'], '/') . '/' . ltrim($remotePath, '/');
+
+                        // 保存到数据库
+                        $attachmentData = [
+                            'name' => $fileName,
+                            'path' => $remotePath,
+                            'size' => $file['size'],
+                            'type' => $file['type'],
+                            'mime' => $file['type'],
+                            'webdav_path' => $remotePath,  // 添加 WebDAV 路径标记
+                            'storage' => 'webdav'  // 添加存储类型标记
+                        ];
+
+                        // 插入数据库记录
+                        $insertData = [
+                            'title' => $fileName,
+                            'slug' => $fileName,
+                            'created' => time(),
+                            'modified' => time(),
+                            'text' => serialize($attachmentData),
+                            'order' => 0,
+                            'authorId' => $user->uid,
+                            'template' => NULL,
+                            'type' => 'attachment',
+                            'status' => 'publish',
+                            'parent' => 0,
+                            'allowComment' => 0,
+                            'allowPing' => 0,
+                            'allowFeed' => 0
+                        ];
+
+                        $insertId = $db->query($db->insert('table.contents')->rows($insertData));
+
+                        $uploadedFiles[] = [
+                            'cid' => $insertId,
+                            'name' => $fileName,
+                            'path' => $remotePath,
+                            'url' => $publicUrl,
+                            'size' => $file['size']
+                        ];
+
+                        MediaLibrary_Logger::log('upload', 'WebDAV 文件上传并记录成功', [
+                            'cid' => $insertId,
+                            'file' => $fileName,
+                            'path' => $remotePath
+                        ]);
+                    } else {
+                        return ['success' => false, 'message' => '上传到 WebDAV 失败: ' . $fileName];
+                    }
+                }
+            }
+
+            return [
+                'success' => true,
+                'message' => '成功上传到 WebDAV',
+                'count' => count($uploadedFiles),
+                'data' => $uploadedFiles
+            ];
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('upload', 'WebDAV 上传错误: ' . $e->getMessage(), [], 'error');
+            return ['success' => false, 'message' => 'WebDAV 上传错误: ' . $e->getMessage()];
         }
     }
     

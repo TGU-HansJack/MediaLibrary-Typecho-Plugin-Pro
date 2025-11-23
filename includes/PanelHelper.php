@@ -94,17 +94,17 @@ class MediaLibrary_PanelHelper
         }
 
         // 存储类型筛选
-        // 注意：当前所有附件都存储在 Typecho 数据库中（本地存储）
-        // WebDAV 仅作为额外的远程存储备份，不影响数据库记录
-        // 如果未来需要区分 WebDAV 上传的文件，需要在 text 字段添加标记
-        if ($storage !== 'all' && $storage === 'webdav') {
-            // 预留：筛选 WebDAV 文件（需要在上传时添加标记）
-            // 示例：$select->where('table.contents.text LIKE ?', '%webdav%');
-            // 暂时返回空结果，因为当前没有明确的 WebDAV 标记
-            $select->where('1 = 0'); // 返回空结果集
+        // WebDAV 文件在上传时会在 text 字段中添加 'storage' => 'webdav' 标记
+        if ($storage !== 'all') {
+            if ($storage === 'webdav') {
+                // 筛选 WebDAV 文件：查找 text 字段包含 webdav 存储标记的文件
+                $select->where('table.contents.text LIKE ?', '%s:7:"storage";s:6:"webdav"%');
+            } elseif ($storage === 'local') {
+                // 筛选本地文件：排除带有 webdav 标记的文件
+                $select->where('table.contents.text NOT LIKE ?', '%s:7:"storage";s:6:"webdav"%');
+            }
         }
-        // storage === 'local' 或 'all' 时不做额外筛选，显示所有文件
-        
+
         if ($type !== 'all') {
             switch ($type) {
                 case 'image':

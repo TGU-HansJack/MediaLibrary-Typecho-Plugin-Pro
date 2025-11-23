@@ -144,10 +144,6 @@ $cssVersion = '3.3.0'; // 精简布局版本
                             </div>
                         </div>
 
-                        <?php if ($showWebDAVManager): ?>
-                            <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/webdav-manager.php'; ?>
-                        <?php endif; ?>
-
                         <!-- 固定底部分页 -->
                         <div class="media-pagination-fixed">
                             <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/pagination.php'; ?>
@@ -177,6 +173,7 @@ window.mediaLibraryCurrentUrl = '<?php echo $currentUrl; ?>';
 window.mediaLibraryKeywords = '<?php echo addslashes($keywords); ?>';
 window.mediaLibraryType = '<?php echo $type; ?>';
 window.mediaLibraryView = '<?php echo $view; ?>';
+window.mediaLibraryStorage = '<?php echo $storage; ?>';
 window.mediaLibraryConfig = {
     enableGetID3: <?php echo $enableGetID3 ? 'true' : 'false'; ?>,
     enableExif: <?php echo $enableExif ? 'true' : 'false'; ?>,
