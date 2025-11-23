@@ -1,5 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogAction.php';
 
 /**
  * 媒体库管理插件，可以在后台对整体文件信息的查看和编辑、上传和删除，图片压缩和隐私检测，多媒体预览，文章编辑器中预览和插入的简单媒体库
@@ -23,6 +24,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
+        Helper::addAction('medialibrary-log', 'MediaLibrary_LogAction');
         
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -43,6 +45,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 移除控制台菜单
         Helper::removePanel(3, 'MediaLibrary/panel.php');
+        Helper::removeAction('medialibrary-log');
         
         return '媒体库插件已禁用！';
     }
@@ -263,12 +266,15 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $logFile = MediaLibrary_Logger::getLogFile();
         $isReadable = $logFile && is_file($logFile) && is_readable($logFile);
         $rawContent = '';
+        $security = Helper::security();
+        $clearLogUrl = $security->getIndex('/action/medialibrary-log');
+        $emptyLogText = '暂无日志内容。';
 
         if ($isReadable) {
             $rawContent = (string) @file_get_contents($logFile);
         }
 
-        $logSize = $isReadable ? number_format(filesize($logFile)) . ' B' : null;
+        $logSize = $isReadable ? self::formatLogSizeKiB(filesize($logFile)) : null;
         $logUpdated = $isReadable ? date('Y-m-d H:i:s', filemtime($logFile)) : null;
         $logMetaParts = array();
 
@@ -280,21 +286,39 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         }
 
         $logMetaText = $logMetaParts ? implode(' ｜ ', $logMetaParts) : '日志文件尚未生成或无法读取。';
-        $displayContent = trim($rawContent) !== '' ? htmlspecialchars($rawContent) : '暂无日志内容。';
+        $displayContent = trim($rawContent) !== '' ? htmlspecialchars($rawContent) : htmlspecialchars($emptyLogText);
 
         $logHtml = '<div class="ml-log-viewer">';
         $logHtml .= '<div class="ml-log-head">';
         $logHtml .= '<div><h4 style="margin:0 0 6px 0;">处理流程日志</h4>';
         $logHtml .= '<p style="margin:0;color:#666;font-size:13px;">以下内容来自日志文件，可直接滚动查看。</p></div>';
         $logHtml .= '</div>';
+        $logHtml .= '<div class="ml-log-actions">';
+        $logHtml .= '<button type="button" class="ml-log-delete-btn" id="ml-clear-log-btn" data-url="' . htmlspecialchars($clearLogUrl) . '">删除日志文件</button>';
+        $logHtml .= '<span class="ml-log-status" id="ml-log-status"></span>';
+        $logHtml .= '</div>';
         $logHtml .= '<div class="ml-log-meta">日志文件位置：<code style="font-size:12px;">' . htmlspecialchars($logFile) . '</code>';
-        $logHtml .= '<div class="ml-log-meta-extra">' . htmlspecialchars($logMetaText) . '</div></div>';
+        $logHtml .= '<div class="ml-log-meta-extra" id="ml-log-meta-text">' . htmlspecialchars($logMetaText) . '</div></div>';
         $logHtml .= '<div class="ml-log-raw-wrap">';
-        $logHtml .= '<pre class="ml-log-raw">' . $displayContent . '</pre>';
+        $logHtml .= '<pre class="ml-log-raw" data-empty-text="' . htmlspecialchars($emptyLogText, ENT_QUOTES) . '">' . $displayContent . '</pre>';
         $logHtml .= '</div>';
         $logHtml .= '</div>';
 
         echo $logHtml;
+    }
+
+    /**
+     * 以 KiB 单位格式化日志大小
+     *
+     * @param int|float $bytes
+     * @return string
+     */
+    private static function formatLogSizeKiB($bytes)
+    {
+        $bytes = max(0, (float) $bytes);
+        return $bytes > 0
+            ? number_format($bytes / 1024, 2) . ' KiB'
+            : '0 KiB';
     }
 
     /**
@@ -313,6 +337,13 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         echo '<style>
 .ml-log-viewer{background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;margin:20px 0 30px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
 .ml-log-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;flex-wrap:wrap;margin-bottom:10px;}
+.ml-log-actions{display:flex;justify-content:space-between;align-items:center;margin:15px 0 5px;gap:12px;}
+.ml-log-delete-btn{background:#dc3232;border:1px solid #dc3232;color:#fff;padding:6px 16px;border-radius:4px;font-size:13px;cursor:pointer;transition:background .2s,border-color .2s;}
+.ml-log-delete-btn:hover{background:#b12424;border-color:#b12424;}
+.ml-log-delete-btn[disabled]{opacity:.6;cursor:not-allowed;}
+.ml-log-status{font-size:12px;color:#666;}
+.ml-log-status.success{color:#46b450;}
+.ml-log-status.error{color:#dc3232;}
 .ml-log-meta{font-size:12px;color:#777;margin-bottom:10px;line-height:1.6;}
 .ml-log-meta code{font-size:12px;}
 .ml-log-meta-extra{margin-top:4px;}
@@ -336,6 +367,51 @@ jQuery(function($) {
                 $container.slideDown();
                 $toggleBtn.text("隐藏详细检测信息");
             }
+        });
+    }
+
+    var $clearLogBtn = $("#ml-clear-log-btn");
+    if ($clearLogBtn.length) {
+        var originalText = $clearLogBtn.text();
+        var $status = $("#ml-log-status");
+        $clearLogBtn.on("click", function() {
+            if ($clearLogBtn.prop("disabled")) {
+                return;
+            }
+            if (!window.confirm("确定要删除日志文件吗？")) {
+                return;
+            }
+            var actionUrl = $clearLogBtn.data("url");
+            if (!actionUrl) {
+                return;
+            }
+            $clearLogBtn.prop("disabled", true).text("删除中...");
+            $status.removeClass("success error").text("");
+            $.ajax({
+                url: actionUrl,
+                method: "POST",
+                dataType: "json",
+                data: { do: "clear_logs" }
+            }).done(function(resp) {
+                if (resp && resp.success) {
+                    var message = resp.message || "日志文件已清空。";
+                    $status.text(message).addClass("success");
+                    var $raw = $(".ml-log-raw");
+                    var emptyText = $raw.data("emptyText") || "暂无日志内容。";
+                    $raw.text(emptyText);
+                    $("#ml-log-meta-text").text("日志文件已清空，大小：0 KiB");
+                } else {
+                    var errorMsg = (resp && resp.message) ? resp.message : "清理失败，请稍后再试。";
+                    $status.text(errorMsg).addClass("error");
+                }
+            }).fail(function(jqXHR) {
+                var errorMsg = (jqXHR.responseJSON && jqXHR.responseJSON.message)
+                    ? jqXHR.responseJSON.message
+                    : "清理失败，请稍后再试。";
+                $status.text(errorMsg).addClass("error");
+            }).always(function() {
+                $clearLogBtn.prop("disabled", false).text(originalText);
+            });
         });
     }
 });
