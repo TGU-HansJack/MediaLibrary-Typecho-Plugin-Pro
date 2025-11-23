@@ -343,6 +343,7 @@ var MediaLibrary = {
         var checkboxes = document.querySelectorAll('input[type="checkbox"][value]:checked');
         var count = checkboxes.length;
         var deleteBtn = document.getElementById('delete-selected');
+        var selectionIndicator = document.getElementById('selection-indicator');
         
         if (deleteBtn) {
             if (count > 0) {
@@ -350,6 +351,16 @@ var MediaLibrary = {
                 deleteBtn.textContent = '删除选中 (' + count + ')';
             } else {
                 deleteBtn.style.display = 'none';
+            }
+        }
+        
+        if (selectionIndicator) {
+            if (count > 0) {
+                selectionIndicator.textContent = '已选中 ' + count + ' 个文件';
+                selectionIndicator.classList.add('active');
+            } else {
+                selectionIndicator.textContent = '未选择文件';
+                selectionIndicator.classList.remove('active');
             }
         }
         
