@@ -262,6 +262,14 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         $pluginUrl = Helper::options()->pluginUrl . '/MediaLibrary';
 
+        ob_start();
+        Helper::options()->adminStaticUrl('js', 'jquery.js');
+        $jquerySource = trim(ob_get_clean());
+
+        if (!empty($jquerySource)) {
+            echo '<script src="' . $jquerySource . '"></script>';
+        }
+
         echo '<script>
         jQuery(document).ready(function($) {
             // 折叠/展开详细检测信息
