@@ -292,6 +292,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         $logHtml .= '<div class="ml-log-head">';
         $logHtml .= '<div><h4 style="margin:0 0 6px 0;">处理流程日志</h4>';
         $logHtml .= '<p style="margin:0;color:#666;font-size:13px;">以下内容来自日志文件，可直接滚动查看。</p></div>';
+        $logHtml .= '<button type="button" class="ml-log-copy-btn" id="ml-copy-log-btn" title="复制日志内容">Copy to clipboard !</button>';
         $logHtml .= '</div>';
         $logHtml .= '<div class="ml-log-meta">日志文件位置：<code style="font-size:12px;">' . htmlspecialchars($logFile) . '</code>';
         $logHtml .= '<div class="ml-log-meta-extra" id="ml-log-meta-text">' . htmlspecialchars($logMetaText) . '</div></div>';
@@ -333,6 +334,10 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         echo '<style>
 .ml-log-viewer{background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;margin:20px 0 30px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
 .ml-log-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;flex-wrap:wrap;margin-bottom:10px;}
+.ml-log-copy-btn{background:#0073aa;border:1px solid #0073aa;color:#fff;padding:6px 16px;border-radius:4px;font-size:13px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.ml-log-copy-btn:hover{background:#005a87;border-color:#005a87;}
+.ml-log-copy-btn.success{background:#46b450;border-color:#46b450;}
+.ml-log-copy-btn[disabled]{opacity:.6;cursor:not-allowed;}
 .ml-log-meta{font-size:12px;color:#777;margin-bottom:10px;line-height:1.6;}
 .ml-log-meta code{font-size:12px;}
 .ml-log-meta-extra{margin-top:4px;}
@@ -357,6 +362,54 @@ jQuery(function($) {
                 $toggleBtn.text("隐藏详细检测信息");
             }
         });
+    }
+
+    var $copyBtn = $("#ml-copy-log-btn");
+    if ($copyBtn.length) {
+        var originalText = $copyBtn.text();
+        $copyBtn.on("click", function() {
+            if ($copyBtn.prop("disabled")) {
+                return;
+            }
+
+            var $logContent = $(".ml-log-raw");
+            var logText = $logContent.text();
+
+            // 使用 Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(logText).then(function() {
+                    $copyBtn.text("Copy successful !").addClass("success");
+                    setTimeout(function() {
+                        $copyBtn.text(originalText).removeClass("success");
+                    }, 2000);
+                }).catch(function(err) {
+                    console.error("Failed to copy: ", err);
+                    fallbackCopy(logText);
+                });
+            } else {
+                fallbackCopy(logText);
+            }
+        });
+
+        function fallbackCopy(text) {
+            var $temp = $("<textarea>");
+            $("body").append($temp);
+            $temp.val(text).select();
+            try {
+                var successful = document.execCommand("copy");
+                if (successful) {
+                    $copyBtn.text("Copy successful !").addClass("success");
+                    setTimeout(function() {
+                        $copyBtn.text(originalText).removeClass("success");
+                    }, 2000);
+                } else {
+                    alert("复制失败，请手动复制");
+                }
+            } catch (err) {
+                alert("复制失败，请手动复制");
+            }
+            $temp.remove();
+        }
     }
 });
 </script>';
