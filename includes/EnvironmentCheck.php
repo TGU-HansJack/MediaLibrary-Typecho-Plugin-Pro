@@ -158,17 +158,81 @@ class MediaLibrary_EnvironmentCheck
      */
     public static function getSystemInfo()
     {
+        $dbInfo = self::getDatabaseInfo();
+
         return [
             'PHP 版本' => PHP_VERSION,
             '操作系统' => PHP_OS,
             '服务器软件' => isset($_SERVER['SERVER_SOFTWARE']) ? $_SERVER['SERVER_SOFTWARE'] : 'Unknown',
             'Typecho 版本' => Typecho_Common::VERSION,
             '插件版本' => self::PLUGIN_VERSION,
+            '数据库类型' => $dbInfo['type'],
+            '数据库版本' => $dbInfo['version'],
             '内存限制' => ini_get('memory_limit'),
             '最大上传大小' => ini_get('upload_max_filesize'),
             'POST 最大大小' => ini_get('post_max_size'),
             '最大执行时间' => ini_get('max_execution_time') . '秒',
         ];
+    }
+
+    /**
+     * 获取数据库信息
+     *
+     * @return array 数据库类型和版本
+     */
+    private static function getDatabaseInfo()
+    {
+        try {
+            $db = Typecho_Db::get();
+            $adapterName = $db->getAdapterName();
+
+            // 获取数据库类型
+            $dbType = 'Unknown';
+            if (stripos($adapterName, 'Mysql') !== false || stripos($adapterName, 'Pdo_Mysql') !== false) {
+                $dbType = 'MySQL';
+            } elseif (stripos($adapterName, 'SQLite') !== false || stripos($adapterName, 'Pdo_SQLite') !== false) {
+                $dbType = 'SQLite';
+            } elseif (stripos($adapterName, 'Pgsql') !== false || stripos($adapterName, 'Pdo_Pgsql') !== false) {
+                $dbType = 'PostgreSQL';
+            }
+
+            // 获取数据库版本
+            $dbVersion = 'Unknown';
+            try {
+                if (stripos($adapterName, 'Mysql') !== false) {
+                    $version = $db->fetchRow($db->select()->from('information_schema.tables')->where('1=0'));
+                    // 如果上面的查询失败，尝试使用 VERSION() 函数
+                    $result = $db->fetchRow($db->query("SELECT VERSION() as version"));
+                    if ($result && isset($result['version'])) {
+                        $dbVersion = $result['version'];
+                    }
+                } elseif (stripos($adapterName, 'SQLite') !== false) {
+                    $result = $db->fetchRow($db->query("SELECT sqlite_version() as version"));
+                    if ($result && isset($result['version'])) {
+                        $dbVersion = $result['version'];
+                    }
+                } elseif (stripos($adapterName, 'Pgsql') !== false) {
+                    $result = $db->fetchRow($db->query("SELECT version() as version"));
+                    if ($result && isset($result['version'])) {
+                        $dbVersion = $result['version'];
+                    }
+                }
+            } catch (Exception $e) {
+                // 如果查询失败，保持 Unknown
+                $dbVersion = 'Unable to retrieve';
+            }
+
+            return [
+                'type' => $dbType,
+                'version' => $dbVersion
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'type' => 'Unknown',
+                'version' => 'Unknown'
+            ];
+        }
     }
     
     /**
