@@ -427,11 +427,11 @@ class MediaLibrary_ImageEditor
             if (!$imageInfo) {
                 return ['success' => false, 'message' => '无法获取图片信息'];
             }
-            
+
             $mime = $imageInfo['mime'];
             $sourceWidth = $imageInfo[0];
             $sourceHeight = $imageInfo[1];
-            
+
             // 创建图像资源
             $srcImage = null;
             switch ($mime) {
@@ -450,18 +450,18 @@ class MediaLibrary_ImageEditor
                 default:
                     return ['success' => false, 'message' => 'GD库不支持此图片格式: ' . $mime];
             }
-            
+
             if (!$srcImage) {
                 return ['success' => false, 'message' => '无法创建图像资源'];
             }
-            
+
             // 水印类型
             $type = $config['type'];
-            
+
             // 水印位置计算
             $x = intval($config['x']);
             $y = intval($config['y']);
-            
+
             // 根据预设位置调整坐标
             if (isset($config['position'])) {
                 switch ($config['position']) {
@@ -505,16 +505,20 @@ class MediaLibrary_ImageEditor
                         break;
                 }
             }
-            
+
             // 水印透明度
             $opacity = isset($config['opacity']) ? intval($config['opacity']) : 70;
-            
+
             // 文本水印
             if ($type === 'text') {
                 $text = self::normalizeWatermarkText($config['text']);
+
+                // 检查是否包含中文字符
+                $hasChinese = preg_match('/[\x{4e00}-\x{9fa5}]/u', $text);
+
                 $fontSize = isset($config['fontSize']) ? intval($config['fontSize']) : 24;
                 $fontColor = isset($config['color']) ? $config['color'] : '#ffffff';
-                
+
                 // 转换颜色格式
                 if (preg_match('/#([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})/i', $fontColor, $matches)) {
                     $r = hexdec($matches[1]);
@@ -525,17 +529,24 @@ class MediaLibrary_ImageEditor
                     $g = 255;
                     $b = 255;
                 }
-                
+
                 // 指定字体路径
                 $preferredFont = isset($config['fontPath']) ? $config['fontPath'] : __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttf';
                 $resolvedFont = self::resolveFontPath($preferredFont);
                 $useBuiltinFont = false;
+
+                // 如果包含中文但没有找到字体文件，返回错误
+                if ($hasChinese && !$resolvedFont) {
+                    imagedestroy($srcImage);
+                    return ['success' => false, 'message' => '无法添加中文水印：未找到中文字体文件。请在插件的 assets/fonts 目录下添加中文字体文件（如 msyh.ttf、simhei.ttf 等），或使用系统自带的中文字体。'];
+                }
+
                 if (!$resolvedFont) {
                     // 使用GD内置字体作为兜底，虽然不支持完整中文，但可避免报错
                     $resolvedFont = 5;
                     $useBuiltinFont = true;
                 }
-                
+
                 // 计算文本尺寸
                 if ($useBuiltinFont) {
                     $textWidth = strlen($text) * imagefontwidth($resolvedFont);
@@ -545,7 +556,7 @@ class MediaLibrary_ImageEditor
                     $textWidth = abs($box[4] - $box[0]);
                     $textHeight = abs($box[5] - $box[1]);
                 }
-                
+
                 // 根据预设位置调整实际坐标
                 if (isset($config['position'])) {
                     switch ($config['position']) {
@@ -560,7 +571,7 @@ class MediaLibrary_ImageEditor
                             $x -= $textWidth;
                             break;
                     }
-                    
+
                     switch ($config['position']) {
                         case 'middle-left':
                         case 'middle-center':
@@ -574,7 +585,7 @@ class MediaLibrary_ImageEditor
                             break;
                     }
                 }
-                
+
                 // 使用预设文本样式
                 if (isset($config['preset']) && $config['preset'] === 'ai-generated') {
                     $text = "AI生成图像 - " . date('Y-m-d');
@@ -585,10 +596,10 @@ class MediaLibrary_ImageEditor
                 }
 
                 $text = self::normalizeWatermarkText($text);
-                
+
                 // 创建文本颜色
                 $textColor = imagecolorallocatealpha($srcImage, $r, $g, $b, 127 - ($opacity * 1.27));
-                
+
                 // 绘制文本
                 if ($useBuiltinFont) {
                     imagestring($srcImage, $resolvedFont, $x, $y, $text, $textColor);
@@ -825,17 +836,26 @@ class MediaLibrary_ImageEditor
             // 文本水印
             if ($type === 'text') {
                 $text = self::normalizeWatermarkText($config['text']);
+
+                // 检查是否包含中文字符
+                $hasChinese = preg_match('/[\x{4e00}-\x{9fa5}]/u', $text);
+
                 $fontSize = isset($config['fontSize']) ? intval($config['fontSize']) : 24;
                 $fontColor = isset($config['color']) ? $config['color'] : '#ffffff';
-                
+
                 // 指定字体路径
                 $preferredFont = isset($config['fontPath']) ? $config['fontPath'] : __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/msyh.ttf';
                 $fontPath = self::resolveFontPath($preferredFont);
-                
-                if (!$fontPath) {
-                    return ['success' => false, 'message' => '未找到可用的字体文件，请在插件 fonts 目录或系统中安装中文字体'];
+
+                // 如果包含中文但没有找到字体文件，返回错误
+                if ($hasChinese && !$fontPath) {
+                    return ['success' => false, 'message' => '无法添加中文水印：未找到中文字体文件。请在插件的 assets/fonts 目录下添加中文字体文件（如 msyh.ttf、simhei.ttf 等），或使用系统自带的中文字体。'];
                 }
-                
+
+                if (!$fontPath) {
+                    return ['success' => false, 'message' => '未找到可用的字体文件，请在插件 fonts 目录或系统中安装字体'];
+                }
+
                 // 使用预设文本样式
                 if (isset($config['preset']) && $config['preset'] === 'ai-generated') {
                     $text = "AI生成图像 - " . date('Y-m-d');
@@ -846,10 +866,10 @@ class MediaLibrary_ImageEditor
                 }
 
                 $text = self::normalizeWatermarkText($text);
-                
+
                 // 创建绘制对象
                 $draw = new ImagickDraw();
-                
+
                 // 设置文本属性
                 $draw->setFont($fontPath);
                 $draw->setFontSize($fontSize);

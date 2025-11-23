@@ -26,14 +26,17 @@
      * 计算裁剪预览的缩放比例，避免容器宽度为0导致的除零
      */
     function getCropScale() {
-        if (!originalImageWidth) {
+        if (!originalImageWidth || originalImageWidth <= 0) {
             return 1;
         }
-        var containerWidth = $('#crop-image-container').width();
-        if (!containerWidth || containerWidth <= 0) {
+        var displayedWidth = $('#crop-image').width();
+        if (!displayedWidth || displayedWidth <= 0) {
+            displayedWidth = $('#crop-image-container').width();
+        }
+        if (!displayedWidth || displayedWidth <= 0) {
             return 1;
         }
-        return containerWidth / originalImageWidth;
+        return displayedWidth / originalImageWidth;
     }
 
     /**
@@ -83,38 +86,53 @@
             cropImage.off('load').one('load', function() {
                 originalImageWidth = this.naturalWidth;
                 originalImageHeight = this.naturalHeight;
-                
+
+                // 确保图片尺寸有效
+                if (!originalImageWidth || !originalImageHeight || originalImageWidth <= 0 || originalImageHeight <= 0) {
+                    alert('无法获取图片尺寸，请重试');
+                    return;
+                }
+
                 // 将容器尺寸锁定为当前渲染的图片尺寸，保证拖拽与实际像素对应
                 var cropContainer = $('#crop-image-container');
-                var displayedWidth = this.clientWidth || cropImage.width() || originalImageWidth;
-                var displayedHeight = this.clientHeight || cropImage.height() || originalImageHeight;
+                var displayedWidth = cropImage.width();
+                var displayedHeight = cropImage.height();
+
+                // 如果无法获取显示尺寸，使用原始尺寸
+                if (!displayedWidth || displayedWidth <= 0) {
+                    displayedWidth = originalImageWidth;
+                }
+                if (!displayedHeight || displayedHeight <= 0) {
+                    displayedHeight = originalImageHeight;
+                }
+
                 cropContainer.css({
                     width: displayedWidth + 'px',
                     height: displayedHeight + 'px'
                 });
-                
+
                 // 设置裁剪框初始大小（默认为图片的80%）
                 var cropBoxWidth = Math.round(originalImageWidth * 0.8);
                 var cropBoxHeight = Math.round(originalImageHeight * 0.8);
-                
+
                 // 居中裁剪框
                 var cropBoxLeft = Math.round((originalImageWidth - cropBoxWidth) / 2);
                 var cropBoxTop = Math.round((originalImageHeight - cropBoxHeight) / 2);
-                
+
                 // 缩放比例
-                var scale = getCropScale();
-                
+                var scale = displayedWidth / originalImageWidth;
+
                 // 应用裁剪框
                 $('#crop-box').css({
-                    width: cropBoxWidth * scale + 'px',
-                    height: cropBoxHeight * scale + 'px',
-                    left: cropBoxLeft * scale + 'px',
-                    top: cropBoxTop * scale + 'px'
+                    width: Math.round(cropBoxWidth * scale) + 'px',
+                    height: Math.round(cropBoxHeight * scale) + 'px',
+                    left: Math.round(cropBoxLeft * scale) + 'px',
+                    top: Math.round(cropBoxTop * scale) + 'px'
                 });
-                
+
                 // 更新裁剪信息
                 updateCropInfo(cropBoxLeft, cropBoxTop, cropBoxWidth, cropBoxHeight);
-                
+
                 // 显示模态框
                 $('#crop-modal').css('display', 'flex');
             }).attr('src', imageUrl);
