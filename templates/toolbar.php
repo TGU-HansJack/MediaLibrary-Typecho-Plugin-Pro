@@ -14,21 +14,10 @@
     </div>
 
     <div class="toolbar-secondary">
-        <div class="filter-control">
-            <label for="type-select">文件类型</label>
-            <select class="form-control" id="type-select">
-                <option value="all" <?php echo $type === 'all' ? 'selected' : ''; ?>>所有文件</option>
-                <option value="image" <?php echo $type === 'image' ? 'selected' : ''; ?>>图片</option>
-                <option value="video" <?php echo $type === 'video' ? 'selected' : ''; ?>>视频</option>
-                <option value="audio" <?php echo $type === 'audio' ? 'selected' : ''; ?>>音频</option>
-                <option value="document" <?php echo $type === 'document' ? 'selected' : ''; ?>>文档</option>
-            </select>
-        </div>
-
         <div class="filter-control search-control">
             <label for="keywords-input">快速搜索</label>
             <div class="search-input">
-                <input type="text" class="form-control" id="keywords-input" placeholder="搜索文件名..." 
+                <input type="text" class="form-control" id="keywords-input" placeholder="搜索文件名..."
                     value="<?php echo htmlspecialchars($keywords); ?>">
                 <button class="btn ghost" id="search-btn" type="button">搜索</button>
             </div>
@@ -39,21 +28,21 @@
             <?php if (($enableGD && extension_loaded('gd')) || ($enableImageMagick && extension_loaded('imagick')) || $enableFFmpeg): ?>
                 <button class="btn subtle" id="compress-images-btn" style="display:none;" disabled>压缩图片</button>
             <?php endif; ?>
-            
+
             <?php if ($enableVideoCompress && $enableFFmpeg): ?>
                 <button class="btn subtle" id="compress-videos-btn" style="display:none;" disabled>压缩视频</button>
             <?php endif; ?>
-            
+
             <?php if (extension_loaded('gd') || extension_loaded('imagick')): ?>
                 <button class="btn subtle" id="crop-images-btn" style="display:none;">裁剪图片</button>
                 <button class="btn subtle" id="add-watermark-btn" style="display:none;">添加水印</button>
             <?php endif; ?>
 
-            <?php 
+            <?php
             // 检查是否有可用的 EXIF 工具
             $hasExifTool = MediaLibrary_ExifPrivacy::isExifToolAvailable();
             $hasPhpExif = extension_loaded('exif');
-            if ($enableExif && ($hasExifTool || $hasPhpExif)): 
+            if ($enableExif && ($hasExifTool || $hasPhpExif)):
             ?>
                 <button class="btn subtle" id="privacy-btn" style="display:none;" disabled>隐私检测</button>
             <?php endif; ?>

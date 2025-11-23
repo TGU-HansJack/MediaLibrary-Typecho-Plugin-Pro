@@ -102,7 +102,7 @@ $totalPages = $total > 0 ? ceil($total / $pageSize) : 1;
 $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
 
 // 版本号控制 - 用于强制刷新缓存
-$cssVersion = '3.1.0'; // 侧栏布局版本
+$cssVersion = '3.3.0'; // 精简布局版本
 ?>
 
 <link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/panel.css?v=<?php echo $cssVersion; ?>">
@@ -191,8 +191,6 @@ window.mediaLibraryConfig = {
 <script src="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/js/panel.js?v=<?php echo $cssVersion; ?>"></script>
 
 <?php
-include 'copyright.php';
 include 'common-js.php';
 include 'table-js.php';
-include 'footer.php';
 ?>

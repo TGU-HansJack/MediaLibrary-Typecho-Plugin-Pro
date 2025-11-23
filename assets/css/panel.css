@@ -41,7 +41,7 @@
 
     /* 侧栏宽度 */
     --sidebar-width: 260px;
-    --pagination-height: 60px;
+    --pagination-height: 48px;
 }
 
 /* 深色模式 */
@@ -63,7 +63,12 @@
 .media-viewport {
     background: var(--ml-surface);
     padding: 0;
-    min-height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
 }
 
 /* 基础容器 */
@@ -74,8 +79,7 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    padding-bottom: var(--pagination-height);
+    height: 100vh;
     position: relative;
 }
 
@@ -85,6 +89,8 @@
     gap: 0;
     flex: 1;
     background: var(--ml-surface);
+    overflow: hidden;
+    height: calc(100vh - 60px - var(--pagination-height));
 }
 
 /* 左侧侧栏 */
@@ -93,10 +99,8 @@
     background: var(--ml-card);
     border-right: 1px solid var(--ml-border);
     overflow-y: auto;
-    position: sticky;
-    top: 0;
-    height: calc(100vh - 140px);
     flex-shrink: 0;
+    height: 100%;
 }
 
 .sidebar-section {
@@ -319,7 +323,29 @@
     display: flex;
     flex-direction: column;
     background: var(--ml-card);
-    overflow-x: hidden;
+    overflow: hidden;
+    height: 100%;
+}
+
+.media-panel {
+    background: var(--ml-card);
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.media-panel-body {
+    margin: 0;
+    padding: var(--space-lg);
+    overflow-y: auto;
+    flex: 1;
+    height: 100%;
 }
 
 /* 固定底部分页 */
@@ -328,11 +354,15 @@
     bottom: 0;
     left: 0;
     right: 0;
+    height: var(--pagination-height);
     background: var(--ml-card);
     border-top: 1px solid var(--ml-border);
     padding: var(--space-md) var(--space-lg);
     z-index: 100;
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .media-pagination-fixed .pagination {
@@ -349,6 +379,11 @@
     margin: 0;
     background: var(--ml-card);
     border-bottom: 1px solid var(--ml-border);
+    flex-shrink: 0;
+    height: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .typecho-page-title h2 {
@@ -356,13 +391,15 @@
     font-size: 20px;
     font-weight: 600;
     color: var(--ml-text);
+    line-height: 1.2;
 }
 
 .typecho-page-title p {
-    margin: var(--space-xs) 0 0;
+    margin: 4px 0 0;
     color: var(--ml-text-secondary);
     font-size: 13px;
     font-weight: 400;
+    line-height: 1.2;
 }
 
 /* 移除 Hero 区域 */
@@ -1355,17 +1392,46 @@
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-    /* 侧栏在移动端隐藏或折叠 */
+    .media-viewport {
+        position: relative;
+        height: auto;
+        min-height: 100vh;
+    }
+
+    .media-library-container {
+        height: auto;
+        min-height: 100vh;
+        padding-bottom: var(--pagination-height);
+    }
+
+    /* 侧栏在移动端移至顶部 */
     .media-layout {
         flex-direction: column;
+        height: auto;
+        overflow: visible;
     }
 
     .media-sidebar {
         width: 100%;
         height: auto;
-        position: static;
         border-right: none;
         border-bottom: 1px solid var(--ml-border);
+        overflow-y: visible;
+    }
+
+    .media-main {
+        height: auto;
+        overflow: visible;
+    }
+
+    .media-panel {
+        height: auto;
+        overflow: visible;
+    }
+
+    .media-panel-body {
+        overflow-y: visible;
+        height: auto;
     }
 
     /* 侧栏部分在移动端可折叠 */
@@ -1396,15 +1462,6 @@
         padding: var(--space-sm) var(--space-md);
     }
 
-    .media-library-container {
-        padding-bottom: calc(var(--pagination-height) + 10px);
-    }
-
-    .media-viewport {
-        padding: var(--space-lg);
-        border-radius: var(--radius-md);
-    }
-
     .media-hero {
         flex-direction: column;
         padding: var(--space-lg);
@@ -1420,14 +1477,9 @@
         gap: var(--space-sm);
     }
 
-    .media-panel {
-        padding: var(--space-lg);
-        border-radius: var(--radius-lg);
-    }
-
     .media-toolbar {
         padding: var(--space-md);
-        border-radius: var(--radius-md);
+        border-radius: 0;
     }
 
     .toolbar-primary {
@@ -1500,7 +1552,6 @@
 
     .pagination {
         flex-wrap: wrap;
-        padding: var(--space-md) 0 0;
     }
 }
 

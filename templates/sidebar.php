@@ -2,56 +2,6 @@
 // 侧栏组件
 ?>
 <div class="media-sidebar">
-    <!-- 功能状态 -->
-    <div class="sidebar-section">
-        <h3 class="sidebar-title">功能状态</h3>
-        <div class="sidebar-content">
-            <ul class="feature-list">
-                <?php if ($enableGD): ?>
-                <li class="feature-item enabled">
-                    <span class="feature-icon">✓</span>
-                    <span class="feature-name">GD 图片处理</span>
-                </li>
-                <?php endif; ?>
-
-                <?php if ($enableImageMagick): ?>
-                <li class="feature-item enabled">
-                    <span class="feature-icon">✓</span>
-                    <span class="feature-name">ImageMagick</span>
-                </li>
-                <?php endif; ?>
-
-                <?php if ($enableFFmpeg): ?>
-                <li class="feature-item enabled">
-                    <span class="feature-icon">✓</span>
-                    <span class="feature-name">FFmpeg 视频处理</span>
-                </li>
-                <?php endif; ?>
-
-                <?php if ($enableExif): ?>
-                <li class="feature-item enabled">
-                    <span class="feature-icon">✓</span>
-                    <span class="feature-name">EXIF 信息读取</span>
-                </li>
-                <?php endif; ?>
-
-                <?php if ($enableGetID3): ?>
-                <li class="feature-item enabled">
-                    <span class="feature-icon">✓</span>
-                    <span class="feature-name">GetID3 元数据</span>
-                </li>
-                <?php endif; ?>
-
-                <?php if (!$enableGD && !$enableImageMagick && !$enableFFmpeg && !$enableExif && !$enableGetID3): ?>
-                <li class="feature-item disabled">
-                    <span class="feature-icon">!</span>
-                    <span class="feature-name">暂无可用功能</span>
-                </li>
-                <?php endif; ?>
-            </ul>
-        </div>
-    </div>
-
     <!-- 存储类型 -->
     <div class="sidebar-section">
         <h3 class="sidebar-title">存储类型</h3>
