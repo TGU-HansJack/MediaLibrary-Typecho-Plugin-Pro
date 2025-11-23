@@ -92,7 +92,6 @@ class MediaLibrary_PanelHelper
         if (!empty($keywords)) {
             $select->where('table.contents.title LIKE ?', '%' . $keywords . '%');
         }
-
         // 存储类型筛选
         // WebDAV 文件在上传时会在 text 字段中添加 'storage' => 'webdav' 标记
         $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
@@ -104,14 +103,6 @@ class MediaLibrary_PanelHelper
             }
         }
 
-
-            } elseif ($storage === 'local') {
-
-                $select->where('(table.contents.text IS NULL OR table.contents.text = "" OR table.contents.text NOT LIKE BINARY ?)', $webdavMarker);
-
-            }
-
-        }
 
 
 
@@ -191,7 +182,7 @@ class MediaLibrary_PanelHelper
             }
             
             if (!isset($attachment['title']) || empty($attachment['title'])) {
-                $attachment['title'] = isset($attachmentData['name']) ? $attachmentData['name'] : '鏈懡鍚嶆枃浠?;
+                $attachment['title'] = isset($attachmentData['name']) ? $attachmentData['name'] : '未命名文件';
             }
             
             // 鑾峰彇鎵€灞炴枃绔犱俊鎭?
@@ -318,7 +309,7 @@ class MediaLibrary_PanelHelper
             'enabled' => !empty($configOptions['enableWebDAV']),
             'configured' => false,
             'connected' => false,
-            'message' => 'WebDAV 鏈惎鐢?,
+            'message' => 'WebDAV 未启用',
             'root' => isset($configOptions['webdavBasePath']) ? $configOptions['webdavBasePath'] : '/'
         ];
 
@@ -331,7 +322,7 @@ class MediaLibrary_PanelHelper
             ($configOptions['webdavPassword'] !== '');
 
         $status['configured'] = $hasCredentials;
-        $status['message'] = $hasCredentials ? '灏濊瘯杩炴帴 WebDAV ...' : '璇峰畬鍠?WebDAV 閰嶇疆';
+        $status['message'] = $hasCredentials ? '尝试连接 WebDAV ...' : '请完善 WebDAV 配置';
 
         if (!$hasCredentials) {
             return $status;
@@ -342,7 +333,7 @@ class MediaLibrary_PanelHelper
             $status['connected'] = $client->ping();
             $status['message'] = $status['connected'] ? 'WebDAV 鏈嶅姟杩炴帴姝ｅ父' : '鏃犳硶杩炴帴 WebDAV 鏈嶅姟';
         } catch (Exception $e) {
-            $status['message'] = 'WebDAV 杩炴帴寮傚父锛? . $e->getMessage();
+            $status['message'] = 'WebDAV 连接异常：' . $e->getMessage();
         }
 
         return $status;
@@ -365,16 +356,16 @@ class MediaLibrary_PanelHelper
         ];
 
         $webdavClass = 'disabled';
-        $webdavBadge = $webdavStatus['enabled'] ? '鏈厤缃? : '鏈惎鐢?;
+        $webdavBadge = $webdavStatus['enabled'] ? '未配置' : '未启用';
         $webdavDesc = $webdavStatus['message'];
 
         if ($webdavStatus['enabled']) {
             if (!$webdavStatus['configured']) {
                 $webdavClass = 'disabled';
-                $webdavBadge = '鏈厤缃?;
+                $webdavBadge = '未配置';
             } elseif ($webdavStatus['connected']) {
                 $webdavClass = 'active';
-                $webdavBadge = '宸茶繛鎺?;
+                $webdavBadge = '已连接';
             } else {
                 $webdavClass = 'error';
                 $webdavBadge = '杩炴帴寮傚父';
