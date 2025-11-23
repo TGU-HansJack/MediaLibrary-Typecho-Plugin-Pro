@@ -42,12 +42,24 @@ class MediaLibrary_LogAction extends Typecho_Widget implements Widget_Interface_
 
             case 'clear_logs':
             case 'clear':
-                MediaLibrary_Logger::clear();
-                MediaLibrary_Logger::log('logs_cleared', '管理员清空日志', [
-                    'uid' => $this->user->uid,
-                    'name' => $this->user->screenName
-                ]);
-                $this->response->throwJson(['success' => true, 'message' => '日志已清空']);
+                $result = MediaLibrary_Logger::clear();
+                if ($result['success']) {
+                    // 清空成功后记录操作日志
+                    MediaLibrary_Logger::log('logs_cleared', '管理员清空日志', [
+                        'uid' => $this->user->uid,
+                        'name' => $this->user->screenName
+                    ]);
+                    $this->response->throwJson([
+                        'success' => true,
+                        'message' => $result['message']
+                    ]);
+                } else {
+                    // 清空失败，返回错误信息
+                    $this->response->throwJson([
+                        'success' => false,
+                        'message' => $result['message']
+                    ]);
+                }
                 break;
 
             default:

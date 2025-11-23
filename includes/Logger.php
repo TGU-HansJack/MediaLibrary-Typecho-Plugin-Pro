@@ -93,11 +93,30 @@ class MediaLibrary_Logger
     /**
      * 清空日志
      *
-     * @return void
+     * @return array 返回操作结果 ['success' => bool, 'message' => string]
      */
     public static function clear()
     {
-        @file_put_contents(self::getLogFile(), '');
+        $file = self::getLogFile();
+
+        // 检查文件是否存在
+        if (!file_exists($file)) {
+            return ['success' => true, 'message' => '日志文件不存在，无需清空'];
+        }
+
+        // 检查文件是否可写
+        if (!is_writable($file)) {
+            return ['success' => false, 'message' => '日志文件不可写，请检查文件权限'];
+        }
+
+        // 尝试清空文件
+        $result = @file_put_contents($file, '');
+
+        if ($result === false) {
+            return ['success' => false, 'message' => '清空日志失败，请检查文件权限或磁盘空间'];
+        }
+
+        return ['success' => true, 'message' => '日志已清空'];
     }
 
     /**
