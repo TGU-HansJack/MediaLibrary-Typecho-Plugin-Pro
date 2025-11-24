@@ -157,25 +157,37 @@ class MediaLibrary_AjaxHandler
                     if (is_array($attachmentData) && isset($attachmentData['path'])) {
                         $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
 
-                        // 首先尝试删除本地文件
-                        if (file_exists($filePath)) {
-                            @unlink($filePath);
-                        }
+                        // 判断是否为文件夹导入的文件
+                        $isFolderImport = isset($attachmentData['source']) && $attachmentData['source'] === 'folder_import';
 
-                        // 如果启用了 WebDAV，也尝试从 WebDAV 删除
-                        if ($webdavClient && isset($attachmentData['webdav_path'])) {
-                            try {
-                                $webdavClient->delete($attachmentData['webdav_path']);
-                                MediaLibrary_Logger::log('delete', 'WebDAV 文件删除成功', [
-                                    'cid' => $cid,
-                                    'path' => $attachmentData['webdav_path']
-                                ]);
-                            } catch (Exception $e) {
-                                MediaLibrary_Logger::log('delete', 'WebDAV 文件删除失败: ' . $e->getMessage(), [
-                                    'cid' => $cid,
-                                    'path' => $attachmentData['webdav_path']
-                                ], 'warning');
+                        // 对于文件夹导入的文件，只删除数据库记录，不删除物理文件
+                        if (!$isFolderImport) {
+                            // 首先尝试删除本地文件
+                            if (file_exists($filePath)) {
+                                @unlink($filePath);
                             }
+
+                            // 如果启用了 WebDAV，也尝试从 WebDAV 删除
+                            if ($webdavClient && isset($attachmentData['webdav_path'])) {
+                                try {
+                                    $webdavClient->delete($attachmentData['webdav_path']);
+                                    MediaLibrary_Logger::log('delete', 'WebDAV 文件删除成功', [
+                                        'cid' => $cid,
+                                        'path' => $attachmentData['webdav_path']
+                                    ]);
+                                } catch (Exception $e) {
+                                    MediaLibrary_Logger::log('delete', 'WebDAV 文件删除失败: ' . $e->getMessage(), [
+                                        'cid' => $cid,
+                                        'path' => $attachmentData['webdav_path']
+                                    ], 'warning');
+                                }
+                            }
+                        } else {
+                            // 文件夹导入的文件，记录日志但不删除物理文件
+                            MediaLibrary_Logger::log('delete', '文件夹导入的文件，仅删除数据库记录', [
+                                'cid' => $cid,
+                                'path' => $attachmentData['path']
+                            ]);
                         }
                     }
                 }

@@ -50,6 +50,9 @@
                             • 已归档
                         <?php endif; ?>
                     </div>
+                    <div class="media-source-badge" data-source="<?php echo $attachment['source']; ?>">
+                        <?php echo $attachment['sourceLabel']; ?>
+                    </div>
                 </div>
             </div>
         <?php endforeach; ?>

@@ -857,6 +857,53 @@
     color: var(--ml-text-secondary);
 }
 
+/* 文件来源标签 */
+.media-source-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: var(--radius);
+    font-weight: 500;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+
+.media-source-badge[data-source="database"] {
+    background: var(--ml-primary-light);
+    color: var(--ml-primary);
+    border: 1px solid var(--ml-primary);
+}
+
+.media-source-badge[data-source="folder"] {
+    background: #fff4ce;
+    color: #996f00;
+    border: 1px solid var(--ml-warning);
+}
+
+.media-source-badge[data-source="webdav"] {
+    background: #e8f5e8;
+    color: var(--ml-success);
+    border: 1px solid var(--ml-success);
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    .media-source-badge[data-source="database"] {
+        background: #1a3a4a;
+        color: var(--ml-primary);
+    }
+
+    .media-source-badge[data-source="folder"] {
+        background: #3d3000;
+        color: var(--ml-warning);
+    }
+
+    .media-source-badge[data-source="webdav"] {
+        background: #0d2d0d;
+        color: #2ea043;
+    }
+}
+
 /* 列表视图 - Windows 11 详细信息视图 */
 .media-list-table {
     width: 100%;
