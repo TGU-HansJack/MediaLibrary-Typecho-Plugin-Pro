@@ -2250,3 +2250,286 @@
     }
 }
 
+
+/* ========================================
+   WebDAV 侧边栏管理面板样式
+   ======================================== */
+
+/* WebDAV 管理器区域 */
+.webdav-manager-section {
+    background: var(--ml-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.webdav-manager-section .sidebar-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+/* WebDAV 状态指示器 */
+.webdav-status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.webdav-status-indicator.status-ok {
+    background: var(--ml-success);
+    box-shadow: 0 0 0 2px rgba(16, 124, 16, 0.2);
+}
+
+.webdav-status-indicator.status-error {
+    background: var(--ml-danger);
+    box-shadow: 0 0 0 2px rgba(209, 52, 56, 0.2);
+}
+
+.webdav-status-indicator.status-warn {
+    background: var(--ml-warning);
+    box-shadow: 0 0 0 2px rgba(255, 200, 61, 0.2);
+}
+
+/* 同步状态信息 */
+.webdav-sync-status {
+    margin-bottom: var(--space-md);
+    padding: var(--space-sm);
+    background: var(--ml-surface);
+    border-radius: var(--radius);
+}
+
+.webdav-sync-status .status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 12px;
+}
+
+.webdav-sync-status .status-label {
+    color: var(--ml-text-secondary);
+}
+
+.webdav-sync-status .status-value {
+    color: var(--ml-text);
+    font-weight: 500;
+}
+
+.webdav-sync-status .status-enabled {
+    color: var(--ml-success);
+}
+
+/* 同步操作按钮 */
+.webdav-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+}
+
+.webdav-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+}
+
+.webdav-action-btn .btn-icon {
+    font-size: 14px;
+}
+
+.webdav-action-btn.primary-btn {
+    background: var(--ml-primary);
+    color: white;
+}
+
+.webdav-action-btn.primary-btn:hover {
+    background: var(--ml-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.webdav-action-btn.primary-btn:active {
+    transform: translateY(0);
+}
+
+.webdav-action-btn.primary-btn:disabled {
+    background: var(--ml-border);
+    color: var(--ml-muted);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.webdav-action-btn.secondary-btn {
+    background: var(--ml-surface);
+    color: var(--ml-text);
+    border: 1px solid var(--ml-border);
+}
+
+.webdav-action-btn.secondary-btn:hover {
+    background: var(--ml-border);
+}
+
+/* 同步进度 */
+.webdav-sync-progress {
+    padding: var(--space-md);
+    background: var(--ml-surface);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-md);
+}
+
+.webdav-sync-progress .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-sm);
+}
+
+.webdav-sync-progress .progress-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ml-text);
+}
+
+.webdav-sync-progress .progress-count {
+    font-size: 12px;
+    color: var(--ml-text-secondary);
+}
+
+.webdav-sync-progress .progress-bar-container {
+    height: 6px;
+    background: var(--ml-border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: var(--space-sm);
+}
+
+.webdav-sync-progress .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--ml-primary), #00a0d2);
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.webdav-sync-progress .progress-details {
+    font-size: 11px;
+    color: var(--ml-text-secondary);
+}
+
+.webdav-sync-progress .progress-detail {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 同步结果 */
+.webdav-sync-result {
+    padding: var(--space-md);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-md);
+}
+
+.webdav-sync-result.success {
+    background: rgba(16, 124, 16, 0.1);
+    border: 1px solid rgba(16, 124, 16, 0.3);
+}
+
+.webdav-sync-result.error {
+    background: rgba(209, 52, 56, 0.1);
+    border: 1px solid rgba(209, 52, 56, 0.3);
+}
+
+.webdav-sync-result .result-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: var(--space-sm);
+}
+
+.webdav-sync-result .result-icon {
+    font-size: 16px;
+}
+
+.webdav-sync-result .result-title {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.webdav-sync-result.success .result-title {
+    color: var(--ml-success);
+}
+
+.webdav-sync-result.error .result-title {
+    color: var(--ml-danger);
+}
+
+.webdav-sync-result .result-details {
+    font-size: 11px;
+    color: var(--ml-text-secondary);
+    line-height: 1.5;
+}
+
+/* WebDAV 路径信息 */
+.webdav-info {
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--ml-border);
+}
+
+.webdav-info .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 11px;
+}
+
+.webdav-info .info-label {
+    color: var(--ml-text-secondary);
+}
+
+.webdav-info .info-value {
+    color: var(--ml-text);
+    font-family: monospace;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    .webdav-sync-result.success {
+        background: rgba(16, 124, 16, 0.2);
+        border-color: rgba(16, 124, 16, 0.4);
+    }
+    
+    .webdav-sync-result.error {
+        background: rgba(209, 52, 56, 0.2);
+        border-color: rgba(209, 52, 56, 0.4);
+    }
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+    .webdav-manager-section {
+        margin-bottom: var(--space-md);
+    }
+    
+    .webdav-action-btn {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+}

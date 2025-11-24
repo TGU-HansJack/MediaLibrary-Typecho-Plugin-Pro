@@ -2138,9 +2138,19 @@ var WebDAVManager = {
             }
         });
 
-        // 批量同步按钮
+        // 批量同步按钮（主面板）
         jQuery('#webdav-sync-all').on('click', function() {
             self.syncAllToWebDAV();
+        });
+
+        // 批量同步按钮（侧边栏）
+        jQuery('#webdav-sync-all-btn').on('click', function() {
+            self.syncAllToWebDAV();
+        });
+
+        // 测试连接按钮（侧边栏）
+        jQuery('#webdav-test-connection-btn').on('click', function() {
+            self.testConnection();
         });
     },
 
@@ -2470,10 +2480,30 @@ var WebDAVManager = {
         var progressFill = jQuery('#webdav-sync-progress-fill');
         var progressText = jQuery('#webdav-sync-progress-text');
 
+        // 侧边栏进度元素
+        var sidebarProgress = jQuery('#webdav-sync-progress');
+        var sidebarProgressBar = sidebarProgress.find('.progress-bar');
+        var sidebarProgressCount = sidebarProgress.find('.progress-count');
+        var sidebarProgressDetail = sidebarProgress.find('.progress-detail');
+        var sidebarResult = jQuery('#webdav-sync-result');
+        var syncButton = jQuery('#webdav-sync-all-btn');
+
         // 显示进度条
-        progressBar.show();
-        progressFill.css('width', '0%');
-        progressText.text('开始同步...');
+        if (progressBar.length) {
+            progressBar.show();
+            progressFill.css('width', '0%');
+            progressText.text('开始同步...');
+        }
+
+        // 显示侧边栏进度
+        if (sidebarProgress.length) {
+            sidebarProgress.show();
+            sidebarResult.hide();
+            sidebarProgressBar.css('width', '0%');
+            sidebarProgressCount.text('0/0');
+            sidebarProgressDetail.text('准备同步...');
+            syncButton.prop('disabled', true).find('.btn-text').text('同步中...');
+        }
 
         jQuery.ajax({
             url: window.location.href,
@@ -2484,18 +2514,61 @@ var WebDAVManager = {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    progressFill.css('width', '100%');
-                    progressText.text(response.message);
+                    // 更新主进度条
+                    if (progressBar.length) {
+                        progressFill.css('width', '100%');
+                        progressText.text(response.message);
+                    }
+
+                    // 更新侧边栏
+                    if (sidebarProgress.length) {
+                        sidebarProgressBar.css('width', '100%');
+                        var stats = response.stats || {};
+                        var total = stats.total || 0;
+                        sidebarProgressCount.text(total + '/' + total);
+                        sidebarProgressDetail.text('同步完成');
+
+                        // 显示结果
+                        setTimeout(function() {
+                            sidebarProgress.hide();
+                            sidebarResult.removeClass('success error').addClass('success').show();
+                            sidebarResult.find('.result-icon').text('✅');
+                            sidebarResult.find('.result-title').text('同步成功');
+
+                            var details = '已同步: ' + (stats.synced || 0) + ' | ' +
+                                         '跳过: ' + (stats.skipped || 0);
+                            if (stats.renamed) {
+                                details += ' | 重命名: ' + stats.renamed;
+                            }
+                            if (stats.failed) {
+                                details += ' | 失败: ' + stats.failed;
+                            }
+
+                            sidebarResult.find('.result-details').text(details);
+
+                            syncButton.prop('disabled', false).find('.btn-text').text('批量同步');
+
+                            // 5秒后隐藏结果
+                            setTimeout(function() {
+                                sidebarResult.fadeOut();
+                            }, 5000);
+                        }, 500);
+                    }
 
                     self.showFeedback('同步完成！', 'success');
 
                     // 显示详细结果
                     if (response.stats) {
                         var details = '同步结果：\n' +
-                            '成功：' + response.stats.success + ' 个\n' +
-                            '失败：' + response.stats.failed + ' 个\n' +
-                            '跳过：' + response.stats.skipped + ' 个\n' +
-                            '总计：' + response.stats.total + ' 个';
+                            '成功：' + (response.stats.synced || 0) + ' 个\n' +
+                            '失败：' + (response.stats.failed || 0) + ' 个\n' +
+                            '跳过：' + (response.stats.skipped || 0) + ' 个\n';
+
+                        if (response.stats.renamed) {
+                            details += '重命名：' + response.stats.renamed + ' 个\n';
+                        }
+
+                        details += '总计：' + response.stats.total + ' 个';
 
                         if (response.errors && response.errors.length > 0) {
                             details += '\n\n失败详情：\n';
@@ -2510,17 +2583,111 @@ var WebDAVManager = {
                         alert(details);
                     }
 
-                    // 3秒后隐藏进度条
-                    setTimeout(function() {
-                        progressBar.fadeOut();
-                    }, 3000);
+                    // 3秒后隐藏主进度条
+                    if (progressBar.length) {
+                        setTimeout(function() {
+                            progressBar.fadeOut();
+                        }, 3000);
+                    }
                 } else {
-                    progressText.text('同步失败');
+                    // 失败处理
+                    if (progressBar.length) {
+                        progressText.text('同步失败');
+                    }
+
+                    if (sidebarProgress.length) {
+                        sidebarProgress.hide();
+                        sidebarResult.removeClass('success error').addClass('error').show();
+                        sidebarResult.find('.result-icon').text('❌');
+                        sidebarResult.find('.result-title').text('同步失败');
+                        sidebarResult.find('.result-details').text(response.message || '未知错误');
+                        syncButton.prop('disabled', false).find('.btn-text').text('批量同步');
+
+                        setTimeout(function() {
+                            sidebarResult.fadeOut();
+                        }, 5000);
+                    }
+
                     self.showFeedback(response.message || '同步失败', 'error');
                 }
             },
             error: function() {
-                progressText.text('网络错误');
+                if (progressBar.length) {
+                    progressText.text('网络错误');
+                }
+
+                if (sidebarProgress.length) {
+                    sidebarProgress.hide();
+                    sidebarResult.removeClass('success error').addClass('error').show();
+                    sidebarResult.find('.result-icon').text('❌');
+                    sidebarResult.find('.result-title').text('网络错误');
+                    sidebarResult.find('.result-details').text('无法连接到服务器');
+                    syncButton.prop('disabled', false).find('.btn-text').text('批量同步');
+
+                    setTimeout(function() {
+                        sidebarResult.fadeOut();
+                    }, 5000);
+                }
+
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    testConnection: function() {
+        var self = this;
+        var testButton = jQuery('#webdav-test-connection-btn');
+        var sidebarResult = jQuery('#webdav-sync-result');
+
+        // 禁用按钮
+        testButton.prop('disabled', true).find('.btn-text').text('测试中...');
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: {
+                action: 'webdav_test'
+            },
+            dataType: 'json',
+            success: function(response) {
+                testButton.prop('disabled', false).find('.btn-text').text('测试连接');
+
+                sidebarResult.removeClass('success error')
+                    .addClass(response.success ? 'success' : 'error')
+                    .show();
+
+                sidebarResult.find('.result-icon').text(response.success ? '✅' : '❌');
+                sidebarResult.find('.result-title').text(response.success ? '连接成功' : '连接失败');
+
+                var details = '';
+                if (response.local) {
+                    details += '本地: ' + (response.local.success ? '✓' : '✗') + ' | ';
+                }
+                if (response.remote) {
+                    details += '远程: ' + (response.remote.success ? '✓' : '✗');
+                }
+
+                sidebarResult.find('.result-details').text(details || response.message);
+
+                // 5秒后隐藏
+                setTimeout(function() {
+                    sidebarResult.fadeOut();
+                }, 5000);
+
+                self.showFeedback(response.message, response.success ? 'success' : 'error');
+            },
+            error: function() {
+                testButton.prop('disabled', false).find('.btn-text').text('测试连接');
+
+                sidebarResult.removeClass('success error').addClass('error').show();
+                sidebarResult.find('.result-icon').text('❌');
+                sidebarResult.find('.result-title').text('测试失败');
+                sidebarResult.find('.result-details').text('网络错误');
+
+                setTimeout(function() {
+                    sidebarResult.fadeOut();
+                }, 5000);
+
                 self.showFeedback('网络错误', 'error');
             }
         });

@@ -107,5 +107,95 @@
         </div>
     </div>
 
-    <!-- WebDAV 管理器已移除 -->
+    <!-- WebDAV 同步管理 -->
+    <?php if (!empty($configOptions['enableWebDAV']) && $configOptions['enableWebDAV']): ?>
+    <div class="sidebar-section webdav-manager-section">
+        <h3 class="sidebar-title">
+            WebDAV 同步
+            <span class="webdav-status-indicator <?php echo !empty($webdavStatus['success']) ? 'status-ok' : 'status-error'; ?>"
+                  title="<?php echo !empty($webdavStatus['message']) ? htmlspecialchars($webdavStatus['message']) : '未连接'; ?>">
+            </span>
+        </h3>
+        <div class="sidebar-content">
+            <!-- 同步状态 -->
+            <div class="webdav-sync-status">
+                <div class="status-item">
+                    <span class="status-label">同步模式</span>
+                    <span class="status-value">
+                        <?php
+                        $syncMode = isset($configOptions['webdavSyncMode']) ? $configOptions['webdavSyncMode'] : 'manual';
+                        $syncModeLabels = [
+                            'manual' => '手动',
+                            'onupload' => '自动',
+                            'scheduled' => '定时'
+                        ];
+                        echo $syncModeLabels[$syncMode];
+                        ?>
+                    </span>
+                </div>
+                <?php if (!empty($configOptions['webdavSyncEnabled'])): ?>
+                <div class="status-item">
+                    <span class="status-label">自动同步</span>
+                    <span class="status-value status-enabled">已启用</span>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- 同步操作按钮 -->
+            <div class="webdav-actions">
+                <button type="button" id="webdav-sync-all-btn" class="webdav-action-btn primary-btn" title="同步所有本地文件到 WebDAV">
+                    <span class="btn-icon">🔄</span>
+                    <span class="btn-text">批量同步</span>
+                </button>
+
+                <button type="button" id="webdav-test-connection-btn" class="webdav-action-btn secondary-btn" title="测试 WebDAV 连接">
+                    <span class="btn-icon">🔌</span>
+                    <span class="btn-text">测试连接</span>
+                </button>
+            </div>
+
+            <!-- 同步进度 -->
+            <div id="webdav-sync-progress" class="webdav-sync-progress" style="display: none;">
+                <div class="progress-header">
+                    <span class="progress-title">同步中...</span>
+                    <span class="progress-count">0/0</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: 0%;"></div>
+                </div>
+                <div class="progress-details">
+                    <span class="progress-detail">准备同步...</span>
+                </div>
+            </div>
+
+            <!-- 同步结果 -->
+            <div id="webdav-sync-result" class="webdav-sync-result" style="display: none;">
+                <div class="result-header">
+                    <span class="result-icon"></span>
+                    <span class="result-title"></span>
+                </div>
+                <div class="result-details"></div>
+            </div>
+
+            <!-- 路径信息 -->
+            <div class="webdav-info">
+                <div class="info-item">
+                    <span class="info-label">本地路径</span>
+                    <span class="info-value" title="<?php echo htmlspecialchars($configOptions['webdavLocalPath']); ?>">
+                        <?php echo htmlspecialchars(basename($configOptions['webdavLocalPath'])); ?>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">远程服务器</span>
+                    <span class="info-value" title="<?php echo htmlspecialchars($configOptions['webdavEndpoint']); ?>">
+                        <?php
+                        $endpoint = parse_url($configOptions['webdavEndpoint']);
+                        echo htmlspecialchars($endpoint['host'] ?? '未配置');
+                        ?>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
