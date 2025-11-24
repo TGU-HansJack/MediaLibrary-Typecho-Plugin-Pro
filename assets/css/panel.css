@@ -101,28 +101,6 @@
     overflow-y: auto;
     flex-shrink: 0;
     height: 100%;
-    /* 添加底部内边距，防止被固定分页栏遮挡 */
-    padding-bottom: calc(var(--pagination-height) + var(--space-md));
-    /* 平滑滚动 */
-    scroll-behavior: smooth;
-}
-
-/* 侧栏滚动条样式 */
-.media-sidebar::-webkit-scrollbar {
-    width: 6px;
-}
-
-.media-sidebar::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.media-sidebar::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 3px;
-}
-
-.media-sidebar::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.25);
 }
 
 .sidebar-section {
@@ -433,28 +411,6 @@
     overflow-y: auto;
     flex: 1;
     height: 100%;
-    /* 添加底部内边距，防止被固定分页栏遮挡 */
-    padding-bottom: calc(var(--pagination-height) + var(--space-lg));
-    /* 平滑滚动 */
-    scroll-behavior: smooth;
-}
-
-/* 内容区滚动条样式 */
-.media-panel-body::-webkit-scrollbar {
-    width: 8px;
-}
-
-.media-panel-body::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.media-panel-body::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 4px;
-}
-
-.media-panel-body::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.25);
 }
 
 /* 固定底部分页 */
@@ -1609,8 +1565,6 @@
         border-right: none;
         border-bottom: 1px solid var(--ml-border);
         overflow-y: visible;
-        /* 移动端重置底部内边距 */
-        padding-bottom: 0;
     }
 
     .media-main {
@@ -1626,8 +1580,6 @@
     .media-panel-body {
         overflow-y: visible;
         height: auto;
-        /* 移动端调整底部内边距 */
-        padding-bottom: calc(var(--pagination-height) + var(--space-lg) + var(--space-md));
     }
 
     /* 侧栏部分在移动端可折叠 */
