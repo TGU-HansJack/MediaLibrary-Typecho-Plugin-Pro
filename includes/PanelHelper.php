@@ -448,13 +448,13 @@ class MediaLibrary_PanelHelper
     }
 
     /**
-     * 递归扫描目录
+     * 递归扫描目录（公共方法，供外部调用）
      *
      * @param string $dir 完整目录路径
      * @param string $baseDir 基础目录（相对路径）
      * @param array &$result 结果数组（引用传递）
      */
-    private static function scanDirectoryRecursive($dir, $baseDir, &$result)
+    public static function scanDirectoryRecursive($dir, $baseDir, &$result)
     {
         if (!is_dir($dir)) {
             return;
