@@ -7,9 +7,9 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 class MediaLibrary_EnvironmentCheck
 {
     /**
-     * 插件版本号
+     * 插件版本号（当无法从 Plugin.php 读取时的默认值）
      */
-    const PLUGIN_VERSION = 'pro_0.1.0';
+    const PLUGIN_VERSION = 'unknown';
 
     /**
      * 检查系统环境
@@ -143,11 +143,26 @@ class MediaLibrary_EnvironmentCheck
 
     /**
      * 获取当前插件版本
+     * 优先从 Plugin.php 的 docblock 中读取 @version 标签
      *
      * @return string 插件版本号
      */
     public static function getCurrentVersion()
     {
+        // 尝试从 Plugin.php 的 docblock 中读取版本号
+        $pluginFile = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/Plugin.php';
+
+        if (file_exists($pluginFile)) {
+            $content = @file_get_contents($pluginFile);
+            if ($content !== false) {
+                // 匹配 @version 标签（支持各种格式：数字、字母、点、下划线、中划线）
+                if (preg_match('/@version\s+([\w\.\-_]+)/i', $content, $matches)) {
+                    return trim($matches[1]);
+                }
+            }
+        }
+
+        // 如果无法读取文件或未找到 @version 标签，回退到常量定义的版本号
         return self::PLUGIN_VERSION;
     }
 
