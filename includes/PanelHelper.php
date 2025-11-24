@@ -170,33 +170,7 @@ class MediaLibrary_PanelHelper
             'total' => $total
         ];
     }
-
-    /**
-     * 通过hash ID查找文件信息 - 纯文件夹模式辅助方法
-     *
-     * @param string $hashId 文件路径的MD5 hash
-     * @return array|null 文件信息数组，未找到返回null
-     */
-    public static function getFileByHashId($hashId)
-    {
-        $uploadDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads';
-
-        if (!is_dir($uploadDir)) {
-            return null;
-        }
-
-        $allFiles = [];
-        self::scanDirectoryRecursive($uploadDir, '/usr/uploads', $allFiles);
-
-        foreach ($allFiles as $file) {
-            if (md5($file['relative_path']) === $hashId) {
-                return $file;
-            }
-        }
-
-        return null;
-    }
-
+    
     /**
      * 获取文件所属文章
      * 

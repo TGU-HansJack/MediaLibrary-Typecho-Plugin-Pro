@@ -127,37 +127,39 @@ class MediaLibrary_ExifPrivacy
     /**
      * 检查图片隐私信息
      */
-    /**
-     * 检查图片隐私信息 - 纯文件夹模式
-     */
-    public static function checkImagePrivacy($cid, $db, $options)
+    public static function checkImagePrivacy($cid, $db, $options) 
     {
         try {
-            // 通过hash找到文件
-            $fileInfo = MediaLibrary_PanelHelper::getFileByHashId($cid);
-
-            if (!$fileInfo) {
+            $attachment = $db->fetchRow($db->select()->from('table.contents')
+                ->where('cid = ? AND type = ?', $cid, 'attachment'));
+                
+            if (!$attachment) {
                 return ['success' => false, 'cid' => $cid, 'message' => '文件不存在'];
             }
-
-            $filePath = $fileInfo['full_path'];
+            
+            $attachmentData = @unserialize($attachment['text']);
+            if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
+                return ['success' => false, 'cid' => $cid, 'message' => '文件数据错误'];
+            }
+            
+            $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
             if (!file_exists($filePath)) {
                 return ['success' => false, 'cid' => $cid, 'message' => '文件不存在'];
             }
-
+            
             // 检查是否为图片
-            if (strpos($fileInfo['mime'], 'image/') !== 0) {
+            if (!isset($attachmentData['mime']) || strpos($attachmentData['mime'], 'image/') !== 0) {
                 return ['success' => false, 'cid' => $cid, 'message' => '只能检测图片文件'];
             }
-
-            $filename = $fileInfo['name'];
+            
+            $filename = $attachmentData['name'] ?? basename($filePath);
             $privacyInfo = [];
             $hasPrivacy = false;
             $gpsCoords = null;
-
+            
             // 尝试使用 PHP EXIF 扩展
             $exifData = self::readExifWithPhpExif($filePath);
-
+            
             if ($exifData && is_array($exifData)) {
                 // 检查 GPS 信息
                 if (isset($exifData['GPS']) && is_array($exifData['GPS'])) {
@@ -166,7 +168,7 @@ class MediaLibrary_ExifPrivacy
                         try {
                             $lat = self::exifToFloat($gps['GPSLatitude'], $gps['GPSLatitudeRef']);
                             $lng = self::exifToFloat($gps['GPSLongitude'], $gps['GPSLongitudeRef']);
-
+                            
                             if ($lat != 0 && $lng != 0) {
                                 $privacyInfo['GPS位置'] = "纬度: {$lat}, 经度: {$lng}";
                                 $gpsCoords = [$lng, $lat];
@@ -177,44 +179,44 @@ class MediaLibrary_ExifPrivacy
                         }
                     }
                 }
-
+                
                 // 检查相机信息
                 if (isset($exifData['IFD0']) && is_array($exifData['IFD0'])) {
                     $ifd0 = $exifData['IFD0'];
                     $cameraInfo = [];
-
+                    
                     if (isset($ifd0['Make'])) $cameraInfo[] = $ifd0['Make'];
                     if (isset($ifd0['Model'])) $cameraInfo[] = $ifd0['Model'];
-
+                    
                     if (!empty($cameraInfo)) {
                         $privacyInfo['设备信息'] = implode(' ', $cameraInfo);
                         $hasPrivacy = true;
                     }
-
+                    
                     if (isset($ifd0['DateTime'])) {
                         $privacyInfo['拍摄时间'] = $ifd0['DateTime'];
                         $hasPrivacy = true;
                     }
                 }
-
+                
                 // 检查 EXIF 信息
                 if (isset($exifData['EXIF']) && is_array($exifData['EXIF'])) {
                     $exif = $exifData['EXIF'];
-
+                    
                     if (isset($exif['DateTimeOriginal'])) {
                         $privacyInfo['原始拍摄时间'] = $exif['DateTimeOriginal'];
                         $hasPrivacy = true;
                     }
-
+                    
                     if (isset($exif['DateTimeDigitized'])) {
                         $privacyInfo['数字化时间'] = $exif['DateTimeDigitized'];
                         $hasPrivacy = true;
                     }
                 }
             }
-
+            
             $message = $hasPrivacy ? '发现隐私信息' : '未发现隐私信息';
-
+            
             return [
                 'success' => true,
                 'cid' => $cid,
@@ -223,14 +225,14 @@ class MediaLibrary_ExifPrivacy
                 'privacy_info' => $privacyInfo,
                 'message' => $message,
                 'gps_coords' => $gpsCoords,
-                'image_url' => Typecho_Common::url($fileInfo['relative_path'], $options->siteUrl)
+                'image_url' => isset($attachmentData['path']) ? Typecho_Common::url($attachmentData['path'], $options->siteUrl) : null
             ];
-
+            
         } catch (Exception $e) {
             error_log('checkImagePrivacy error: ' . $e->getMessage());
             return [
-                'success' => false,
-                'cid' => $cid,
+                'success' => false, 
+                'cid' => $cid, 
                 'message' => '检测失败: ' . $e->getMessage()
             ];
         }
