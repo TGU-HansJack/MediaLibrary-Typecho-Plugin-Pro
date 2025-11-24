@@ -7,7 +7,7 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogActio
  * 
  * @package MediaLibrary
  * @author HansJack
- * @version pro_0.1.0
+ * @version pro_0.1.1
  * @link http://www.hansjack.com/
  */
 class MediaLibrary_Plugin implements Typecho_Plugin_Interface

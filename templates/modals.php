@@ -8,7 +8,8 @@
             </div>
             <div class="modal-body">
                 <?php
-                $defaultUploadStorage = ($storage && $storage !== 'all') ? $storage : 'local';
+                // 上传弹窗默认存储位置固定为 local，不受页面筛选条件影响
+                $defaultUploadStorage = 'local';
                 $uploadStorageOptions = array(
                     array(
                         'value' => 'local',
