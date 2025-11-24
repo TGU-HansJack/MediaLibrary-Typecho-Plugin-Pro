@@ -7,9 +7,9 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 class MediaLibrary_ImageEditor
 {
     /**
-     * 裁剪图片
-     * 
-     * @param int $cid 文件ID
+     * 裁剪图片 - 纯文件夹模式
+     *
+     * @param string $cid 文件hash ID
      * @param int $x 裁剪起始X坐标
      * @param int $y 裁剪起始Y坐标
      * @param int $width 裁剪宽度
@@ -24,28 +24,23 @@ class MediaLibrary_ImageEditor
      */
     public static function cropImage($cid, $x, $y, $width, $height, $replaceOriginal, $customName, $useLibrary, $db, $options, $user)
     {
-        $attachment = $db->fetchRow($db->select()->from('table.contents')
-            ->where('cid = ? AND type = ?', $cid, 'attachment'));
-            
-        if (!$attachment) {
+        // 通过hash找到文件
+        $fileInfo = MediaLibrary_PanelHelper::getFileByHashId($cid);
+
+        if (!$fileInfo) {
             return ['success' => false, 'message' => '文件不存在', 'cid' => $cid];
         }
-        
-        $attachmentData = @unserialize($attachment['text']);
-        if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
-            return ['success' => false, 'message' => '文件数据错误', 'cid' => $cid];
-        }
-        
-        $originalPath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+        $originalPath = $fileInfo['full_path'];
         if (!file_exists($originalPath)) {
             return ['success' => false, 'message' => '原文件不存在', 'cid' => $cid];
         }
-        
+
         // 检查是否为图片
-        if (strpos($attachmentData['mime'], 'image/') !== 0) {
+        if (strpos($fileInfo['mime'], 'image/') !== 0) {
             return ['success' => false, 'message' => '只能裁剪图片文件', 'cid' => $cid];
         }
-        
+
         // 处理输出路径
         $pathInfo = pathinfo($originalPath);
         if ($replaceOriginal) {
@@ -59,88 +54,45 @@ class MediaLibrary_ImageEditor
             }
             $tempPath = $outputPath;
         }
-        
+
         // 进行裁剪操作
         $result = self::performCrop($originalPath, $tempPath, $x, $y, $width, $height, $useLibrary);
-        
+
         if (!$result['success']) {
             return $result;
         }
-        
+
         // 替换原文件流程
         if ($replaceOriginal) {
             // 备份原文件尺寸信息
             list($originalWidth, $originalHeight) = getimagesize($originalPath);
-            
+
             if (!@unlink($originalPath) || !rename($tempPath, $originalPath)) {
                 @unlink($tempPath);
                 return ['success' => false, 'message' => '替换原文件失败', 'cid' => $cid];
             }
-            
-            // 更新数据库中的文件信息
-            $attachmentData['size'] = filesize($originalPath);
-            
-            // 可选: 更新图片尺寸信息
-            if (isset($attachmentData['width']) && isset($attachmentData['height'])) {
-                $attachmentData['width'] = $width;
-                $attachmentData['height'] = $height;
-            }
-            
-            $db->query($db->update('table.contents')
-                ->rows(['text' => serialize($attachmentData)])
-                ->where('cid = ?', $cid));
-                
+
             return [
                 'success' => true,
                 'message' => '图片裁剪成功',
                 'cid' => $cid,
                 'original_dimensions' => $originalWidth . 'x' . $originalHeight,
                 'new_dimensions' => $width . 'x' . $height,
-                'url' => Typecho_Common::url($attachmentData['path'], $options->siteUrl)
+                'url' => Typecho_Common::url($fileInfo['relative_path'], $options->siteUrl)
             ];
         } else {
-            // 添加新文件到数据库
-            $newAttachmentData = $attachmentData;
-            $newAttachmentData['path'] = str_replace(__TYPECHO_ROOT_DIR__, '', $outputPath);
-            $newAttachmentData['size'] = filesize($outputPath);
-            $newAttachmentData['name'] = basename($outputPath);
-            
-            // 添加尺寸信息
-            $newAttachmentData['width'] = $width;
-            $newAttachmentData['height'] = $height;
-            
-            $struct = [
-                'title' => basename($outputPath),
-                'slug' => basename($outputPath),
-                'created' => time(),
-                'modified' => time(),
-                'text' => serialize($newAttachmentData),
-                'order' => 0,
-                'authorId' => $user->uid,
-                'template' => NULL,
-                'type' => 'attachment',
-                'status' => 'publish',
-                'password' => NULL,
-                'commentsNum' => 0,
-                'allowComment' => 0,
-                'allowPing' => 0,
-                'allowFeed' => 0,
-                'parent' => 0
+            // 纯文件夹模式：创建新文件，不需要数据库操作
+            $relativePath = str_replace(__TYPECHO_ROOT_DIR__, '', $outputPath);
+            $relativePath = str_replace('\\', '/', $relativePath);
+
+            return [
+                'success' => true,
+                'message' => '图片裁剪成功，已创建新文件',
+                'cid' => md5($relativePath),
+                'new_dimensions' => $width . 'x' . $height,
+                'url' => Typecho_Common::url($relativePath, $options->siteUrl),
+                'path' => $relativePath
             ];
-            
-            $insertId = $db->query($db->insert('table.contents')->rows($struct));
-            
-            if ($insertId) {
-                return [
-                    'success' => true,
-                    'message' => '图片裁剪成功，已创建新文件',
-                    'cid' => $insertId,
-                    'new_dimensions' => $width . 'x' . $height,
-                    'url' => Typecho_Common::url($newAttachmentData['path'], $options->siteUrl)
-                ];
-            } else {
-                return ['success' => false, 'message' => '保存裁剪图片到数据库失败', 'cid' => $cid];
-            }
         }
     }
     
@@ -292,30 +244,28 @@ class MediaLibrary_ImageEditor
      * @param Typecho_Widget_User $user 当前用户
      * @return array 处理结果
      */
+    /**
+     * 添加水印 - 纯文件夹模式
+     */
     public static function addWatermark($cid, $watermarkConfig, $replaceOriginal, $customName, $useLibrary, $db, $options, $user)
     {
-        $attachment = $db->fetchRow($db->select()->from('table.contents')
-            ->where('cid = ? AND type = ?', $cid, 'attachment'));
-            
-        if (!$attachment) {
+        // 通过hash找到文件
+        $fileInfo = MediaLibrary_PanelHelper::getFileByHashId($cid);
+
+        if (!$fileInfo) {
             return ['success' => false, 'message' => '文件不存在', 'cid' => $cid];
         }
-        
-        $attachmentData = @unserialize($attachment['text']);
-        if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
-            return ['success' => false, 'message' => '文件数据错误', 'cid' => $cid];
-        }
-        
-        $originalPath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+        $originalPath = $fileInfo['full_path'];
         if (!file_exists($originalPath)) {
             return ['success' => false, 'message' => '原文件不存在', 'cid' => $cid];
         }
-        
+
         // 检查是否为图片
-        if (strpos($attachmentData['mime'], 'image/') !== 0) {
+        if (strpos($fileInfo['mime'], 'image/') !== 0) {
             return ['success' => false, 'message' => '只能为图片添加水印', 'cid' => $cid];
         }
-        
+
         // 处理输出路径
         $pathInfo = pathinfo($originalPath);
         if ($replaceOriginal) {
@@ -329,72 +279,39 @@ class MediaLibrary_ImageEditor
             }
             $tempPath = $outputPath;
         }
-        
+
         // 执行添加水印操作
         $result = self::performWatermark($originalPath, $tempPath, $watermarkConfig, $useLibrary);
-        
+
         if (!$result['success']) {
             return $result;
         }
-        
+
         // 替换原文件流程
         if ($replaceOriginal) {
             if (!@unlink($originalPath) || !rename($tempPath, $originalPath)) {
                 @unlink($tempPath);
                 return ['success' => false, 'message' => '替换原文件失败', 'cid' => $cid];
             }
-            
-            // 更新数据库中的文件大小
-            $attachmentData['size'] = filesize($originalPath);
-            
-            $db->query($db->update('table.contents')
-                ->rows(['text' => serialize($attachmentData)])
-                ->where('cid = ?', $cid));
-                
+
             return [
                 'success' => true,
                 'message' => '水印添加成功',
                 'cid' => $cid,
-                'url' => Typecho_Common::url($attachmentData['path'], $options->siteUrl)
+                'url' => Typecho_Common::url($fileInfo['relative_path'], $options->siteUrl)
             ];
         } else {
-            // 添加新文件到数据库
-            $newAttachmentData = $attachmentData;
-            $newAttachmentData['path'] = str_replace(__TYPECHO_ROOT_DIR__, '', $outputPath);
-            $newAttachmentData['size'] = filesize($outputPath);
-            $newAttachmentData['name'] = basename($outputPath);
-            
-            $struct = [
-                'title' => basename($outputPath),
-                'slug' => basename($outputPath),
-                'created' => time(),
-                'modified' => time(),
-                'text' => serialize($newAttachmentData),
-                'order' => 0,
-                'authorId' => $user->uid,
-                'template' => NULL,
-                'type' => 'attachment',
-                'status' => 'publish',
-                'password' => NULL,
-                'commentsNum' => 0,
-                'allowComment' => 0,
-                'allowPing' => 0,
-                'allowFeed' => 0,
-                'parent' => 0
+            // 纯文件夹模式：创建新文件，不需要数据库操作
+            $relativePath = str_replace(__TYPECHO_ROOT_DIR__, '', $outputPath);
+            $relativePath = str_replace('\\', '/', $relativePath);
+
+            return [
+                'success' => true,
+                'message' => '水印添加成功，已创建新文件',
+                'cid' => md5($relativePath),
+                'url' => Typecho_Common::url($relativePath, $options->siteUrl),
+                'path' => $relativePath
             ];
-            
-            $insertId = $db->query($db->insert('table.contents')->rows($struct));
-            
-            if ($insertId) {
-                return [
-                    'success' => true,
-                    'message' => '水印添加成功，已创建新文件',
-                    'cid' => $insertId,
-                    'url' => Typecho_Common::url($newAttachmentData['path'], $options->siteUrl)
-                ];
-            } else {
-                return ['success' => false, 'message' => '保存水印图片到数据库失败', 'cid' => $cid];
-            }
         }
     }
     

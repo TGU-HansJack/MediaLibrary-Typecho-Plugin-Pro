@@ -331,52 +331,47 @@ class MediaLibrary_AjaxHandler
      */
     private static function handleGetInfoAction($request, $db, $options, $enableGetID3)
     {
-        $cid = intval($request->get('cid'));
-        if (!$cid) {
+        $cid = $request->get('cid');
+        if (empty($cid)) {
             MediaLibrary_Logger::log('get_info', '获取文件信息失败：无效的文件ID', [], 'warning');
             echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
-        $attachment = $db->fetchRow($db->select()->from('table.contents')
-            ->where('cid = ? AND type = ?', $cid, 'attachment'));
-            
-        if (!$attachment) {
+
+        // 扫描文件夹，通过hash找到文件
+        $uploadDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads';
+        $allFiles = [];
+        MediaLibrary_PanelHelper::scanDirectoryRecursive($uploadDir, '/usr/uploads', $allFiles);
+
+        $fileInfo = null;
+        foreach ($allFiles as $file) {
+            if (md5($file['relative_path']) === $cid) {
+                $fileInfo = $file;
+                break;
+            }
+        }
+
+        if (!$fileInfo) {
             MediaLibrary_Logger::log('get_info', '获取文件信息失败：文件不存在', [
                 'cid' => $cid
             ], 'error');
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
-        $attachmentData = array();
-        if (isset($attachment['text']) && !empty($attachment['text'])) {
-            $unserialized = @unserialize($attachment['text']);
-            if (is_array($unserialized)) {
-                $attachmentData = $unserialized;
-            }
-        }
-        
-        $parentPost = MediaLibrary_PanelHelper::getParentPost($db, $cid);
-        
-        $detailedInfo = [];
-        if (isset($attachmentData['path'])) {
-            $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-            $detailedInfo = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3);
-        }
-        
+
+        // 获取详细文件信息
+        $detailedInfo = MediaLibrary_PanelHelper::getDetailedFileInfo($fileInfo['full_path'], $enableGetID3);
+
         $info = [
-            'title' => isset($attachment['title']) ? $attachment['title'] : '未命名文件',
-            'mime' => isset($attachmentData['mime']) ? $attachmentData['mime'] : 'unknown',
-            'size' => MediaLibrary_FileOperations::formatFileSize(isset($attachmentData['size']) ? intval($attachmentData['size']) : 0),
-            'url' => isset($attachmentData['path']) ? 
-                Typecho_Common::url($attachmentData['path'], $options->siteUrl) : '',
-            'created' => isset($attachment['created']) ? date('Y-m-d H:i:s', $attachment['created']) : '',
-            'path' => isset($attachmentData['path']) ? $attachmentData['path'] : '',
-            'parent_post' => $parentPost,
+            'title' => $fileInfo['name'],
+            'mime' => $fileInfo['mime'],
+            'size' => $fileInfo['size_formatted'],
+            'url' => Typecho_Common::url($fileInfo['relative_path'], $options->siteUrl),
+            'modified' => date('Y-m-d H:i:s', $fileInfo['modified']),
+            'path' => $fileInfo['relative_path'],
             'detailed_info' => $detailedInfo
         ];
-        
+
         MediaLibrary_Logger::log('get_info', '获取文件信息成功', [
             'cid' => $cid,
             'title' => $info['title']
@@ -636,7 +631,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     }
     
     /**
-     * 处理获取GPS数据请求
+     * 处理获取GPS数据请求 - 纯文件夹模式
      */
     private static function handleGetGpsDataAction($request, $db, $options)
     {
@@ -646,40 +641,34 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '请选择图片文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $gpsData = [];
         foreach ($cids as $cid) {
-            $attachment = $db->fetchRow($db->select()->from('table.contents')
-                ->where('cid = ? AND type = ?', $cid, 'attachment'));
-                
-            if ($attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                    if (file_exists($filePath) && strpos($attachmentData['mime'], 'image/') === 0) {
-                        $exifData = @exif_read_data($filePath);
-                        if ($exifData && isset($exifData['GPSLatitude'], $exifData['GPSLongitude'], $exifData['GPSLatitudeRef'], $exifData['GPSLongitudeRef'])
-                            && is_array($exifData['GPSLatitude']) && is_array($exifData['GPSLongitude'])) {
-                            
-                            try {
-                                $lat = MediaLibrary_ExifPrivacy::exifToFloat($exifData['GPSLatitude'], $exifData['GPSLatitudeRef']);
-                                $lng = MediaLibrary_ExifPrivacy::exifToFloat($exifData['GPSLongitude'], $exifData['GPSLongitudeRef']);
-                                
-                                $gpsData[] = [
-                                    'cid' => $cid,
-                                    'title' => $attachment['title'],
-                                    'coords' => [$lng, $lat],
-                                    'url' => Typecho_Common::url($attachmentData['path'], $options->siteUrl)
-                                ];
-                            } catch (Exception $e) {
-                                // GPS解析失败，跳过
-                            }
-                        }
+            // 通过hash找到文件
+            $fileInfo = MediaLibrary_PanelHelper::getFileByHashId($cid);
+
+            if ($fileInfo && file_exists($fileInfo['full_path']) && strpos($fileInfo['mime'], 'image/') === 0) {
+                $exifData = @exif_read_data($fileInfo['full_path']);
+                if ($exifData && isset($exifData['GPSLatitude'], $exifData['GPSLongitude'], $exifData['GPSLatitudeRef'], $exifData['GPSLongitudeRef'])
+                    && is_array($exifData['GPSLatitude']) && is_array($exifData['GPSLongitude'])) {
+
+                    try {
+                        $lat = MediaLibrary_ExifPrivacy::exifToFloat($exifData['GPSLatitude'], $exifData['GPSLatitudeRef']);
+                        $lng = MediaLibrary_ExifPrivacy::exifToFloat($exifData['GPSLongitude'], $exifData['GPSLongitudeRef']);
+
+                        $gpsData[] = [
+                            'cid' => $cid,
+                            'title' => $fileInfo['name'],
+                            'coords' => [$lng, $lat],
+                            'url' => Typecho_Common::url($fileInfo['relative_path'], $options->siteUrl)
+                        ];
+                    } catch (Exception $e) {
+                        // GPS解析失败，跳过
                     }
                 }
             }
         }
-        
+
         MediaLibrary_Logger::log('get_gps_data', 'GPS 数据获取完成', [
             'cids' => $cids,
             'count' => count($gpsData)
@@ -688,7 +677,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     }
     
     /**
-     * 处理获取智能建议请求
+     * 处理获取智能建议请求 - 纯文件夹模式
      */
     private static function handleGetSmartSuggestionAction($request, $db)
     {
@@ -698,30 +687,24 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '请选择图片文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $suggestions = [];
         foreach ($cids as $cid) {
-            $attachment = $db->fetchRow($db->select()->from('table.contents')
-                ->where('cid = ? AND type = ?', $cid, 'attachment'));
-                
-            if ($attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                    if (file_exists($filePath) && strpos($attachmentData['mime'], 'image/') === 0) {
-                        $fileSize = filesize($filePath);
-                        $suggestion = MediaLibrary_ImageProcessing::getSmartCompressionSuggestion($filePath, $attachmentData['mime'], $fileSize);
-                        $suggestions[] = [
-                            'cid' => $cid,
-                            'filename' => $attachmentData['name'],
-                            'size' => MediaLibrary_FileOperations::formatFileSize($fileSize),
-                            'suggestion' => $suggestion
-                        ];
-                    }
-                }
+            // 通过hash找到文件
+            $fileInfo = MediaLibrary_PanelHelper::getFileByHashId($cid);
+
+            if ($fileInfo && file_exists($fileInfo['full_path']) && strpos($fileInfo['mime'], 'image/') === 0) {
+                $fileSize = $fileInfo['size'];
+                $suggestion = MediaLibrary_ImageProcessing::getSmartCompressionSuggestion($fileInfo['full_path'], $fileInfo['mime'], $fileSize);
+                $suggestions[] = [
+                    'cid' => $cid,
+                    'filename' => $fileInfo['name'],
+                    'size' => MediaLibrary_FileOperations::formatFileSize($fileSize),
+                    'suggestion' => $suggestion
+                ];
             }
         }
-        
+
         MediaLibrary_Logger::log('smart_suggestion', '智能压缩建议生成完毕', [
             'cids' => $cids,
             'count' => count($suggestions)
@@ -730,7 +713,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     }
     
     /**
-     * 处理移除EXIF请求
+     * 处理移除EXIF请求 - 纯文件夹模式
      */
     private static function handleRemoveExifAction($request, $db, $enableExif)
     {
@@ -738,7 +721,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         $hasExifTool = MediaLibrary_ExifPrivacy::isExifToolAvailable();
         $hasPhpExif = extension_loaded('exif');
         $hasGD = extension_loaded('gd');
-        
+
         if (!$enableExif || (!$hasExifTool && !$hasGD)) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：功能未启用或缺少工具', [
                 'enable_exif' => $enableExif,
@@ -748,62 +731,52 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => 'EXIF功能未启用或无可用的EXIF清除工具'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
-        $cid = intval($request->get('cid'));
-        if (!$cid) {
+
+        $cid = $request->get('cid');
+        if (empty($cid)) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：无效的文件ID', [], 'warning');
             echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
-        $attachment = $db->fetchRow($db->select()->from('table.contents')
-            ->where('cid = ? AND type = ?', $cid, 'attachment'));
-            
-        if (!$attachment) {
+
+        // 通过hash找到文件
+        $fileInfo = MediaLibrary_PanelHelper::getFileByHashId($cid);
+
+        if (!$fileInfo) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不存在', [
                 'cid' => $cid
             ], 'error');
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
-        $attachmentData = @unserialize($attachment['text']);
-        if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
-            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件数据损坏', [
-                'cid' => $cid
-            ], 'error');
-            echo json_encode(['success' => false, 'message' => '文件数据错误'], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-        
-        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-        if (!file_exists($filePath)) {
+
+        if (!file_exists($fileInfo['full_path'])) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不存在于磁盘', [
                 'cid' => $cid,
-                'path' => $attachmentData['path']
+                'path' => $fileInfo['relative_path']
             ], 'error');
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         // 检查是否为图片
-        if (strpos($attachmentData['mime'], 'image/') !== 0) {
+        if (strpos($fileInfo['mime'], 'image/') !== 0) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不是图片', [
                 'cid' => $cid,
-                'mime' => $attachmentData['mime']
+                'mime' => $fileInfo['mime']
             ], 'warning');
             echo json_encode(['success' => false, 'message' => '只能清除图片文件的EXIF信息'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         // 智能清除EXIF信息
-        $result = MediaLibrary_ExifPrivacy::removeImageExif($filePath, $attachmentData['mime']);
+        $result = MediaLibrary_ExifPrivacy::removeImageExif($fileInfo['full_path'], $fileInfo['mime']);
         MediaLibrary_Logger::log('remove_exif', $result['message'], [
             'cid' => $cid,
-            'path' => $attachmentData['path'],
+            'path' => $fileInfo['relative_path'],
             'result' => $result
         ], !empty($result['success']) ? 'info' : 'error');
-        
+
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 

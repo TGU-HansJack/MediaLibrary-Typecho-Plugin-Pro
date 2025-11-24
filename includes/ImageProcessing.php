@@ -7,9 +7,9 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 class MediaLibrary_ImageProcessing
 {
     /**
-     * 压缩图片
-     * 
-     * @param int $cid 文件ID
+     * 压缩图片 - 纯文件夹模式
+     *
+     * @param string $cid 文件hash ID
      * @param int $quality 压缩质量
      * @param string $outputFormat 输出格式
      * @param string $compressMethod 压缩方法
@@ -22,41 +22,44 @@ class MediaLibrary_ImageProcessing
      */
     public static function compressImage($cid, $quality, $outputFormat, $compressMethod, $replaceOriginal, $customName, $db, $options, $user)
     {
-        $attachment = $db->fetchRow($db->select()->from('table.contents')
-            ->where('cid = ? AND type = ?', $cid, 'attachment'));
-            
-        if (!$attachment) {
+        // 通过hash找到文件
+        $fileInfo = MediaLibrary_PanelHelper::getFileByHashId($cid);
+
+        if (!$fileInfo) {
             return ['success' => false, 'message' => '文件不存在', 'cid' => $cid];
         }
-        
-        $attachmentData = @unserialize($attachment['text']);
-        if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
-            return ['success' => false, 'message' => '文件数据错误', 'cid' => $cid];
-        }
-        
-        $originalPath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+        $originalPath = $fileInfo['full_path'];
         if (!file_exists($originalPath)) {
             return ['success' => false, 'message' => '原文件不存在', 'cid' => $cid];
         }
-        
+
         // 检查是否为图片
-        if (strpos($attachmentData['mime'], 'image/') !== 0 && 
-            !in_array(strtolower(pathinfo($attachmentData['name'] ?? '', PATHINFO_EXTENSION)), ['avif'])) {
+        if (strpos($fileInfo['mime'], 'image/') !== 0 &&
+            !in_array(strtolower(pathinfo($fileInfo['name'] ?? '', PATHINFO_EXTENSION)), ['avif'])) {
             return ['success' => false, 'message' => '只能压缩图片文件', 'cid' => $cid];
         }
-        
+
         $pathInfo = pathinfo($originalPath);
-        
+
         // 获取原始文件大小
         $originalSize = filesize($originalPath);
-        
+
+        // 构造兼容的 attachmentData 用于后续处理
+        $attachmentData = [
+            'name' => $fileInfo['name'],
+            'path' => $fileInfo['relative_path'],
+            'mime' => $fileInfo['mime'],
+            'size' => $fileInfo['size']
+        ];
+
         if ($replaceOriginal) {
-            return self::compressAndReplaceImage($cid, $originalPath, $pathInfo, $attachmentData, 
-                                              $quality, $outputFormat, $compressMethod, 
+            return self::compressAndReplaceImage($cid, $originalPath, $pathInfo, $attachmentData,
+                                              $quality, $outputFormat, $compressMethod,
                                               $originalSize, $db);
         } else {
-            return self::compressAndKeepImage($cid, $originalPath, $pathInfo, $attachmentData, 
-                                           $quality, $outputFormat, $compressMethod, 
+            return self::compressAndKeepImage($cid, $originalPath, $pathInfo, $attachmentData,
+                                           $quality, $outputFormat, $compressMethod,
                                            $originalSize, $customName, $db, $options, $user);
         }
     }
