@@ -27,14 +27,22 @@ class MediaLibrary_PanelHelper
             $gdQuality = intval($config->gdQuality ?? 80);
             $videoQuality = intval($config->videoQuality ?? 23);
             $videoCodec = $config->videoCodec ?? 'libx264';
+
+            // WebDAV 配置
+            $webdavLocalPath = isset($config->webdavLocalPath) ? trim($config->webdavLocalPath) : '';
             $webdavEndpoint = isset($config->webdavEndpoint) ? trim($config->webdavEndpoint) : '';
-            $webdavBasePath = isset($config->webdavBasePath) ? trim($config->webdavBasePath) : '/';
+            $webdavRemotePath = isset($config->webdavRemotePath) ? trim($config->webdavRemotePath) : '/typecho';
             $webdavUsername = isset($config->webdavUsername) ? trim($config->webdavUsername) : '';
             $webdavPassword = isset($config->webdavPassword) ? (string)$config->webdavPassword : '';
             $webdavVerifySSL = !isset($config->webdavVerifySSL) || (is_array($config->webdavVerifySSL) ? in_array('1', $config->webdavVerifySSL) : ($config->webdavVerifySSL == '1'));
             $webdavSyncEnabled = is_array($config->webdavSyncEnabled ?? false) ? in_array('1', $config->webdavSyncEnabled) : (($config->webdavSyncEnabled ?? '0') == '1');
-            $webdavSyncPath = isset($config->webdavSyncPath) ? trim($config->webdavSyncPath) : '/uploads';
             $webdavSyncMode = isset($config->webdavSyncMode) ? (string)$config->webdavSyncMode : 'manual';
+            $webdavConflictStrategy = isset($config->webdavConflictStrategy) ? (string)$config->webdavConflictStrategy : 'newest';
+            $webdavDeleteStrategy = isset($config->webdavDeleteStrategy) ? (string)$config->webdavDeleteStrategy : 'auto';
+
+            // 兼容旧配置
+            $webdavBasePath = isset($config->webdavBasePath) ? trim($config->webdavBasePath) : '/';
+            $webdavSyncPath = isset($config->webdavSyncPath) ? trim($config->webdavSyncPath) : '/uploads';
             $webdavSyncDelete = is_array($config->webdavSyncDelete ?? false) ? in_array('1', $config->webdavSyncDelete) : (($config->webdavSyncDelete ?? '0') == '1');
         } catch (Exception $e) {
             $enableGetID3 = false;
@@ -47,7 +55,9 @@ class MediaLibrary_PanelHelper
             $gdQuality = 80;
             $videoQuality = 23;
             $videoCodec = 'libx264';
+            $webdavLocalPath = '';
             $webdavEndpoint = '';
+            $webdavRemotePath = '/typecho';
             $webdavBasePath = '/';
             $webdavUsername = '';
             $webdavPassword = '';
@@ -55,6 +65,8 @@ class MediaLibrary_PanelHelper
             $webdavSyncEnabled = false;
             $webdavSyncPath = '/uploads';
             $webdavSyncMode = 'manual';
+            $webdavConflictStrategy = 'newest';
+            $webdavDeleteStrategy = 'auto';
             $webdavSyncDelete = false;
         }
 
@@ -69,7 +81,9 @@ class MediaLibrary_PanelHelper
             'gdQuality' => $gdQuality,
             'videoQuality' => $videoQuality,
             'videoCodec' => $videoCodec,
+            'webdavLocalPath' => $webdavLocalPath,
             'webdavEndpoint' => $webdavEndpoint,
+            'webdavRemotePath' => $webdavRemotePath,
             'webdavBasePath' => self::normalizeWebDAVPath($webdavBasePath),
             'webdavUsername' => $webdavUsername,
             'webdavPassword' => $webdavPassword,
@@ -78,13 +92,15 @@ class MediaLibrary_PanelHelper
             'webdavSyncEnabled' => $webdavSyncEnabled,
             'webdavSyncPath' => $webdavSyncPath,
             'webdavSyncMode' => $webdavSyncMode,
+            'webdavConflictStrategy' => $webdavConflictStrategy,
+            'webdavDeleteStrategy' => $webdavDeleteStrategy,
             'webdavSyncDelete' => $webdavSyncDelete
         ];
     }
     
     /**
      * 获取媒体列表
-     * 
+     *
      * @param Typecho_Db $db 数据库连接
      * @param int $page 当前页码
      * @param int $pageSize 每页显示数量
@@ -95,6 +111,11 @@ class MediaLibrary_PanelHelper
      */
     public static function getMediaList($db, $page, $pageSize, $keywords, $type, $storage = 'all')
     {
+        // WebDAV 存储：直接读取本地 WebDAV 文件夹，不查询数据库
+        if ($storage === 'webdav') {
+            return self::getWebDAVFolderList($page, $pageSize, $keywords, $type);
+        }
+
         // 构建查询 - 添加去重和更严格的条件
         $select = $db->select()->from('table.contents')
             ->where('table.contents.type = ?', 'attachment')
@@ -216,7 +237,242 @@ class MediaLibrary_PanelHelper
             'total' => $total
         ];
     }
-    
+
+    /**
+     * 获取本地 WebDAV 文件夹的文件列表
+     *
+     * @param int $page 当前页码
+     * @param int $pageSize 每页显示数量
+     * @param string $keywords 搜索关键词
+     * @param string $type 文件类型过滤
+     * @return array 媒体列表数据
+     */
+    private static function getWebDAVFolderList($page, $pageSize, $keywords, $type)
+    {
+        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVSync.php';
+
+        $configOptions = self::getPluginConfig();
+
+        // 检查 WebDAV 是否启用
+        if (empty($configOptions['enableWebDAV'])) {
+            return [
+                'attachments' => [],
+                'total' => 0,
+                'error' => 'WebDAV 功能未启用'
+            ];
+        }
+
+        // 检查本地路径是否配置
+        if (empty($configOptions['webdavLocalPath'])) {
+            return [
+                'attachments' => [],
+                'total' => 0,
+                'error' => 'WebDAV 本地文件夹未配置'
+            ];
+        }
+
+        $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+
+        // 检查本地文件夹是否存在
+        if (!is_dir($localPath)) {
+            return [
+                'attachments' => [],
+                'total' => 0,
+                'error' => '本地 WebDAV 文件夹不存在: ' . $localPath
+            ];
+        }
+
+        try {
+            $sync = new MediaLibrary_WebDAVSync($configOptions);
+            $allItems = $sync->listLocalFiles('');
+
+            // 过滤文件（不包括目录）
+            $files = array_filter($allItems, function($item) {
+                return $item['type'] === 'file';
+            });
+
+            // 应用关键词过滤
+            if (!empty($keywords)) {
+                $files = array_filter($files, function($item) use ($keywords) {
+                    return stripos($item['name'], $keywords) !== false;
+                });
+            }
+
+            // 应用类型过滤
+            if ($type !== 'all') {
+                $files = array_filter($files, function($item) use ($type) {
+                    $mime = self::guessMimeType($item['name']);
+                    switch ($type) {
+                        case 'image':
+                            return strpos($mime, 'image/') === 0;
+                        case 'video':
+                            return strpos($mime, 'video/') === 0;
+                        case 'audio':
+                            return strpos($mime, 'audio/') === 0;
+                        case 'document':
+                            return strpos($mime, 'application/') === 0;
+                        default:
+                            return true;
+                    }
+                });
+            }
+
+            // 按修改时间降序排序
+            usort($files, function($a, $b) {
+                return $b['modified'] - $a['modified'];
+            });
+
+            $total = count($files);
+
+            // 分页
+            $offset = ($page - 1) * $pageSize;
+            $pagedFiles = array_slice($files, $offset, $pageSize);
+
+            // 转换为面板期望的格式
+            $attachments = [];
+            foreach ($pagedFiles as $file) {
+                $mime = self::guessMimeType($file['name']);
+                $isImage = strpos($mime, 'image/') === 0;
+                $isVideo = strpos($mime, 'video/') === 0;
+                $isDocument = strpos($mime, 'application/') === 0 ||
+                              in_array(strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)),
+                                      ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
+
+                // 构建 URL（从本地路径生成可访问的 URL）
+                $relativePath = ltrim($file['path'], '/');
+                $url = self::buildWebDAVFileUrl($relativePath, $configOptions);
+
+                $attachments[] = [
+                    'cid' => 0, // WebDAV 文件没有数据库 ID
+                    'title' => $file['name'],
+                    'slug' => '',
+                    'created' => $file['modified'],
+                    'modified' => $file['modified'],
+                    'text' => '',
+                    'order' => 0,
+                    'authorId' => 0,
+                    'template' => '',
+                    'type' => 'attachment',
+                    'status' => 'publish',
+                    'password' => '',
+                    'commentsNum' => 0,
+                    'allowComment' => '0',
+                    'allowPing' => '0',
+                    'allowFeed' => '0',
+                    'parent' => 0,
+                    'attachment' => [
+                        'name' => $file['name'],
+                        'path' => $relativePath,
+                        'size' => $file['size'],
+                        'type' => 'file',
+                        'mime' => $mime,
+                        'storage' => 'webdav'
+                    ],
+                    'mime' => $mime,
+                    'isImage' => $isImage,
+                    'isVideo' => $isVideo,
+                    'isDocument' => $isDocument,
+                    'size' => MediaLibrary_FileOperations::formatFileSize($file['size']),
+                    'url' => $url,
+                    'hasValidUrl' => !empty($url),
+                    'parent_post' => ['status' => 'unarchived', 'post' => null],
+                    'webdav_file' => true // 标记为 WebDAV 文件
+                ];
+            }
+
+            return [
+                'attachments' => $attachments,
+                'total' => $total
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'attachments' => [],
+                'total' => 0,
+                'error' => 'WebDAV 读取失败: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 根据文件名猜测 MIME 类型
+     *
+     * @param string $filename 文件名
+     * @return string MIME 类型
+     */
+    private static function guessMimeType($filename)
+    {
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        $mimeTypes = [
+            // 图片
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp',
+            'avif' => 'image/avif',
+            // 视频
+            'mp4' => 'video/mp4',
+            'avi' => 'video/x-msvideo',
+            'mov' => 'video/quicktime',
+            'wmv' => 'video/x-ms-wmv',
+            'flv' => 'video/x-flv',
+            // 音频
+            'mp3' => 'audio/mpeg',
+            'wav' => 'audio/wav',
+            'ogg' => 'audio/ogg',
+            // 文档
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt' => 'application/vnd.ms-powerpoint',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'txt' => 'text/plain',
+            'zip' => 'application/zip',
+            'rar' => 'application/x-rar-compressed'
+        ];
+
+        return isset($mimeTypes[$extension]) ? $mimeTypes[$extension] : 'application/octet-stream';
+    }
+
+    /**
+     * 构建 WebDAV 文件的访问 URL
+     *
+     * @param string $relativePath 相对路径
+     * @param array $configOptions 配置选项
+     * @return string 文件 URL
+     */
+    private static function buildWebDAVFileUrl($relativePath, $configOptions)
+    {
+        // 从本地 WebDAV 路径构建 URL
+        // 如果配置了 webdavLocalPath，尝试生成可访问的 URL
+        $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+
+        // 尝试将本地路径转换为 web 可访问路径
+        // 假设 webdav 文件夹在网站根目录下
+        $rootDir = __TYPECHO_ROOT_DIR__;
+        if (strpos($localPath, $rootDir) === 0) {
+            $webPath = substr($localPath, strlen($rootDir));
+            $webPath = str_replace('\\', '/', $webPath);
+            $webPath = ltrim($webPath, '/');
+            return Typecho_Common::url($webPath . '/' . $relativePath, Helper::options()->siteUrl);
+        }
+
+        // 如果无法生成 URL，返回空字符串
+        // 可以考虑通过 WebDAV 远程 URL 访问
+        if (!empty($configOptions['webdavEndpoint'])) {
+            $remotePath = isset($configOptions['webdavRemotePath']) ? trim($configOptions['webdavRemotePath'], '/') : 'typecho';
+            return rtrim($configOptions['webdavEndpoint'], '/') . '/' . $remotePath . '/' . ltrim($relativePath, '/');
+        }
+
+        return '';
+    }
+
     /**
      * 获取文件所属文章
      * 
@@ -422,6 +678,11 @@ class MediaLibrary_PanelHelper
      */
     public static function getTypeStatistics($db, $storage = 'all')
     {
+        // WebDAV 存储：统计本地 WebDAV 文件夹的文件
+        if ($storage === 'webdav') {
+            return self::getWebDAVFolderTypeStatistics();
+        }
+
         // 基础查询
         $baseQuery = $db->select()->from('table.contents')
             ->where('table.contents.type = ?', 'attachment')
@@ -486,5 +747,62 @@ class MediaLibrary_PanelHelper
         }
 
         return '/' . trim($path, '/');
+    }
+
+    /**
+     * 统计本地 WebDAV 文件夹中各类型文件的数量
+     *
+     * @return array 各类型文件数量统计
+     */
+    private static function getWebDAVFolderTypeStatistics()
+    {
+        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVSync.php';
+
+        $statistics = [
+            'image' => 0,
+            'video' => 0,
+            'audio' => 0,
+            'document' => 0
+        ];
+
+        try {
+            $configOptions = self::getPluginConfig();
+
+            if (empty($configOptions['enableWebDAV']) || empty($configOptions['webdavLocalPath'])) {
+                return $statistics;
+            }
+
+            $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+            if (!is_dir($localPath)) {
+                return $statistics;
+            }
+
+            $sync = new MediaLibrary_WebDAVSync($configOptions);
+            $allItems = $sync->listLocalFiles('');
+
+            // 统计各类型文件
+            foreach ($allItems as $item) {
+                if ($item['type'] !== 'file') {
+                    continue;
+                }
+
+                $mime = self::guessMimeType($item['name']);
+
+                if (strpos($mime, 'image/') === 0) {
+                    $statistics['image']++;
+                } elseif (strpos($mime, 'video/') === 0) {
+                    $statistics['video']++;
+                } elseif (strpos($mime, 'audio/') === 0) {
+                    $statistics['audio']++;
+                } elseif (strpos($mime, 'application/') === 0) {
+                    $statistics['document']++;
+                }
+            }
+
+        } catch (Exception $e) {
+            // 统计失败，返回默认值
+        }
+
+        return $statistics;
     }
 }

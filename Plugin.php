@@ -820,6 +820,123 @@ jQuery(function($) {
             '删除同步策略',
             '删除本地 WebDAV 文件夹中的文件时如何处理远程文件');
         $form->addInput($deleteStrategy);
+
+        // 测试连接按钮
+        $testSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
+        $testSection->html('
+            <h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">测试连接</h4>
+            <div style="margin-top:10px;">
+                <button type="button" id="webdav-test-btn" class="btn primary" style="margin-right:10px;">
+                    <i class="i-check"></i> 测试 WebDAV 配置
+                </button>
+                <span id="webdav-test-loading" style="display:none;color:#999;">
+                    <i class="i-loading"></i> 测试中...
+                </span>
+            </div>
+            <div id="webdav-test-result" style="margin-top:15px;padding:10px;border-radius:4px;display:none;">
+                <!-- 测试结果将显示在这里 -->
+            </div>
+            <script>
+            (function() {
+                var testBtn = document.getElementById("webdav-test-btn");
+                var loading = document.getElementById("webdav-test-loading");
+                var resultDiv = document.getElementById("webdav-test-result");
+
+                if (testBtn) {
+                    testBtn.addEventListener("click", function() {
+                        testBtn.disabled = true;
+                        loading.style.display = "inline";
+                        resultDiv.style.display = "none";
+
+                        fetch("/action/media-library?action=webdav_test", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            }
+                        })
+                        .then(function(response) {
+                            return response.json();
+                        })
+                        .then(function(data) {
+                            testBtn.disabled = false;
+                            loading.style.display = "none";
+                            resultDiv.style.display = "block";
+
+                            var html = "";
+
+                            if (data.success) {
+                                resultDiv.style.backgroundColor = "#d4edda";
+                                resultDiv.style.borderColor = "#c3e6cb";
+                                resultDiv.style.color = "#155724";
+                                html = "<strong>✅ " + data.message + "</strong>";
+                            } else {
+                                resultDiv.style.backgroundColor = "#f8d7da";
+                                resultDiv.style.borderColor = "#f5c6cb";
+                                resultDiv.style.color = "#721c24";
+                                html = "<strong>❌ " + data.message + "</strong>";
+                            }
+
+                            // 本地路径测试结果
+                            if (data.local) {
+                                html += "<div style=\"margin-top:10px;padding:10px;background:#fff;border-radius:3px;\">";
+                                html += "<strong>本地路径测试：</strong>";
+                                if (data.local.success) {
+                                    html += "<span style=\"color:#28a745;\">✓ 通过</span>";
+                                    html += "<ul style=\"margin:5px 0 0 20px;\">";
+                                    html += "<li>路径: " + data.local.path + "</li>";
+                                    html += "<li>存在: " + (data.local.exists ? "是" : "否") + "</li>";
+                                    html += "<li>可读: " + (data.local.readable ? "是" : "否") + "</li>";
+                                    html += "<li>可写: " + (data.local.writable ? "是" : "否") + "</li>";
+                                    html += "</ul>";
+                                } else {
+                                    html += "<span style=\"color:#dc3545;\">✗ 失败</span>";
+                                    html += "<div style=\"margin-top:5px;color:#721c24;\">" + data.local.message + "</div>";
+                                    if (data.local.path) {
+                                        html += "<div style=\"margin-top:5px;font-size:12px;color:#666;\">路径: " + data.local.path + "</div>";
+                                    }
+                                }
+                                html += "</div>";
+                            }
+
+                            // 远程连接测试结果
+                            if (data.remote) {
+                                html += "<div style=\"margin-top:10px;padding:10px;background:#fff;border-radius:3px;\">";
+                                html += "<strong>远程连接测试：</strong>";
+                                if (data.remote.configured) {
+                                    if (data.remote.success) {
+                                        html += "<span style=\"color:#28a745;\">✓ 通过</span>";
+                                        html += "<div style=\"margin-top:5px;font-size:12px;color:#666;\">服务器: " + data.remote.endpoint + "</div>";
+                                    } else {
+                                        html += "<span style=\"color:#dc3545;\">✗ 失败</span>";
+                                        html += "<div style=\"margin-top:5px;color:#721c24;\">" + data.remote.message + "</div>";
+                                        if (data.remote.endpoint) {
+                                            html += "<div style=\"margin-top:5px;font-size:12px;color:#666;\">服务器: " + data.remote.endpoint + "</div>";
+                                        }
+                                    }
+                                } else {
+                                    html += "<span style=\"color:#999;\">未配置</span>";
+                                    html += "<div style=\"margin-top:5px;font-size:12px;color:#666;\">如果不需要远程同步，可以忽略此项</div>";
+                                }
+                                html += "</div>";
+                            }
+
+                            resultDiv.innerHTML = html;
+                        })
+                        .catch(function(error) {
+                            testBtn.disabled = false;
+                            loading.style.display = "none";
+                            resultDiv.style.display = "block";
+                            resultDiv.style.backgroundColor = "#f8d7da";
+                            resultDiv.style.borderColor = "#f5c6cb";
+                            resultDiv.style.color = "#721c24";
+                            resultDiv.innerHTML = "<strong>❌ 测试失败</strong><div style=\"margin-top:5px;\">请求失败: " + error.message + "</div>";
+                        });
+                    });
+                }
+            })();
+            </script>
+        ');
+        $form->addItem($testSection);
     }
 
     /**
