@@ -499,7 +499,7 @@
                                 <small style="color: #666;">留空则使用默认命名规则</small>
                             </div>
                         </div>
-                        
+
                         <div class="watermark-actions" style="margin-top: 20px;">
                             <button class="btn btn-primary" id="apply-watermark">应用水印</button>
                             <button class="btn" id="cancel-watermark">取消</button>
@@ -510,3 +510,222 @@
         </div>
     </div>
 </div>
+
+<!-- 文件夹扫描结果模态框 -->
+<div class="modal" id="scan-result-modal">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>文件夹扫描结果</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="scan-result-content">
+                    <div class="scan-loading" style="text-align: center; padding: 40px;">
+                        <p>正在扫描文件夹...</p>
+                    </div>
+                </div>
+
+                <div id="scan-result-data" style="display: none;">
+                    <div class="scan-summary">
+                        <h4>扫描摘要</h4>
+                        <div class="scan-stats">
+                            <div class="scan-stat-item">
+                                <span class="scan-stat-label">扫描路径:</span>
+                                <span class="scan-stat-value" id="scan-path"></span>
+                            </div>
+                            <div class="scan-stat-item">
+                                <span class="scan-stat-label">文件系统中的文件:</span>
+                                <span class="scan-stat-value" id="total-files-system"></span>
+                            </div>
+                            <div class="scan-stat-item">
+                                <span class="scan-stat-label">数据库中的文件:</span>
+                                <span class="scan-stat-value" id="total-files-db"></span>
+                            </div>
+                            <div class="scan-stat-item">
+                                <span class="scan-stat-label">未录入的文件:</span>
+                                <span class="scan-stat-value" id="orphaned-count"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="scan-files-section" id="orphaned-files-section" style="display: none;">
+                        <div class="scan-files-header">
+                            <h4>未录入的文件</h4>
+                            <div class="scan-files-actions">
+                                <button class="btn btn-xs" id="select-all-orphaned">全选</button>
+                                <button class="btn btn-xs" id="deselect-all-orphaned">取消全选</button>
+                                <button class="btn btn-xs btn-primary" id="import-selected-files">导入选中文件</button>
+                            </div>
+                        </div>
+                        <div class="scan-files-list" id="orphaned-files-list">
+                            <!-- 文件列表将通过 JavaScript 动态填充 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="close-scan-modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.scan-description {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.scan-folder-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.scan-folder-btn .btn-icon {
+    font-size: 14px;
+}
+
+.modal-lg {
+    max-width: 900px;
+}
+
+.scan-summary {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.scan-summary h4 {
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    color: #333;
+}
+
+.scan-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.scan-stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background: white;
+    border-radius: 3px;
+}
+
+.scan-stat-label {
+    font-weight: 500;
+    color: #666;
+}
+
+.scan-stat-value {
+    color: #0073aa;
+    font-weight: 600;
+}
+
+.scan-files-section {
+    margin-top: 20px;
+}
+
+.scan-files-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.scan-files-header h4 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.scan-files-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.scan-files-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+}
+
+.scan-file-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s;
+}
+
+.scan-file-item:hover {
+    background: #f9f9f9;
+}
+
+.scan-file-item:last-child {
+    border-bottom: none;
+}
+
+.scan-file-checkbox {
+    margin-right: 10px;
+}
+
+.scan-file-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+    border-radius: 4px;
+    margin-right: 10px;
+    font-size: 20px;
+}
+
+.scan-file-info {
+    flex: 1;
+}
+
+.scan-file-name {
+    font-weight: 500;
+    color: #333;
+    display: block;
+    margin-bottom: 3px;
+}
+
+.scan-file-meta {
+    font-size: 12px;
+    color: #999;
+}
+
+.scan-file-path {
+    font-size: 11px;
+    color: #aaa;
+    font-family: monospace;
+    margin-top: 3px;
+}
+
+.scan-loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.scan-error {
+    background: #ffebee;
+    color: #c62828;
+    padding: 15px;
+    border-radius: 4px;
+    text-align: center;
+}
+</style>

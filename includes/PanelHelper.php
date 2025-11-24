@@ -413,4 +413,269 @@ class MediaLibrary_PanelHelper
 
         return '/' . trim($path, '/');
     }
+
+    /**
+     * 扫描上传目录中的文件
+     *
+     * @param Typecho_Db $db 数据库连接
+     * @param string $baseDir 基础目录（相对路径，如 /usr/uploads）
+     * @return array 扫描结果
+     */
+    public static function scanUploadDirectory($db, $baseDir = '/usr/uploads')
+    {
+        $fullPath = __TYPECHO_ROOT_DIR__ . $baseDir;
+
+        if (!is_dir($fullPath)) {
+            return [
+                'success' => false,
+                'message' => '目录不存在: ' . $baseDir
+            ];
+        }
+
+        // 获取数据库中所有附件的路径
+        $dbFiles = [];
+        $attachments = $db->fetchAll($db->select()->from('table.contents')
+            ->where('type = ?', 'attachment')
+            ->where('status = ?', 'publish'));
+
+        foreach ($attachments as $attachment) {
+            if (!empty($attachment['text'])) {
+                $attachmentData = @unserialize($attachment['text']);
+                if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                    // 标准化路径用于比对
+                    $normalizedPath = str_replace('\\', '/', $attachmentData['path']);
+                    $dbFiles[$normalizedPath] = [
+                        'cid' => $attachment['cid'],
+                        'title' => $attachment['title'],
+                        'path' => $attachmentData['path']
+                    ];
+                }
+            }
+        }
+
+        // 递归扫描文件系统
+        $filesInSystem = [];
+        $orphanedFiles = [];
+        self::scanDirectoryRecursive($fullPath, $baseDir, $filesInSystem);
+
+        // 比对文件系统和数据库
+        foreach ($filesInSystem as $fileInfo) {
+            $relativePath = $fileInfo['relative_path'];
+            $normalizedPath = str_replace('\\', '/', $relativePath);
+
+            if (!isset($dbFiles[$normalizedPath])) {
+                // 文件在文件系统中存在，但数据库中没有记录
+                $orphanedFiles[] = $fileInfo;
+            }
+        }
+
+        return [
+            'success' => true,
+            'data' => [
+                'scanned_path' => $baseDir,
+                'total_files_in_system' => count($filesInSystem),
+                'total_files_in_db' => count($dbFiles),
+                'orphaned_files' => $orphanedFiles,
+                'orphaned_count' => count($orphanedFiles)
+            ]
+        ];
+    }
+
+    /**
+     * 递归扫描目录
+     *
+     * @param string $dir 完整目录路径
+     * @param string $baseDir 基础目录（相对路径）
+     * @param array &$result 结果数组（引用传递）
+     */
+    private static function scanDirectoryRecursive($dir, $baseDir, &$result)
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = @scandir($dir);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $fullPath = $dir . DIRECTORY_SEPARATOR . $item;
+
+            if (is_dir($fullPath)) {
+                // 递归扫描子目录
+                self::scanDirectoryRecursive($fullPath, $baseDir, $result);
+            } else if (is_file($fullPath)) {
+                // 获取文件信息
+                $fileSize = @filesize($fullPath);
+                $mtime = @filemtime($fullPath);
+
+                // 获取 MIME 类型
+                $mime = 'application/octet-stream';
+                if (extension_loaded('fileinfo')) {
+                    $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+                    if ($finfo) {
+                        $detectedMime = @finfo_file($finfo, $fullPath);
+                        if ($detectedMime) {
+                            $mime = $detectedMime;
+                        }
+                        @finfo_close($finfo);
+                    }
+                }
+
+                // 计算相对路径
+                $relativePath = str_replace(__TYPECHO_ROOT_DIR__, '', $fullPath);
+                $relativePath = str_replace('\\', '/', $relativePath);
+
+                $result[] = [
+                    'name' => $item,
+                    'full_path' => $fullPath,
+                    'relative_path' => $relativePath,
+                    'size' => $fileSize,
+                    'size_formatted' => MediaLibrary_FileOperations::formatFileSize($fileSize),
+                    'mime' => $mime,
+                    'modified' => $mtime,
+                    'modified_formatted' => date('Y-m-d H:i:s', $mtime),
+                    'is_image' => strpos($mime, 'image/') === 0,
+                    'is_video' => strpos($mime, 'video/') === 0,
+                    'is_audio' => strpos($mime, 'audio/') === 0,
+                ];
+            }
+        }
+    }
+
+    /**
+     * 批量导入文件到数据库
+     *
+     * @param array $files 文件列表
+     * @param Typecho_Db $db 数据库连接
+     * @param int $userId 用户ID
+     * @return array 导入结果
+     */
+    public static function importFilesToDatabase($files, $db, $userId)
+    {
+        if (empty($files)) {
+            return [
+                'success' => false,
+                'message' => '没有要导入的文件'
+            ];
+        }
+
+        $imported = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($files as $fileData) {
+            try {
+                // 检查文件是否存在
+                if (!isset($fileData['full_path']) || !file_exists($fileData['full_path'])) {
+                    $failed++;
+                    $errors[] = $fileData['name'] . ': 文件不存在';
+                    continue;
+                }
+
+                // 检查是否已经在数据库中
+                $relativePath = $fileData['relative_path'];
+                $existing = $db->fetchRow($db->select()->from('table.contents')
+                    ->where('type = ?', 'attachment')
+                    ->where('text LIKE ?', '%' . $db->escapeLike($relativePath) . '%')
+                    ->limit(1));
+
+                if ($existing) {
+                    $failed++;
+                    $errors[] = $fileData['name'] . ': 已存在于数据库中';
+                    continue;
+                }
+
+                // 构建附件数据
+                $attachmentData = [
+                    'name' => $fileData['name'],
+                    'path' => $fileData['relative_path'],
+                    'size' => $fileData['size'],
+                    'type' => $fileData['mime'],
+                    'mime' => $fileData['mime']
+                ];
+
+                // 生成唯一的 slug
+                $slug = self::generateUniqueSlug($fileData['name'], $db);
+
+                // 插入数据库记录
+                $insertData = [
+                    'title' => $fileData['name'],
+                    'slug' => $slug,
+                    'created' => $fileData['modified'],
+                    'modified' => $fileData['modified'],
+                    'text' => serialize($attachmentData),
+                    'order' => 0,
+                    'authorId' => $userId,
+                    'template' => NULL,
+                    'type' => 'attachment',
+                    'status' => 'publish',
+                    'parent' => 0,
+                    'allowComment' => 0,
+                    'allowPing' => 0,
+                    'allowFeed' => 0
+                ];
+
+                $db->query($db->insert('table.contents')->rows($insertData));
+                $imported++;
+
+            } catch (Exception $e) {
+                $failed++;
+                $errors[] = $fileData['name'] . ': ' . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => true,
+            'data' => [
+                'imported' => $imported,
+                'failed' => $failed,
+                'errors' => $errors
+            ]
+        ];
+    }
+
+    /**
+     * 生成唯一的 slug
+     *
+     * @param string $name 文件名
+     * @param Typecho_Db $db 数据库连接
+     * @return string 唯一的 slug
+     */
+    private static function generateUniqueSlug($name, $db)
+    {
+        // 移除扩展名和特殊字符
+        $slug = pathinfo($name, PATHINFO_FILENAME);
+        $slug = preg_replace('/[^a-zA-Z0-9\-_]/', '-', $slug);
+        $slug = preg_replace('/-+/', '-', $slug);
+        $slug = trim($slug, '-');
+
+        if (empty($slug)) {
+            $slug = 'file-' . time();
+        }
+
+        // 检查是否重复
+        $originalSlug = $slug;
+        $counter = 1;
+
+        while (true) {
+            $existing = $db->fetchRow($db->select()->from('table.contents')
+                ->where('slug = ?', $slug)
+                ->limit(1));
+
+            if (!$existing) {
+                break;
+            }
+
+            $slug = $originalSlug . '-' . $counter;
+            $counter++;
+        }
+
+        return $slug;
+    }
 }

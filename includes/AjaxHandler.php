@@ -90,7 +90,15 @@ class MediaLibrary_AjaxHandler
                 case 'webdav_upload':
                     self::handleWebDAVUploadAction($request, $configOptions);
                     break;
-                    
+
+                case 'scan_folder':
+                    self::handleScanFolderAction($request, $db);
+                    break;
+
+                case 'import_files':
+                    self::handleImportFilesAction($request, $db, $user);
+                    break;
+
                 default:
                     MediaLibrary_Logger::log('ajax_unknown', '收到未知的操作请求', [
                         'action' => $action
@@ -1105,5 +1113,72 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         }
 
         return $summary;
+    }
+
+    /**
+     * 处理扫描文件夹请求
+     */
+    private static function handleScanFolderAction($request, $db)
+    {
+        $baseDir = $request->get('base_dir', '/usr/uploads');
+
+        MediaLibrary_Logger::log('scan_folder', '开始扫描文件夹', [
+            'base_dir' => $baseDir
+        ]);
+
+        $result = MediaLibrary_PanelHelper::scanUploadDirectory($db, $baseDir);
+
+        if ($result['success']) {
+            MediaLibrary_Logger::log('scan_folder', '扫描完成', [
+                'base_dir' => $baseDir,
+                'total_files' => $result['data']['total_files_in_system'],
+                'orphaned_count' => $result['data']['orphaned_count']
+            ]);
+        } else {
+            MediaLibrary_Logger::log('scan_folder', '扫描失败: ' . $result['message'], [
+                'base_dir' => $baseDir
+            ], 'error');
+        }
+
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * 处理导入文件请求
+     */
+    private static function handleImportFilesAction($request, $db, $user)
+    {
+        $filesJson = $request->get('files');
+
+        if (empty($filesJson)) {
+            MediaLibrary_Logger::log('import_files', '导入失败：未提供文件列表', [], 'warning');
+            echo json_encode(['success' => false, 'message' => '未提供文件列表'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $files = json_decode($filesJson, true);
+
+        if (!is_array($files)) {
+            MediaLibrary_Logger::log('import_files', '导入失败：文件列表格式错误', [], 'warning');
+            echo json_encode(['success' => false, 'message' => '文件列表格式错误'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        MediaLibrary_Logger::log('import_files', '开始导入文件', [
+            'count' => count($files)
+        ]);
+
+        $result = MediaLibrary_PanelHelper::importFilesToDatabase($files, $db, $user->uid);
+
+        if ($result['success']) {
+            MediaLibrary_Logger::log('import_files', '导入完成', [
+                'imported' => $result['data']['imported'],
+                'failed' => $result['data']['failed']
+            ]);
+        } else {
+            MediaLibrary_Logger::log('import_files', '导入失败', [], 'error');
+        }
+
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 }
