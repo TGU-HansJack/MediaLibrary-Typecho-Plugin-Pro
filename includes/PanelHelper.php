@@ -98,7 +98,6 @@ class MediaLibrary_PanelHelper
         $adapterName = method_exists($db, 'getAdapterName') ? strtolower($db->getAdapterName()) : 'unknown';
         $supportsBinaryLike = strpos($adapterName, 'mysql') !== false;
         $likeOperator = $supportsBinaryLike ? 'LIKE BINARY' : 'LIKE';
-        $notLikeOperator = $supportsBinaryLike ? 'NOT LIKE BINARY' : 'NOT LIKE';
         $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
 
         if ($storage !== 'all') {
@@ -107,8 +106,9 @@ class MediaLibrary_PanelHelper
                 $select->where("table.contents.text {$likeOperator} ?", $webdavMarker);
             } elseif ($storage === 'local') {
                 // 筛选本地文件：排除带有 webdav 标记的文件，同时允许 text 为空
+                $likeExpression = "table.contents.text {$likeOperator} ?";
                 $select->where(
-                    "(table.contents.text IS NULL OR table.contents.text = '' OR table.contents.text {$notLikeOperator} ?)",
+                    "(table.contents.text IS NULL OR table.contents.text = '' OR ({$likeExpression}) = 0)",
                     $webdavMarker
                 );
             }
