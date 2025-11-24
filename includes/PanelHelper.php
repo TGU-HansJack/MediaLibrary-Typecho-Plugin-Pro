@@ -402,6 +402,68 @@ class MediaLibrary_PanelHelper
     }
 
     /**
+     * 获取各类型文件的统计数量
+     *
+     * @param Typecho_Db $db 数据库连接
+     * @param string $storage 存储类型过滤 (all, local, webdav)
+     * @return array 各类型文件数量统计
+     */
+    public static function getTypeStatistics($db, $storage = 'all')
+    {
+        // 基础查询
+        $baseQuery = $db->select()->from('table.contents')
+            ->where('table.contents.type = ?', 'attachment')
+            ->where('table.contents.status = ?', 'publish');
+
+        // 存储类型筛选
+        $adapterName = method_exists($db, 'getAdapterName') ? strtolower($db->getAdapterName()) : 'unknown';
+        $supportsBinaryLike = strpos($adapterName, 'mysql') !== false;
+        $likeOperator = $supportsBinaryLike ? 'LIKE BINARY' : 'LIKE';
+        $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
+
+        if ($storage !== 'all') {
+            if ($storage === 'webdav') {
+                $baseQuery->where("table.contents.text {$likeOperator} ?", $webdavMarker);
+            } elseif ($storage === 'local') {
+                $likeExpression = "table.contents.text {$likeOperator} ?";
+                $baseQuery->where(
+                    "(table.contents.text IS NULL OR table.contents.text = '' OR ({$likeExpression}) = 0)",
+                    $webdavMarker
+                );
+            }
+        }
+
+        $statistics = [
+            'image' => 0,
+            'video' => 0,
+            'audio' => 0,
+            'document' => 0
+        ];
+
+        // 统计图片数量
+        $imageQuery = clone $baseQuery;
+        $imageQuery->where('table.contents.text LIKE ?', '%image%');
+        $statistics['image'] = $db->fetchObject($imageQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
+
+        // 统计视频数量
+        $videoQuery = clone $baseQuery;
+        $videoQuery->where('table.contents.text LIKE ?', '%video%');
+        $statistics['video'] = $db->fetchObject($videoQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
+
+        // 统计音频数量
+        $audioQuery = clone $baseQuery;
+        $audioQuery->where('table.contents.text LIKE ?', '%audio%');
+        $statistics['audio'] = $db->fetchObject($audioQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
+
+        // 统计文档数量
+        $documentQuery = clone $baseQuery;
+        $documentQuery->where('table.contents.text LIKE ?', '%application%');
+        $statistics['document'] = $db->fetchObject($documentQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
+
+        return $statistics;
+    }
+
+    /**
      * 规范化 WebDAV 基础路径
      */
     private static function normalizeWebDAVPath($path)

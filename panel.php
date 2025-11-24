@@ -54,6 +54,9 @@ $mediaListData = MediaLibrary_PanelHelper::getMediaList($db, $page, $pageSize, $
 $attachments = $mediaListData['attachments'];
 $total = $mediaListData['total'];
 
+// 获取各类型文件的统计数据
+$typeStatistics = MediaLibrary_PanelHelper::getTypeStatistics($db, $storage);
+
 // 数据总览
 $typeLabels = [
     'all' => '所有文件',

@@ -50,28 +50,28 @@
                     <a href="<?php echo $currentUrl; ?>&type=image&page=1" class="filter-link">
                         <span class="filter-icon">🖼️</span>
                         <span class="filter-name">图片</span>
-                        <span class="filter-count">-</span>
+                        <span class="filter-count"><?php echo number_format($typeStatistics['image']); ?></span>
                     </a>
                 </li>
                 <li class="filter-item <?php echo $type === 'video' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=video&page=1" class="filter-link">
                         <span class="filter-icon">🎬</span>
                         <span class="filter-name">视频</span>
-                        <span class="filter-count">-</span>
+                        <span class="filter-count"><?php echo number_format($typeStatistics['video']); ?></span>
                     </a>
                 </li>
                 <li class="filter-item <?php echo $type === 'audio' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=audio&page=1" class="filter-link">
                         <span class="filter-icon">🎵</span>
                         <span class="filter-name">音频</span>
-                        <span class="filter-count">-</span>
+                        <span class="filter-count"><?php echo number_format($typeStatistics['audio']); ?></span>
                     </a>
                 </li>
                 <li class="filter-item <?php echo $type === 'document' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=document&page=1" class="filter-link">
                         <span class="filter-icon">📝</span>
                         <span class="filter-name">文档</span>
-                        <span class="filter-count">-</span>
+                        <span class="filter-count"><?php echo number_format($typeStatistics['document']); ?></span>
                     </a>
                 </li>
             </ul>
