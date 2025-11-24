@@ -668,17 +668,6 @@
     border-color: var(--ml-primary-hover);
 }
 
-.media-toolbar .btn-secondary {
-    background: var(--ml-surface);
-    border-color: var(--ml-border-dark);
-    color: var(--ml-text);
-}
-
-.media-toolbar .btn-secondary:hover {
-    background: var(--ml-border);
-    border-color: var(--ml-border-dark);
-}
-
 .media-toolbar .btn-danger {
     background: var(--ml-danger);
     border-color: var(--ml-danger);

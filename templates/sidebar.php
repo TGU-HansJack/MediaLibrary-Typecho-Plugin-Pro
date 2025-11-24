@@ -106,4 +106,16 @@
             </div>
         </div>
     </div>
+
+    <!-- 文件夹扫描 -->
+    <div class="sidebar-section">
+        <h3 class="sidebar-title">文件夹扫描</h3>
+        <div class="sidebar-content">
+            <p class="scan-description">扫描上传目录中未在数据库中记录的文件</p>
+            <button type="button" class="btn btn-s btn-primary scan-folder-btn" id="scan-folder-btn">
+                <span class="btn-icon">🔍</span>
+                扫描文件夹
+            </button>
+        </div>
+    </div>
 </div>
