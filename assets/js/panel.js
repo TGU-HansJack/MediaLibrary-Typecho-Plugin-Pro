@@ -1453,15 +1453,54 @@ escapeHtml: function(text) {
     return div.innerHTML;
 },
 
-initUpload: function() {
-    var self = this;
+    initUpload: function() {
+        var self = this;
+        var storageInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="upload-storage"]'));
+        var storageHint = document.getElementById('upload-storage-current-label');
 
-    var uploader = new plupload.Uploader({
-        browse_button: 'upload-file-btn',
-        url: currentUrl + '&action=upload&storage=' + currentStorage,
-        runtimes: 'html5,flash,html4',
-        flash_swf_url: config.adminStaticUrl + 'Moxie.swf',
-        drop_element: 'upload-area',
+        var getStorageLabel = function(input, fallbackValue) {
+            if (input && input.getAttribute) {
+                var customLabel = input.getAttribute('data-label');
+                if (customLabel) {
+                    return customLabel;
+                }
+            }
+            var value = fallbackValue || (input ? input.value : '');
+            return value === 'webdav' ? 'WebDAV' : '本地存储';
+        };
+
+        var initialCheckedInput = document.querySelector('input[name="upload-storage"]:checked:not(:disabled)');
+        if (!initialCheckedInput) {
+            for (var i = 0; i < storageInputs.length; i++) {
+                if (!storageInputs[i].disabled) {
+                    initialCheckedInput = storageInputs[i];
+                    initialCheckedInput.checked = true;
+                    break;
+                }
+            }
+        }
+
+        if (initialCheckedInput) {
+            currentStorage = initialCheckedInput.value;
+        } else {
+            currentStorage = currentStorage || 'local';
+        }
+
+        if (storageHint) {
+            storageHint.textContent = getStorageLabel(initialCheckedInput, currentStorage);
+        }
+
+        var buildUploadUrl = function(targetStorage) {
+            var value = targetStorage || 'local';
+            return currentUrl + '&action=upload&storage=' + value;
+        };
+
+        var uploader = new plupload.Uploader({
+            browse_button: 'upload-file-btn',
+            url: buildUploadUrl(currentStorage),
+            runtimes: 'html5,flash,html4',
+            flash_swf_url: config.adminStaticUrl + 'Moxie.swf',
+            drop_element: 'upload-area',
         filters: {
             max_file_size: config.phpMaxFilesize || '2mb',
             mime_types: [{
@@ -1530,22 +1569,44 @@ initUpload: function() {
                     var status = li.querySelector('.status');
                     var progressFill = li.querySelector('.progress-fill');
                     
-                    if (200 == result.status) {
+                    if (200 === result.status) {
+                        var parsedData;
+                        var parsedSuccessfully = true;
                         try {
-                            var data = JSON.parse(result.response);
-                            if (data && data.length >= 2) {
-                                li.className = 'success';
-                                if (status) status.textContent = '上传成功';
-                                if (progressFill) progressFill.style.background = '#46b450';
-                            } else {
-                                li.className = 'error';
-                                if (status) status.textContent = '上传失败: 服务器响应异常';
-                                if (progressFill) progressFill.style.background = '#dc3232';
-                            }
-                        } catch (e) {
+                            parsedData = JSON.parse(result.response);
+                        } catch (error) {
+                            parsedSuccessfully = false;
                             li.className = 'error';
                             if (status) status.textContent = '上传失败: 响应解析错误';
                             if (progressFill) progressFill.style.background = '#dc3232';
+                        }
+
+                        if (parsedSuccessfully) {
+                            var uploadSuccess = false;
+                            var uploadMessage = '';
+
+                            if (Array.isArray(parsedData)) {
+                                uploadSuccess = true;
+                            } else if (parsedData && typeof parsedData === 'object') {
+                                if (typeof parsedData.success === 'boolean') {
+                                    uploadSuccess = parsedData.success;
+                                } else if (parsedData.count || parsedData.data) {
+                                    uploadSuccess = true;
+                                }
+                                if (parsedData.message) {
+                                    uploadMessage = parsedData.message;
+                                }
+                            }
+
+                            if (uploadSuccess) {
+                                li.className = 'success';
+                                if (status) status.textContent = uploadMessage || '上传成功';
+                                if (progressFill) progressFill.style.background = '#46b450';
+                            } else {
+                                li.className = 'error';
+                                if (status) status.textContent = uploadMessage || '上传失败: 服务器响应异常';
+                                if (progressFill) progressFill.style.background = '#dc3232';
+                            }
                         }
                     } else {
                         li.className = 'error';
@@ -1659,6 +1720,39 @@ initUpload: function() {
     });
 
     uploader.init();
+
+    var syncUploadStorage = function(targetInput) {
+        var storageValue = targetInput ? targetInput.value : 'local';
+        var labelText = getStorageLabel(targetInput, storageValue);
+        currentStorage = storageValue;
+
+        if (typeof uploader.setOption === 'function') {
+            uploader.setOption('url', buildUploadUrl(storageValue));
+        } else if (uploader.settings) {
+            uploader.settings.url = buildUploadUrl(storageValue);
+        }
+
+        if (storageHint) {
+            storageHint.textContent = labelText;
+        }
+    };
+
+    if (initialCheckedInput) {
+        syncUploadStorage(initialCheckedInput);
+    } else {
+        syncUploadStorage(null);
+    }
+
+    storageInputs.forEach(function(input) {
+        if (input.disabled) {
+            return;
+        }
+        input.addEventListener('change', function() {
+            if (this.checked) {
+                syncUploadStorage(this);
+            }
+        });
+    });
     
     // 全页面拖拽监听
     var dragCounter = 0;
