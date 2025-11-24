@@ -3,6 +3,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/Logger.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVSync.php';
 
 /**
  * Ajax请求处理类
@@ -91,21 +92,7 @@ class MediaLibrary_AjaxHandler
                     self::handleWebDAVUploadAction($request, $configOptions);
                     break;
 
-                case 'webdav_sync_download':
-                    self::handleWebDAVSyncDownloadAction($request, $configOptions);
-                    break;
-
-                case 'webdav_sync_to_local':
-                    self::handleWebDAVSyncToLocalAction($request, $configOptions, $db);
-                    break;
-
-                case 'webdav_sync_from_local':
-                    self::handleWebDAVSyncFromLocalAction($request, $configOptions, $db);
-                    break;
-
-                case 'webdav_sync_all_local':
-                    self::handleWebDAVSyncAllLocalAction($request, $configOptions, $db);
-                    break;
+                // 以下 WebDAV 同步方法已移除，请使用新的 WebDAVSync 类
 
                 default:
                     MediaLibrary_Logger::log('ajax_unknown', '收到未知的操作请求', [
@@ -887,40 +874,41 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
 
 
     /**
-     * WebDAV 列表
+     * WebDAV 列表（读取本地 WebDAV 文件夹）
      */
     private static function handleWebDAVListAction($request, $configOptions)
     {
         $path = $request->get('path', '/');
 
         try {
-            $client = self::getWebDAVClient($configOptions);
-            $result = $client->listDirectory($path);
+            $sync = new MediaLibrary_WebDAVSync($configOptions);
+            $subPath = trim($path, '/');
+            $items = $sync->listLocalFiles($subPath);
 
-            $items = [];
-            foreach ($result['items'] as $item) {
-                $items[] = [
+            $formattedItems = [];
+            foreach ($items as $item) {
+                $formattedItems[] = [
                     'name' => $item['name'],
                     'path' => $item['path'],
-                    'is_dir' => $item['is_dir'] ? 1 : 0,
+                    'is_dir' => $item['type'] === 'directory' ? 1 : 0,
                     'size' => $item['size'],
-                    'size_human' => $item['is_dir'] ? '-' : MediaLibrary_FileOperations::formatFileSize($item['size']),
+                    'size_human' => $item['type'] === 'directory' ? '-' : MediaLibrary_FileOperations::formatFileSize($item['size']),
                     'modified' => $item['modified'],
-                    'mime' => $item['mime'],
-                    'public_url' => $item['public_url']
+                    'modified_format' => $item['modified_format'],
+                    'mime' => $item['type'] === 'directory' ? 'directory' : 'application/octet-stream',
                 ];
             }
 
-            MediaLibrary_Logger::log('webdav_list', '读取 WebDAV 目录', [
-                'path' => $result['path'],
-                'count' => count($items)
+            MediaLibrary_Logger::log('webdav_list', '读取本地 WebDAV 文件夹', [
+                'path' => $path,
+                'count' => count($formattedItems)
             ]);
 
             echo json_encode([
                 'success' => true,
                 'data' => [
-                    'current_path' => $result['path'],
-                    'items' => $items
+                    'current_path' => $path,
+                    'items' => $formattedItems
                 ]
             ], JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
@@ -932,7 +920,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     }
 
     /**
-     * WebDAV 创建文件夹
+     * WebDAV 创建文件夹（在本地创建）
      */
     private static function handleWebDAVCreateFolderAction($request, $configOptions)
     {
@@ -947,10 +935,17 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         $target = self::joinWebDAVPath($parentPath, $name);
 
         try {
-            $client = self::getWebDAVClient($configOptions);
-            $client->createDirectory($target);
+            $sync = new MediaLibrary_WebDAVSync($configOptions);
+            $localPath = $sync->getLocalPath();
 
-            MediaLibrary_Logger::log('webdav_create_folder', '创建 WebDAV 目录成功', [
+            // 构建完整的本地路径
+            $fullPath = $localPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, trim($target, '/'));
+
+            if (!mkdir($fullPath, 0755, true)) {
+                throw new Exception('创建目录失败');
+            }
+
+            MediaLibrary_Logger::log('webdav_create_folder', '创建本地目录成功', [
                 'path' => $target
             ]);
 
@@ -964,7 +959,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     }
 
     /**
-     * WebDAV 删除
+     * WebDAV 删除（删除本地文件+同步删除远程）
      */
     private static function handleWebDAVDeleteAction($request, $configOptions)
     {
@@ -976,12 +971,32 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         }
 
         try {
-            $client = self::getWebDAVClient($configOptions);
-            $client->delete($target);
+            $sync = new MediaLibrary_WebDAVSync($configOptions);
 
-            MediaLibrary_Logger::log('webdav_delete', '删除 WebDAV 文件/目录成功', [
-                'path' => $target
-            ]);
+            // 删除本地文件
+            $sync->deleteLocalFile($target);
+
+            // 根据删除策略处理远程文件
+            $deleteStrategy = isset($configOptions['webdavDeleteStrategy']) ? $configOptions['webdavDeleteStrategy'] : 'auto';
+
+            if ($deleteStrategy === 'auto' && !empty($configOptions['webdavEndpoint'])) {
+                // 自动同步删除远程文件
+                try {
+                    $sync->deleteRemoteFile($target);
+                    MediaLibrary_Logger::log('webdav_delete', '删除本地文件并同步删除远程成功', [
+                        'path' => $target
+                    ]);
+                } catch (Exception $e) {
+                    MediaLibrary_Logger::log('webdav_delete', '本地文件已删除，但远程删除失败: ' . $e->getMessage(), [
+                        'path' => $target
+                    ], 'warning');
+                }
+            } else {
+                MediaLibrary_Logger::log('webdav_delete', '删除本地文件成功（未同步远程）', [
+                    'path' => $target,
+                    'strategy' => $deleteStrategy
+                ]);
+            }
 
             echo json_encode(['success' => true, 'message' => '删除成功'], JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
@@ -993,7 +1008,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     }
 
     /**
-     * WebDAV 上传
+     * WebDAV 上传（上传到本地+同步到远程）
      */
     private static function handleWebDAVUploadAction($request, $configOptions)
     {
@@ -1012,20 +1027,43 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
 
         $uploaded = [];
         try {
-            $client = self::getWebDAVClient($configOptions);
+            $sync = new MediaLibrary_WebDAVSync($configOptions);
+            $subPath = trim($path, '/');
+
             foreach ($files as $file) {
-                $target = self::joinWebDAVPath($path, $file['name']);
-                $client->uploadFile($target, $file['tmp_name'], $file['type']);
+                // 保存到本地 WebDAV 文件夹
+                $result = $sync->saveUploadedFile($file, $subPath);
+
+                // 根据同步模式处理
+                $syncMode = isset($configOptions['webdavSyncMode']) ? $configOptions['webdavSyncMode'] : 'manual';
+                $syncEnabled = isset($configOptions['webdavSyncEnabled']) && $configOptions['webdavSyncEnabled'];
+
+                if ($syncEnabled && $syncMode === 'onupload' && !empty($configOptions['webdavEndpoint'])) {
+                    // 立即同步到远程
+                    try {
+                        $relativePath = ltrim($result['path'], '/');
+                        $sync->syncFileToRemote($relativePath);
+                        MediaLibrary_Logger::log('webdav_upload', '上传文件并同步到远程成功', [
+                            'file' => $result['name'],
+                            'path' => $result['path']
+                        ]);
+                    } catch (Exception $e) {
+                        MediaLibrary_Logger::log('webdav_upload', '文件已保存到本地，但同步失败: ' . $e->getMessage(), [
+                            'file' => $result['name']
+                        ], 'warning');
+                    }
+                } else {
+                    MediaLibrary_Logger::log('webdav_upload', '上传文件到本地成功（未同步远程）', [
+                        'file' => $result['name'],
+                        'path' => $result['path']
+                    ]);
+                }
+
                 $uploaded[] = [
-                    'name' => $file['name'],
-                    'path' => $target
+                    'name' => $result['name'],
+                    'path' => $result['path']
                 ];
             }
-
-            MediaLibrary_Logger::log('webdav_upload', '上传到 WebDAV 成功', [
-                'path' => $path,
-                'count' => count($uploaded)
-            ]);
 
             echo json_encode(['success' => true, 'message' => '上传完成', 'files' => $uploaded], JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {

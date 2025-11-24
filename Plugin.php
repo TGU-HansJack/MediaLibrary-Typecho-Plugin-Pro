@@ -701,41 +701,63 @@ jQuery(function($) {
     private static function addWebDAVOptions($form)
     {
         $optionConfig = self::getPluginOptionConfig();
+
+        // 默认值
+        $defaultLocalPath = isset($optionConfig->webdavLocalPath) ? $optionConfig->webdavLocalPath : '';
         $defaultEndpoint = isset($optionConfig->webdavEndpoint) ? $optionConfig->webdavEndpoint : '';
-        $defaultBasePath = isset($optionConfig->webdavBasePath) ? $optionConfig->webdavBasePath : '/';
+        $defaultRemotePath = isset($optionConfig->webdavRemotePath) ? $optionConfig->webdavRemotePath : '/typecho';
         $defaultUsername = isset($optionConfig->webdavUsername) ? $optionConfig->webdavUsername : '';
         $defaultPassword = isset($optionConfig->webdavPassword) ? $optionConfig->webdavPassword : '';
         $defaultVerify = !isset($optionConfig->webdavVerifySSL) || $optionConfig->webdavVerifySSL;
+        $defaultSyncEnabled = isset($optionConfig->webdavSyncEnabled) && $optionConfig->webdavSyncEnabled;
+        $defaultSyncMode = isset($optionConfig->webdavSyncMode) ? $optionConfig->webdavSyncMode : 'onupload';
+        $defaultConflictStrategy = isset($optionConfig->webdavConflictStrategy) ? $optionConfig->webdavConflictStrategy : 'newest';
+        $defaultDeleteStrategy = isset($optionConfig->webdavDeleteStrategy) ? $optionConfig->webdavDeleteStrategy : 'auto';
 
         $webdavSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
-        $webdavSection->html('<h3 style="margin-top:30px">WebDAV 存储</h3>');
+        $webdavSection->html('<h3 style="margin-top:30px">WebDAV 同步存储</h3><p style="color:#666;margin-top:5px">本地 WebDAV 文件夹作为缓存，自动同步到远程 WebDAV 服务器</p>');
         $form->addItem($webdavSection);
 
         $enableWebDAV = new Typecho_Widget_Helper_Form_Element_Checkbox('enableWebDAV',
-            array('1' => '启用 WebDAV 文件管理'),
-            array(),
+            array('1' => '启用 WebDAV 同步存储'),
+            isset($optionConfig->enableWebDAV) && $optionConfig->enableWebDAV ? array('1') : array(),
             '启用 WebDAV',
-            '启用后可在媒体库中管理远程 WebDAV 文件（列出、上传、删除等操作）');
+            '启用后，上传文件将保存到本地 WebDAV 文件夹并自动同步到远程 WebDAV 服务器');
         $form->addInput($enableWebDAV);
+
+        // 本地配置
+        $localSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
+        $localSection->html('<h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">本地 WebDAV 文件夹</h4>');
+        $form->addItem($localSection);
+
+        $webdavLocalPath = new Typecho_Widget_Helper_Form_Element_Text('webdavLocalPath', null, $defaultLocalPath,
+            '本地 WebDAV 文件夹路径',
+            '服务器上的 WebDAV 文件夹绝对路径，例如 <code>/var/www/webdav</code> 或 <code>E:\webdav</code>。文件将先保存到此文件夹，然后同步到远程');
+        $form->addInput($webdavLocalPath);
+
+        // 远程配置
+        $remoteSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
+        $remoteSection->html('<h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">远程 WebDAV 服务器</h4>');
+        $form->addItem($remoteSection);
 
         $webdavEndpoint = new Typecho_Widget_Helper_Form_Element_Text('webdavEndpoint', null, $defaultEndpoint,
             'WebDAV 服务地址',
-            '完整的 WebDAV 根地址，例如 <code>https://example.com/remote.php/dav/files/username</code>');
+            '远程 WebDAV 服务器地址，例如 <code>https://example.com/remote.php/dav/files/username</code>');
         $form->addInput($webdavEndpoint);
 
-        $webdavBasePath = new Typecho_Widget_Helper_Form_Element_Text('webdavBasePath', null, $defaultBasePath ?: '/',
-            '默认子路径',
-            '可选填，默认为根目录，填写后将作为 WebDAV 面板的起始目录（例如 <code>/typecho</code>）');
-        $form->addInput($webdavBasePath);
+        $webdavRemotePath = new Typecho_Widget_Helper_Form_Element_Text('webdavRemotePath', null, $defaultRemotePath,
+            '远程同步路径',
+            '在远程 WebDAV 服务器上的目标路径，例如 <code>/typecho</code> 或 <code>/uploads</code>');
+        $form->addInput($webdavRemotePath);
 
         $webdavUsername = new Typecho_Widget_Helper_Form_Element_Text('webdavUsername', null, $defaultUsername,
             'WebDAV 用户名',
-            '用于 Basic Auth 的用户名');
+            '用于远程 WebDAV 服务器认证的用户名');
         $form->addInput($webdavUsername);
 
         $webdavPassword = new Typecho_Widget_Helper_Form_Element_Password('webdavPassword', null, $defaultPassword,
             'WebDAV 密码',
-            '用于 Basic Auth 的密码');
+            '用于远程 WebDAV 服务器认证的密码');
         $form->addInput($webdavPassword);
 
         $webdavVerifySSL = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavVerifySSL',
@@ -745,43 +767,50 @@ jQuery(function($) {
             '如果 WebDAV 服务使用自签名证书，可取消勾选以跳过 SSL 验证（不推荐）');
         $form->addInput($webdavVerifySSL);
 
-        // 同步配置分隔线
+        // 同步配置
         $syncSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
-        $syncSection->html('<h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">同步配置</h4>');
+        $syncSection->html('<h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">同步策略</h4>');
         $form->addItem($syncSection);
 
-        $defaultSyncEnabled = isset($optionConfig->webdavSyncEnabled) && $optionConfig->webdavSyncEnabled;
         $enableSync = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavSyncEnabled',
             array('1' => '启用自动同步'),
             $defaultSyncEnabled ? array('1') : array(),
             '自动同步',
-            '启用后可以将本地媒体库文件自动同步到 WebDAV 服务器');
+            '启用后，根据同步模式自动同步文件到远程 WebDAV 服务器');
         $form->addInput($enableSync);
-
-        $defaultSyncPath = isset($optionConfig->webdavSyncPath) ? $optionConfig->webdavSyncPath : '/uploads';
-        $syncPath = new Typecho_Widget_Helper_Form_Element_Text('webdavSyncPath', null, $defaultSyncPath,
-            '同步目标路径',
-            '在 WebDAV 服务器上的目标路径，例如 <code>/uploads</code> 或 <code>/typecho/media</code>');
-        $form->addInput($syncPath);
 
         $syncMode = new Typecho_Widget_Helper_Form_Element_Radio('webdavSyncMode',
             array(
-                'manual' => '手动同步（通过管理面板触发）',
-                'onupload' => '上传时自动同步（上传文件时自动同步到 WebDAV）',
+                'manual' => '手动同步（通过管理面板手动触发）',
+                'onupload' => '上传时自动同步（推荐）',
                 'scheduled' => '定时同步（需要配置系统定时任务）'
             ),
-            isset($optionConfig->webdavSyncMode) ? $optionConfig->webdavSyncMode : 'manual',
+            $defaultSyncMode,
             '同步模式',
-            '选择同步触发方式：手动、上传时自动、或定时同步');
+            '选择同步触发方式：手动、上传时自动同步、或定时同步');
         $form->addInput($syncMode);
 
-        $defaultSyncDelete = isset($optionConfig->webdavSyncDelete) && $optionConfig->webdavSyncDelete;
-        $syncDelete = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavSyncDelete',
-            array('1' => '同步删除操作'),
-            $defaultSyncDelete ? array('1') : array(),
-            '双向同步删除',
-            '启用后，删除本地文件时也会删除 WebDAV 上的对应文件（谨慎使用）');
-        $form->addInput($syncDelete);
+        $conflictStrategy = new Typecho_Widget_Helper_Form_Element_Radio('webdavConflictStrategy',
+            array(
+                'newest' => '使用最新文件（比较修改时间）',
+                'local' => '本地文件优先（总是上传本地文件）',
+                'remote' => '远程文件优先（总是保留远程文件）'
+            ),
+            $defaultConflictStrategy,
+            '冲突处理策略',
+            '当本地和远程都存在同名文件且内容不同时的处理方式');
+        $form->addInput($conflictStrategy);
+
+        $deleteStrategy = new Typecho_Widget_Helper_Form_Element_Radio('webdavDeleteStrategy',
+            array(
+                'auto' => '自动同步删除（删除本地文件时同步删除远程文件）',
+                'keep' => '保留远程文件（仅删除本地文件，不影响远程）',
+                'manual' => '手动处理（删除时询问）'
+            ),
+            $defaultDeleteStrategy,
+            '删除同步策略',
+            '删除本地 WebDAV 文件夹中的文件时如何处理远程文件');
+        $form->addInput($deleteStrategy);
     }
 
     /**
