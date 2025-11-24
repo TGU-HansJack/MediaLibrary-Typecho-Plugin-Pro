@@ -233,14 +233,28 @@ class MediaLibrary_WebDAVSync
     public function syncFileToRemote($relativePath)
     {
         if (!$this->webdavClient) {
+            MediaLibrary_Logger::log('webdav_sync', '同步失败：WebDAV 客户端未初始化', [
+                'file' => $relativePath
+            ], 'error');
             throw new Exception('WebDAV 客户端未初始化');
         }
 
         $localFile = $this->localPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
 
         if (!file_exists($localFile) || !is_file($localFile)) {
+            MediaLibrary_Logger::log('webdav_sync', '同步失败：本地文件不存在', [
+                'file' => $relativePath,
+                'local_path' => $localFile
+            ], 'error');
             throw new Exception('文件不存在: ' . $relativePath);
         }
+
+        $fileSize = filesize($localFile);
+        MediaLibrary_Logger::log('webdav_sync', '开始同步文件到远程', [
+            'file' => $relativePath,
+            'size' => $fileSize,
+            'size_human' => $this->formatFileSize($fileSize)
+        ]);
 
         // 构建远程路径
         $remotePath = $this->remotePath . '/' . ltrim($relativePath, '/');
@@ -248,12 +262,34 @@ class MediaLibrary_WebDAVSync
         // 确保远程目录存在
         $remoteDir = dirname($remotePath);
         if ($remoteDir !== '.' && $remoteDir !== '/') {
+            MediaLibrary_Logger::log('webdav_sync', '确保远程目录存在', [
+                'dir' => $remoteDir
+            ]);
             $this->ensureRemoteDirectory($remoteDir);
         }
 
         // 上传文件
         $mime = $this->getMimeType($localFile);
-        $this->webdavClient->uploadFile($remotePath, $localFile, $mime);
+        $startTime = microtime(true);
+
+        try {
+            $this->webdavClient->uploadFile($remotePath, $localFile, $mime);
+            $duration = round((microtime(true) - $startTime) * 1000, 2);
+
+            MediaLibrary_Logger::log('webdav_sync', '文件上传成功', [
+                'file' => $relativePath,
+                'remote_path' => $remotePath,
+                'size' => $fileSize,
+                'duration_ms' => $duration
+            ]);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_sync', '文件上传失败: ' . $e->getMessage(), [
+                'file' => $relativePath,
+                'remote_path' => $remotePath,
+                'error' => $e->getMessage()
+            ], 'error');
+            throw $e;
+        }
 
         // 更新元数据
         $metadata = $this->loadMetadata();
@@ -262,7 +298,7 @@ class MediaLibrary_WebDAVSync
 
         $metadata['files'][$relativePath] = [
             'hash' => $hash,
-            'size' => filesize($localFile),
+            'size' => $fileSize,
             'mtime' => $mtime,
             'syncTime' => time()
         ];
@@ -271,7 +307,8 @@ class MediaLibrary_WebDAVSync
 
         MediaLibrary_Logger::log('webdav_sync', '文件已同步到远程', [
             'file' => $relativePath,
-            'remote_path' => $remotePath
+            'remote_path' => $remotePath,
+            'hash' => substr($hash, 0, 8) . '...'
         ]);
 
         return true;
@@ -286,26 +323,46 @@ class MediaLibrary_WebDAVSync
     public function deleteRemoteFile($relativePath)
     {
         if (!$this->webdavClient) {
+            MediaLibrary_Logger::log('webdav_delete', '删除失败：WebDAV 客户端未初始化', [
+                'file' => $relativePath
+            ], 'error');
             throw new Exception('WebDAV 客户端未初始化');
         }
 
         // 构建远程路径
         $remotePath = $this->remotePath . '/' . ltrim($relativePath, '/');
 
-        // 删除远程文件
-        $this->webdavClient->delete($remotePath);
+        MediaLibrary_Logger::log('webdav_delete', '开始删除远程文件', [
+            'file' => $relativePath,
+            'remote_path' => $remotePath
+        ]);
+
+        try {
+            // 删除远程文件
+            $this->webdavClient->delete($remotePath);
+
+            MediaLibrary_Logger::log('webdav_delete', '远程文件删除成功', [
+                'file' => $relativePath,
+                'remote_path' => $remotePath
+            ]);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_delete', '远程文件删除失败: ' . $e->getMessage(), [
+                'file' => $relativePath,
+                'remote_path' => $remotePath,
+                'error' => $e->getMessage()
+            ], 'error');
+            throw $e;
+        }
 
         // 更新元数据
         $metadata = $this->loadMetadata();
         if (isset($metadata['files'][$relativePath])) {
             unset($metadata['files'][$relativePath]);
             $this->saveMetadata($metadata);
+            MediaLibrary_Logger::log('webdav_delete', '元数据已更新', [
+                'file' => $relativePath
+            ]);
         }
-
-        MediaLibrary_Logger::log('webdav_sync', '远程文件已删除', [
-            'file' => $relativePath,
-            'remote_path' => $remotePath
-        ]);
 
         return true;
     }
@@ -575,5 +632,175 @@ class MediaLibrary_WebDAVSync
     public function getRemotePath()
     {
         return $this->remotePath;
+    }
+
+    /**
+     * 格式化文件大小
+     *
+     * @param int $bytes 字节数
+     * @return string 格式化后的大小
+     */
+    private function formatFileSize($bytes)
+    {
+        if ($bytes >= 1073741824) {
+            return round($bytes / 1073741824, 2) . ' GB';
+        } elseif ($bytes >= 1048576) {
+            return round($bytes / 1048576, 2) . ' MB';
+        } elseif ($bytes >= 1024) {
+            return round($bytes / 1024, 2) . ' KB';
+        } else {
+            return $bytes . ' B';
+        }
+    }
+
+    /**
+     * 测试本地 WebDAV 文件夹
+     *
+     * @return array 测试结果
+     */
+    public function testLocalPath()
+    {
+        $result = [
+            'success' => false,
+            'path' => $this->localPath,
+            'exists' => false,
+            'readable' => false,
+            'writable' => false,
+            'message' => ''
+        ];
+
+        try {
+            // 检查路径是否存在
+            if (!is_dir($this->localPath)) {
+                $result['message'] = '目录不存在';
+                MediaLibrary_Logger::log('webdav_test', '本地路径测试失败：目录不存在', [
+                    'path' => $this->localPath
+                ], 'error');
+                return $result;
+            }
+            $result['exists'] = true;
+
+            // 检查是否可读
+            if (!is_readable($this->localPath)) {
+                $result['message'] = '目录不可读，请检查权限';
+                MediaLibrary_Logger::log('webdav_test', '本地路径测试失败：目录不可读', [
+                    'path' => $this->localPath,
+                    'permissions' => substr(sprintf('%o', fileperms($this->localPath)), -4)
+                ], 'error');
+                return $result;
+            }
+            $result['readable'] = true;
+
+            // 检查是否可写
+            if (!is_writable($this->localPath)) {
+                $result['message'] = '目录不可写，请检查权限';
+                MediaLibrary_Logger::log('webdav_test', '本地路径测试失败：目录不可写', [
+                    'path' => $this->localPath,
+                    'permissions' => substr(sprintf('%o', fileperms($this->localPath)), -4)
+                ], 'error');
+                return $result;
+            }
+            $result['writable'] = true;
+
+            // 尝试创建测试文件
+            $testFile = $this->localPath . DIRECTORY_SEPARATOR . '.test-write-' . time();
+            if (!@file_put_contents($testFile, 'test')) {
+                $result['message'] = '无法创建测试文件，请检查权限';
+                MediaLibrary_Logger::log('webdav_test', '本地路径测试失败：无法创建测试文件', [
+                    'path' => $this->localPath
+                ], 'error');
+                return $result;
+            }
+            @unlink($testFile);
+
+            $result['success'] = true;
+            $result['message'] = '本地路径测试成功';
+
+            MediaLibrary_Logger::log('webdav_test', '本地路径测试成功', [
+                'path' => $this->localPath,
+                'permissions' => substr(sprintf('%o', fileperms($this->localPath)), -4)
+            ]);
+
+        } catch (Exception $e) {
+            $result['message'] = '测试失败: ' . $e->getMessage();
+            MediaLibrary_Logger::log('webdav_test', '本地路径测试异常: ' . $e->getMessage(), [
+                'path' => $this->localPath
+            ], 'error');
+        }
+
+        return $result;
+    }
+
+    /**
+     * 测试远程 WebDAV 连接
+     *
+     * @return array 测试结果
+     */
+    public function testRemoteConnection()
+    {
+        $result = [
+            'success' => false,
+            'configured' => false,
+            'connected' => false,
+            'endpoint' => '',
+            'message' => ''
+        ];
+
+        try {
+            // 检查是否配置了远程 WebDAV
+            if (empty($this->config['webdavEndpoint'])) {
+                $result['message'] = '未配置远程 WebDAV 服务器';
+                MediaLibrary_Logger::log('webdav_test', '远程连接测试跳过：未配置', [], 'info');
+                return $result;
+            }
+
+            $result['configured'] = true;
+            $result['endpoint'] = $this->config['webdavEndpoint'];
+
+            // 检查用户名和密码
+            if (empty($this->config['webdavUsername'])) {
+                $result['message'] = '未配置 WebDAV 用户名';
+                MediaLibrary_Logger::log('webdav_test', '远程连接测试失败：未配置用户名', [
+                    'endpoint' => $result['endpoint']
+                ], 'error');
+                return $result;
+            }
+
+            // 初始化 WebDAV 客户端
+            if (!$this->webdavClient) {
+                $this->webdavClient = new MediaLibrary_WebDAVClient($this->config);
+            }
+
+            // 测试连接
+            MediaLibrary_Logger::log('webdav_test', '开始测试远程 WebDAV 连接', [
+                'endpoint' => $result['endpoint'],
+                'username' => $this->config['webdavUsername']
+            ]);
+
+            $connected = $this->webdavClient->ping();
+
+            if ($connected) {
+                $result['success'] = true;
+                $result['connected'] = true;
+                $result['message'] = '远程连接测试成功';
+
+                MediaLibrary_Logger::log('webdav_test', '远程 WebDAV 连接成功', [
+                    'endpoint' => $result['endpoint']
+                ]);
+            } else {
+                $result['message'] = '无法连接到远程 WebDAV 服务器';
+                MediaLibrary_Logger::log('webdav_test', '远程 WebDAV 连接失败', [
+                    'endpoint' => $result['endpoint']
+                ], 'error');
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = '连接测试失败: ' . $e->getMessage();
+            MediaLibrary_Logger::log('webdav_test', '远程连接测试异常: ' . $e->getMessage(), [
+                'endpoint' => $result['endpoint'] ?? ''
+            ], 'error');
+        }
+
+        return $result;
     }
 }

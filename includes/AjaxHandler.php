@@ -92,6 +92,10 @@ class MediaLibrary_AjaxHandler
                     self::handleWebDAVUploadAction($request, $configOptions);
                     break;
 
+                case 'webdav_test':
+                    self::handleWebDAVTestAction($request, $configOptions);
+                    break;
+
                 // 以下 WebDAV 同步方法已移除，请使用新的 WebDAVSync 类
 
                 default:
@@ -1103,6 +1107,115 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
                 'path' => $path
             ], 'error');
             echo json_encode(['success' => false, 'message' => 'WebDAV 上传失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * WebDAV 测试连接
+     */
+    private static function handleWebDAVTestAction($request, $configOptions)
+    {
+        try {
+            MediaLibrary_Logger::log('webdav_test', '开始 WebDAV 连接测试', [
+                'has_local_path' => !empty($configOptions['webdavLocalPath']),
+                'has_endpoint' => !empty($configOptions['webdavEndpoint'])
+            ]);
+
+            $result = [
+                'success' => false,
+                'local' => null,
+                'remote' => null,
+                'message' => ''
+            ];
+
+            // 测试本地路径
+            if (!empty($configOptions['enableWebDAV']) && !empty($configOptions['webdavLocalPath'])) {
+                try {
+                    $sync = new MediaLibrary_WebDAVSync($configOptions);
+                    $result['local'] = $sync->testLocalPath();
+
+                    if ($result['local']['success']) {
+                        MediaLibrary_Logger::log('webdav_test', '本地路径测试通过', [
+                            'path' => $result['local']['path']
+                        ]);
+                    }
+                } catch (Exception $e) {
+                    $result['local'] = [
+                        'success' => false,
+                        'message' => '测试失败: ' . $e->getMessage()
+                    ];
+                    MediaLibrary_Logger::log('webdav_test', '本地路径测试异常: ' . $e->getMessage(), [], 'error');
+                }
+            } else {
+                $result['local'] = [
+                    'success' => false,
+                    'message' => 'WebDAV 未启用或未配置本地路径'
+                ];
+            }
+
+            // 测试远程连接
+            if (!empty($configOptions['webdavEndpoint'])) {
+                try {
+                    if (!isset($sync)) {
+                        $sync = new MediaLibrary_WebDAVSync($configOptions);
+                    }
+                    $result['remote'] = $sync->testRemoteConnection();
+
+                    if ($result['remote']['success']) {
+                        MediaLibrary_Logger::log('webdav_test', '远程连接测试通过', [
+                            'endpoint' => $result['remote']['endpoint']
+                        ]);
+                    }
+                } catch (Exception $e) {
+                    $result['remote'] = [
+                        'success' => false,
+                        'message' => '测试失败: ' . $e->getMessage()
+                    ];
+                    MediaLibrary_Logger::log('webdav_test', '远程连接测试异常: ' . $e->getMessage(), [], 'error');
+                }
+            } else {
+                $result['remote'] = [
+                    'success' => false,
+                    'configured' => false,
+                    'message' => '未配置远程 WebDAV 服务器'
+                ];
+            }
+
+            // 判断整体是否成功
+            $localOk = $result['local'] && $result['local']['success'];
+            $remoteOk = !empty($configOptions['webdavEndpoint']) ? ($result['remote'] && $result['remote']['success']) : true;
+
+            $result['success'] = $localOk && $remoteOk;
+
+            if ($result['success']) {
+                $result['message'] = 'WebDAV 配置测试通过';
+                MediaLibrary_Logger::log('webdav_test', 'WebDAV 配置测试完全通过');
+            } else {
+                $messages = [];
+                if (!$localOk) {
+                    $messages[] = '本地路径: ' . ($result['local']['message'] ?? '未知错误');
+                }
+                if (!$remoteOk) {
+                    $messages[] = '远程连接: ' . ($result['remote']['message'] ?? '未知错误');
+                }
+                $result['message'] = '测试失败 - ' . implode('; ', $messages);
+                MediaLibrary_Logger::log('webdav_test', 'WebDAV 配置测试失败', [
+                    'local_ok' => $localOk,
+                    'remote_ok' => $remoteOk
+                ], 'warning');
+            }
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_test', 'WebDAV 测试异常: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 'error');
+            echo json_encode([
+                'success' => false,
+                'message' => '测试失败: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
         }
     }
 
