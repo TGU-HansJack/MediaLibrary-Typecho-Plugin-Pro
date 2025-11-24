@@ -23,6 +23,10 @@
 - ☁️ **WebDAV 管理** - 在后台直接浏览、上传、删除 WebDAV 存储中的文件
 - 📝 **日志系统** - 详细的操作日志记录
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro&type=date&legend=top-left)](https://www.star-history.com/#TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro&type=date&legend=top-left)
+
 ## 🎯 系统要求
 
 - **Typecho**: >= 1.2.1
