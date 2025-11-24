@@ -23,6 +23,33 @@ $statusClass = $webdavStatus['connected'] ? 'ok' : ($webdavStatus['configured'] 
     </div>
 
     <?php if ($webdavStatus['configured']): ?>
+        <!-- 同步控制面板 -->
+        <?php if ($configOptions['webdavSyncEnabled']): ?>
+            <div class="webdav-sync-panel">
+                <div class="webdav-sync-header">
+                    <span class="webdav-sync-title">📤 本地到 WebDAV 同步</span>
+                    <span class="webdav-sync-mode">模式：<?php
+                        $modes = [
+                            'manual' => '手动同步',
+                            'onupload' => '上传时自动',
+                            'scheduled' => '定时同步'
+                        ];
+                        echo $modes[$configOptions['webdavSyncMode']] ?? '未知';
+                    ?></span>
+                </div>
+                <div class="webdav-sync-actions">
+                    <button type="button" class="btn btn-s" id="webdav-sync-all">批量同步所有文件</button>
+                    <span class="webdav-sync-tip">同步目标：<?php echo htmlspecialchars($configOptions['webdavSyncPath']); ?></span>
+                </div>
+                <div id="webdav-sync-progress" class="webdav-sync-progress" style="display:none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="webdav-sync-progress-fill" style="width:0%"></div>
+                    </div>
+                    <div class="progress-text" id="webdav-sync-progress-text">准备同步...</div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="webdav-meta">
             <span>当前路径：<strong id="webdav-current-path" data-root="<?php echo htmlspecialchars($webdavStatus['root']); ?>">/</strong></span>
             <span id="webdav-feedback" class="webdav-feedback"></span>

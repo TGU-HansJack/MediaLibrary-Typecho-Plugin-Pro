@@ -1998,342 +1998,6 @@ parseSize: function(size) {
 
 };
 
-
-var WebDAVManager = {
-    enabled: !!(config.enableWebDAV),
-    container: null,
-    listElement: null,
-    pathLabel: null,
-    feedbackEl: null,
-    currentPath: '/',
-    loading: false,
-
-    init: function() {
-        this.container = document.getElementById('webdav-panel');
-        if (!this.enabled || !this.container) {
-            return;
-        }
-        this.listElement = document.getElementById('webdav-list');
-        this.pathLabel = document.getElementById('webdav-current-path');
-        this.feedbackEl = document.getElementById('webdav-feedback');
-        this.currentPath = config.webdavRoot || '/';
-        this.bindEvents();
-
-        if (config.webdavConfigured && this.listElement) {
-            this.loadList(this.currentPath);
-        }
-    },
-
-    bindEvents: function() {
-        var self = this;
-        var refreshBtn = document.getElementById('webdav-refresh');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', function() {
-                self.refresh();
-            });
-        }
-
-        var upBtn = document.getElementById('webdav-up');
-        if (upBtn) {
-            upBtn.addEventListener('click', function() {
-                var parentPath = self.getParentPath(self.currentPath);
-                if (parentPath) {
-                    self.loadList(parentPath);
-                }
-            });
-        }
-
-        var newFolderBtn = document.getElementById('webdav-new-folder');
-        if (newFolderBtn) {
-            newFolderBtn.addEventListener('click', function() {
-                self.createFolder();
-            });
-        }
-
-        var uploadInput = document.getElementById('webdav-upload-input');
-        if (uploadInput) {
-            uploadInput.addEventListener('change', function() {
-                if (this.files && this.files.length) {
-                    self.uploadFiles(this.files);
-                    this.value = '';
-                }
-            });
-        }
-
-        if (this.listElement) {
-            this.listElement.addEventListener('click', function(e) {
-                var deleteBtn = e.target.closest('.webdav-delete');
-                if (deleteBtn) {
-                    var row = deleteBtn.closest('tr[data-path]');
-                    if (row) {
-                        var target = row.getAttribute('data-path');
-                        if (target && confirm('确定要删除该条目吗？')) {
-                            self.deleteEntry(target);
-                        }
-                    }
-                    return;
-                }
-
-                var nameEl = e.target.closest('.webdav-entry-name');
-                if (nameEl) {
-                    var row = nameEl.closest('tr[data-path]');
-                    if (!row) {
-                        return;
-                    }
-                    var isDir = row.getAttribute('data-dir') === '1';
-                    var path = row.getAttribute('data-path');
-                    if (isDir) {
-                        self.loadList(path);
-                    } else {
-                        var fileUrl = row.getAttribute('data-url');
-                        if (fileUrl) {
-                            window.open(fileUrl, '_blank');
-                        }
-                    }
-                }
-            });
-        }
-    },
-
-    refresh: function() {
-        if (!this.listElement) {
-            return;
-        }
-        this.loadList(this.currentPath);
-    },
-
-    loadList: function(targetPath) {
-        var self = this;
-        if (!this.listElement || !config.webdavConfigured) {
-            return;
-        }
-        var path = typeof targetPath === 'string' ? targetPath : this.currentPath;
-        this.loading = true;
-        this.showLoading('正在加载 WebDAV 目录...');
-        this.request('webdav_list', { path: path })
-            .then(function(response) {
-                if (!response.success) {
-                    throw new Error(response.message || '加载失败');
-                }
-                var data = response.data || {};
-                self.currentPath = data.current_path || '/';
-                self.renderList(data.items || []);
-                self.updatePathLabel();
-                self.showFeedback('目录已更新', 'success');
-                self.loading = false;
-            }, function(error) {
-                self.loading = false;
-                self.showFeedback(error && error.message ? error.message : 'WebDAV 操作失败', 'error');
-            });
-    },
-
-    renderList: function(items) {
-        if (!this.listElement) {
-            return;
-        }
-        if (!items.length) {
-            this.listElement.innerHTML = '<div class="webdav-empty">当前目录为空</div>';
-            return;
-        }
-        var self = this;
-
-        var rows = items.map(function(item) {
-            var isDir = !!item.is_dir;
-            var icon = isDir ? '📁' : '📄';
-            var safeName = self.escapeHtml(item.name || '未命名');
-            var size = isDir ? '-' : (item.size_human || '-');
-            var modified = item.modified || '-';
-            var publicUrl = item.public_url ? self.escapeHtml(item.public_url) : '';
-
-            var actions = '<div class="webdav-entry-actions">';
-            if (!isDir && publicUrl) {
-                actions += '<a href="' + publicUrl + '" target="_blank" rel="noreferrer">下载</a>';
-            }
-            actions += '<button type="button" class="btn ghost webdav-delete">删除</button>';
-            actions += '</div>';
-
-            return '<tr data-path="' + self.escapeHtml(item.path) + '" data-dir="' + (isDir ? '1' : '0') + '" data-url="' + publicUrl + '">'
-                + '<td class="webdav-entry-name"><span class="webdav-entry-icon">' + icon + '</span><span>' + safeName + '</span></td>'
-                + '<td>' + size + '</td>'
-                + '<td>' + modified + '</td>'
-                + '<td>' + actions + '</td>'
-                + '</tr>';
-        }).join('');
-
-        var table = '<table class="webdav-table">'
-            + '<thead><tr><th>名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead>'
-            + '<tbody>' + rows + '</tbody></table>';
-        this.listElement.innerHTML = table;
-    },
-
-    updatePathLabel: function() {
-        if (this.pathLabel) {
-            this.pathLabel.textContent = this.currentPath;
-        }
-    },
-
-    showLoading: function(message) {
-        if (this.listElement) {
-            this.listElement.innerHTML = '<div class="webdav-empty">' + (message || '加载中...') + '</div>';
-        }
-    },
-
-    showFeedback: function(message, type) {
-        if (!this.feedbackEl) {
-            return;
-        }
-        this.feedbackEl.textContent = message || '';
-        this.feedbackEl.className = 'webdav-feedback' + (type ? ' ' + type : '');
-    },
-
-    deleteEntry: function(path) {
-        var self = this;
-        this.request('webdav_delete', { target: path })
-            .then(function(response) {
-                if (!response.success) {
-                    throw new Error(response.message || '删除失败');
-                }
-                self.showFeedback('删除成功', 'success');
-                self.loadList(self.currentPath);
-            }, function(error) {
-                self.showFeedback(error && error.message ? error.message : '删除失败', 'error');
-            });
-    },
-
-    createFolder: function() {
-        var name = prompt('请输入文件夹名称');
-        if (!name) {
-            return;
-        }
-        name = name.trim();
-        if (!name) {
-            return;
-        }
-        if (/[\\/]/.test(name)) {
-            alert('文件夹名称不能包含 / 或 \\');
-            return;
-        }
-        var self = this;
-        this.request('webdav_create_folder', { path: this.currentPath, name: name })
-            .then(function(response) {
-                if (!response.success) {
-                    throw new Error(response.message || '创建失败');
-                }
-                self.showFeedback('目录创建成功', 'success');
-                self.loadList(self.currentPath);
-            }, function(error) {
-                self.showFeedback(error && error.message ? error.message : '创建失败', 'error');
-            });
-    },
-
-    uploadFiles: function(fileList) {
-        var files = Array.prototype.slice.call(fileList || []);
-        if (!files.length) {
-            return;
-        }
-        var self = this;
-        var uploadNext = function(index) {
-            if (index >= files.length) {
-                self.showFeedback('上传完成', 'success');
-                self.loadList(self.currentPath);
-                return;
-            }
-            var file = files[index];
-            var formData = new FormData();
-            formData.append('path', self.currentPath);
-            formData.append('file', file);
-            self.showFeedback('正在上传 ' + file.name + '...', 'info');
-            self.request('webdav_upload', formData, true)
-                .then(function(response) {
-                    if (!response.success) {
-                        throw new Error(response.message || '上传失败');
-                    }
-                    uploadNext(index + 1);
-                }, function(error) {
-                    self.showFeedback(error && error.message ? error.message : '上传失败', 'error');
-                });
-        };
-
-        uploadNext(0);
-    },
-
-    getParentPath: function(path) {
-        if (!path || path === '/') {
-            return null;
-        }
-        var segments = path.split('/').filter(function(item) {
-            return item !== '';
-        });
-        segments.pop();
-        return segments.length ? '/' + segments.join('/') : '/';
-    },
-
-    escapeHtml: function(str) {
-        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-        return (str || '').replace(/[&<>"']/g, function(ch) {
-            return map[ch] || ch;
-        });
-    },
-
-    request: function(action, data, isFormData) {
-        return new Promise(function(resolve, reject) {
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', currentUrl, true);
-            if (!isFormData) {
-                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            }
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            var response = JSON.parse(xhr.responseText);
-                            resolve(response);
-                        } catch (err) {
-                            reject(err);
-                        }
-                    } else {
-                        reject(new Error('请求失败，状态码 ' + xhr.status));
-                    }
-                }
-            };
-
-            if (isFormData) {
-                data.append('action', action);
-                xhr.send(data);
-            } else {
-                var payload = 'action=' + encodeURIComponent(action);
-                if (data) {
-                    var pairs = [];
-                    for (var key in data) {
-                        if (data.hasOwnProperty(key)) {
-                            pairs.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
-                        }
-                    }
-                    if (pairs.length) {
-                        payload += '&' + pairs.join('&');
-                    }
-                }
-                xhr.send(payload);
-            }
-        });
-    },
-
-    focus: function() {
-        if (!this.container) {
-            return;
-        }
-        this.container.classList.add('webdav-highlight');
-        this.container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        setTimeout(function() {
-            WebDAVManager.container.classList.remove('webdav-highlight');
-        }, 600);
-    }
-};
-
-window.WebDAVManager = WebDAVManager;
-
-
-
 // 加载图像编辑器脚本
 (function() {
     var script = document.createElement('script');
@@ -2472,6 +2136,11 @@ var WebDAVManager = {
             if (files.length > 0) {
                 self.uploadFiles(files);
             }
+        });
+
+        // 批量同步按钮
+        jQuery('#webdav-sync-all').on('click', function() {
+            self.syncAllToWebDAV();
         });
     },
 
@@ -2786,6 +2455,72 @@ var WebDAVManager = {
                 }
             },
             error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    syncAllToWebDAV: function() {
+        if (!confirm('确定要将所有本地文件同步到 WebDAV 吗？\n\n这可能需要一些时间，请耐心等待。')) {
+            return;
+        }
+
+        var self = this;
+        var progressBar = jQuery('#webdav-sync-progress');
+        var progressFill = jQuery('#webdav-sync-progress-fill');
+        var progressText = jQuery('#webdav-sync-progress-text');
+
+        // 显示进度条
+        progressBar.show();
+        progressFill.css('width', '0%');
+        progressText.text('开始同步...');
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: {
+                action: 'webdav_sync_all_local'
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    progressFill.css('width', '100%');
+                    progressText.text(response.message);
+
+                    self.showFeedback('同步完成！', 'success');
+
+                    // 显示详细结果
+                    if (response.stats) {
+                        var details = '同步结果：\n' +
+                            '成功：' + response.stats.success + ' 个\n' +
+                            '失败：' + response.stats.failed + ' 个\n' +
+                            '跳过：' + response.stats.skipped + ' 个\n' +
+                            '总计：' + response.stats.total + ' 个';
+
+                        if (response.errors && response.errors.length > 0) {
+                            details += '\n\n失败详情：\n';
+                            response.errors.slice(0, 5).forEach(function(error) {
+                                details += 'ID ' + error.cid + ': ' + error.error + '\n';
+                            });
+                            if (response.errors.length > 5) {
+                                details += '... 还有 ' + (response.errors.length - 5) + ' 个错误';
+                            }
+                        }
+
+                        alert(details);
+                    }
+
+                    // 3秒后隐藏进度条
+                    setTimeout(function() {
+                        progressBar.fadeOut();
+                    }, 3000);
+                } else {
+                    progressText.text('同步失败');
+                    self.showFeedback(response.message || '同步失败', 'error');
+                }
+            },
+            error: function() {
+                progressText.text('网络错误');
                 self.showFeedback('网络错误', 'error');
             }
         });

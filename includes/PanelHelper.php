@@ -32,6 +32,10 @@ class MediaLibrary_PanelHelper
             $webdavUsername = isset($config->webdavUsername) ? trim($config->webdavUsername) : '';
             $webdavPassword = isset($config->webdavPassword) ? (string)$config->webdavPassword : '';
             $webdavVerifySSL = !isset($config->webdavVerifySSL) || (is_array($config->webdavVerifySSL) ? in_array('1', $config->webdavVerifySSL) : ($config->webdavVerifySSL == '1'));
+            $webdavSyncEnabled = is_array($config->webdavSyncEnabled ?? false) ? in_array('1', $config->webdavSyncEnabled) : (($config->webdavSyncEnabled ?? '0') == '1');
+            $webdavSyncPath = isset($config->webdavSyncPath) ? trim($config->webdavSyncPath) : '/uploads';
+            $webdavSyncMode = isset($config->webdavSyncMode) ? (string)$config->webdavSyncMode : 'manual';
+            $webdavSyncDelete = is_array($config->webdavSyncDelete ?? false) ? in_array('1', $config->webdavSyncDelete) : (($config->webdavSyncDelete ?? '0') == '1');
         } catch (Exception $e) {
             $enableGetID3 = false;
             $enableExif = false;
@@ -48,8 +52,12 @@ class MediaLibrary_PanelHelper
             $webdavUsername = '';
             $webdavPassword = '';
             $webdavVerifySSL = true;
+            $webdavSyncEnabled = false;
+            $webdavSyncPath = '/uploads';
+            $webdavSyncMode = 'manual';
+            $webdavSyncDelete = false;
         }
-        
+
         return [
             'enableGetID3' => $enableGetID3,
             'enableExif' => $enableExif,
@@ -66,7 +74,11 @@ class MediaLibrary_PanelHelper
             'webdavUsername' => $webdavUsername,
             'webdavPassword' => $webdavPassword,
             'webdavVerifySSL' => $webdavVerifySSL,
-            'webdavTimeout' => 10
+            'webdavTimeout' => 10,
+            'webdavSyncEnabled' => $webdavSyncEnabled,
+            'webdavSyncPath' => $webdavSyncPath,
+            'webdavSyncMode' => $webdavSyncMode,
+            'webdavSyncDelete' => $webdavSyncDelete
         ];
     }
     

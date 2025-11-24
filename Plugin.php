@@ -744,6 +744,44 @@ jQuery(function($) {
             'SSL 验证',
             '如果 WebDAV 服务使用自签名证书，可取消勾选以跳过 SSL 验证（不推荐）');
         $form->addInput($webdavVerifySSL);
+
+        // 同步配置分隔线
+        $syncSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
+        $syncSection->html('<h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">同步配置</h4>');
+        $form->addItem($syncSection);
+
+        $defaultSyncEnabled = isset($optionConfig->webdavSyncEnabled) && $optionConfig->webdavSyncEnabled;
+        $enableSync = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavSyncEnabled',
+            array('1' => '启用自动同步'),
+            $defaultSyncEnabled ? array('1') : array(),
+            '自动同步',
+            '启用后可以将本地媒体库文件自动同步到 WebDAV 服务器');
+        $form->addInput($enableSync);
+
+        $defaultSyncPath = isset($optionConfig->webdavSyncPath) ? $optionConfig->webdavSyncPath : '/uploads';
+        $syncPath = new Typecho_Widget_Helper_Form_Element_Text('webdavSyncPath', null, $defaultSyncPath,
+            '同步目标路径',
+            '在 WebDAV 服务器上的目标路径，例如 <code>/uploads</code> 或 <code>/typecho/media</code>');
+        $form->addInput($syncPath);
+
+        $syncMode = new Typecho_Widget_Helper_Form_Element_Radio('webdavSyncMode',
+            array(
+                'manual' => '手动同步（通过管理面板触发）',
+                'onupload' => '上传时自动同步（上传文件时自动同步到 WebDAV）',
+                'scheduled' => '定时同步（需要配置系统定时任务）'
+            ),
+            isset($optionConfig->webdavSyncMode) ? $optionConfig->webdavSyncMode : 'manual',
+            '同步模式',
+            '选择同步触发方式：手动、上传时自动、或定时同步');
+        $form->addInput($syncMode);
+
+        $defaultSyncDelete = isset($optionConfig->webdavSyncDelete) && $optionConfig->webdavSyncDelete;
+        $syncDelete = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavSyncDelete',
+            array('1' => '同步删除操作'),
+            $defaultSyncDelete ? array('1') : array(),
+            '双向同步删除',
+            '启用后，删除本地文件时也会删除 WebDAV 上的对应文件（谨慎使用）');
+        $form->addInput($syncDelete);
     }
 
     /**
