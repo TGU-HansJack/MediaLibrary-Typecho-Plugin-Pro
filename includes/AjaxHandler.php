@@ -90,7 +90,15 @@ class MediaLibrary_AjaxHandler
                 case 'webdav_upload':
                     self::handleWebDAVUploadAction($request, $configOptions);
                     break;
-                    
+
+                case 'webdav_sync_download':
+                    self::handleWebDAVSyncDownloadAction($request, $configOptions);
+                    break;
+
+                case 'webdav_sync_to_local':
+                    self::handleWebDAVSyncToLocalAction($request, $configOptions, $db);
+                    break;
+
                 default:
                     MediaLibrary_Logger::log('ajax_unknown', '收到未知的操作请求', [
                         'action' => $action
@@ -1153,5 +1161,140 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         }
 
         return $summary;
+    }
+
+    /**
+     * WebDAV 同步下载
+     */
+    private static function handleWebDAVSyncDownloadAction($request, $configOptions)
+    {
+        $path = $request->get('path', '');
+
+        if ($path === '' || $path === '/') {
+            echo json_encode(['success' => false, 'message' => '请指定要下载的文件路径'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $client = self::getWebDAVClient($configOptions);
+
+            // 构建本地路径
+            $webdavDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/webdav';
+            $localPath = $webdavDir . '/' . ltrim($path, '/');
+
+            // 下载文件
+            $client->downloadFile($path, $localPath);
+
+            MediaLibrary_Logger::log('webdav_sync_download', '从 WebDAV 下载文件成功', [
+                'remote_path' => $path,
+                'local_path' => $localPath
+            ]);
+
+            echo json_encode([
+                'success' => true,
+                'message' => '文件下载成功',
+                'local_path' => $localPath
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_sync_download', '下载失败: ' . $e->getMessage(), [
+                'path' => $path
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => 'WebDAV 下载失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * WebDAV 同步到本地（将 WebDAV 文件同步到 Typecho 媒体库）
+     */
+    private static function handleWebDAVSyncToLocalAction($request, $configOptions, $db)
+    {
+        $path = $request->get('path', '');
+
+        if ($path === '' || $path === '/') {
+            echo json_encode(['success' => false, 'message' => '请指定要同步的文件路径'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $client = self::getWebDAVClient($configOptions);
+
+            // 先下载文件到临时目录
+            $webdavDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/webdav';
+            $tempPath = $webdavDir . '/' . ltrim($path, '/');
+
+            // 下载文件
+            $client->downloadFile($path, $tempPath);
+
+            // 获取文件信息
+            $filename = basename($path);
+            $filesize = filesize($tempPath);
+            $mime = mime_content_type($tempPath) ?: 'application/octet-stream';
+
+            // 将文件移动到 Typecho 上传目录
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $uploadPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+
+            // 生成唯一文件名
+            $ext = pathinfo($filename, PATHINFO_EXTENSION);
+            $basename = pathinfo($filename, PATHINFO_FILENAME);
+            $newFilename = $basename . '_' . time() . '.' . $ext;
+            $finalPath = $uploadPath . '/' . $newFilename;
+
+            // 移动文件
+            if (!copy($tempPath, $finalPath)) {
+                throw new Exception('无法复制文件到上传目录');
+            }
+
+            // 删除临时文件
+            @unlink($tempPath);
+
+            // 插入到数据库
+            $date = new Typecho_Date();
+            $insert = [
+                'title' => $filename,
+                'slug' => $newFilename,
+                'created' => $date->timeStamp,
+                'modified' => $date->timeStamp,
+                'text' => serialize([
+                    'name' => $filename,
+                    'path' => $uploadDir . '/' . $newFilename,
+                    'size' => $filesize,
+                    'type' => $mime,
+                    'mime' => $mime,
+                    'storage' => 'webdav'
+                ]),
+                'order' => 0,
+                'authorId' => Typecho_Cookie::get('__typecho_uid'),
+                'template' => '',
+                'type' => 'attachment',
+                'status' => 'publish',
+                'password' => '',
+                'commentsNum' => 0,
+                'allowComment' => 0,
+                'allowPing' => 0,
+                'allowFeed' => 0,
+                'parent' => 0
+            ];
+
+            $cid = $db->query($db->insert('table.contents')->rows($insert));
+
+            MediaLibrary_Logger::log('webdav_sync_to_local', '同步 WebDAV 文件到本地成功', [
+                'remote_path' => $path,
+                'local_path' => $finalPath,
+                'cid' => $cid
+            ]);
+
+            echo json_encode([
+                'success' => true,
+                'message' => '文件同步成功',
+                'cid' => $cid,
+                'filename' => $newFilename
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_sync_to_local', '同步失败: ' . $e->getMessage(), [
+                'path' => $path
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => 'WebDAV 同步失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
     }
 }

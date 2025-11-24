@@ -25,11 +25,14 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
         Helper::addAction('medialibrary-log', 'MediaLibrary_LogAction');
-        
+
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
         Typecho_Plugin::factory('admin/write-page.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
-        
+
+        // 创建 WebDAV 目录
+        self::createWebDAVDirectory();
+
         return '媒体库插件激活成功！';
     }
 
@@ -755,6 +758,47 @@ jQuery(function($) {
                 return new Typecho_Config();
             }
             return (object)[];
+        }
+    }
+
+    /**
+     * 创建 WebDAV 目录
+     */
+    private static function createWebDAVDirectory()
+    {
+        $webdavDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/webdav';
+
+        try {
+            if (!is_dir($webdavDir)) {
+                // 递归创建目录
+                if (!mkdir($webdavDir, 0755, true)) {
+                    // 目录创建失败，记录警告但不中断插件激活
+                    error_log('[MediaLibrary] Failed to create WebDAV directory: ' . $webdavDir);
+                    return false;
+                }
+
+                // 创建 .htaccess 文件保护目录
+                $htaccess = $webdavDir . '/.htaccess';
+                $htaccessContent = "# WebDAV directory\n# Access controlled by WebDAV authentication\nOrder Allow,Deny\nAllow from all\n";
+                @file_put_contents($htaccess, $htaccessContent);
+
+                // 创建 README.md 说明文件
+                $readme = $webdavDir . '/README.md';
+                $readmeContent = "# WebDAV 存储目录\n\n";
+                $readmeContent .= "这是 MediaLibrary 插件的 WebDAV 本地缓存目录。\n\n";
+                $readmeContent .= "## 用途\n\n";
+                $readmeContent .= "- 用于缓存从 WebDAV 服务器同步的文件\n";
+                $readmeContent .= "- 作为本地备份和快速访问的媒体文件存储\n\n";
+                $readmeContent .= "## 注意事项\n\n";
+                $readmeContent .= "- 请勿手动删除或修改此目录中的文件\n";
+                $readmeContent .= "- 文件管理应通过媒体库插件的 WebDAV 管理界面进行\n";
+                @file_put_contents($readme, $readmeContent);
+            }
+
+            return true;
+        } catch (Exception $e) {
+            error_log('[MediaLibrary] Exception while creating WebDAV directory: ' . $e->getMessage());
+            return false;
         }
     }
 

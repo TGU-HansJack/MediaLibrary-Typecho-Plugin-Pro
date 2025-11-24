@@ -106,4 +106,9 @@
             </div>
         </div>
     </div>
+
+    <!-- WebDAV 管理器 -->
+    <?php if ($showWebDAVManager): ?>
+        <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/templates/webdav-manager.php'; ?>
+    <?php endif; ?>
 </div>

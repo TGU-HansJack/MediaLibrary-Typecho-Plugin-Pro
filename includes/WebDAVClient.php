@@ -211,6 +211,63 @@ class MediaLibrary_WebDAVClient
     }
 
     /**
+     * 下载文件
+     */
+    public function downloadFile($remotePath, $localPath)
+    {
+        $target = $this->normalizeRelativePath($remotePath);
+        $url = $this->buildUrl($target);
+
+        // 确保本地目录存在
+        $localDir = dirname($localPath);
+        if (!is_dir($localDir)) {
+            if (!mkdir($localDir, 0755, true)) {
+                throw new Exception('无法创建本地目录: ' . $localDir);
+            }
+        }
+
+        $ch = $this->prepareCurl($url);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
+
+        // 将响应写入文件
+        $fp = fopen($localPath, 'wb');
+        if (!$fp) {
+            throw new Exception('无法创建本地文件: ' . $localPath);
+        }
+
+        curl_setopt($ch, CURLOPT_FILE, $fp);
+
+        try {
+            $response = curl_exec($ch);
+            if ($response === false) {
+                $error = curl_error($ch);
+                $code = curl_errno($ch);
+                curl_close($ch);
+                fclose($fp);
+                @unlink($localPath);
+                throw new Exception('WebDAV 下载失败：' . $error . ' (#' . $code . ')');
+            }
+
+            $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            curl_close($ch);
+            fclose($fp);
+
+            if ($status >= 400) {
+                @unlink($localPath);
+                throw new Exception('WebDAV 下载失败 (HTTP ' . $status . ')');
+            }
+
+            return true;
+        } catch (Exception $e) {
+            if (is_resource($fp)) {
+                fclose($fp);
+            }
+            @unlink($localPath);
+            throw $e;
+        }
+    }
+
+    /**
      * 构建公开访问地址
      */
     public function buildPublicUrl($path)

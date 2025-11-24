@@ -2430,5 +2430,367 @@ function highlightActiveFilter() {
     });
 }
 
+// WebDAV 管理器
+var WebDAVManager = {
+    currentPath: '/',
+    isLoading: false,
+
+    init: function() {
+        if (!window.mediaLibraryConfig.enableWebDAV) {
+            return;
+        }
+
+        this.bindEvents();
+
+        // 如果已配置，自动加载根目录
+        if (window.mediaLibraryConfig.webdavConfigured) {
+            this.loadDirectory('/');
+        }
+    },
+
+    bindEvents: function() {
+        var self = this;
+
+        // 刷新按钮
+        jQuery('#webdav-refresh').on('click', function() {
+            self.loadDirectory(self.currentPath);
+        });
+
+        // 上一级按钮
+        jQuery('#webdav-up').on('click', function() {
+            self.goUp();
+        });
+
+        // 新建文件夹按钮
+        jQuery('#webdav-new-folder').on('click', function() {
+            self.showCreateFolderDialog();
+        });
+
+        // 上传文件
+        jQuery('#webdav-upload-input').on('change', function(e) {
+            var files = e.target.files;
+            if (files.length > 0) {
+                self.uploadFiles(files);
+            }
+        });
+    },
+
+    loadDirectory: function(path) {
+        var self = this;
+
+        if (this.isLoading) {
+            return;
+        }
+
+        this.isLoading = true;
+        this.showFeedback('正在加载...', 'info');
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'GET',
+            data: {
+                action: 'webdav_list',
+                path: path
+            },
+            dataType: 'json',
+            success: function(response) {
+                self.isLoading = false;
+                if (response.success) {
+                    self.currentPath = response.data.current_path;
+                    self.renderFileList(response.data.items);
+                    self.updatePathDisplay();
+                    self.showFeedback('');
+                } else {
+                    self.showFeedback(response.message || '加载失败', 'error');
+                }
+            },
+            error: function() {
+                self.isLoading = false;
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    renderFileList: function(items) {
+        var listEl = jQuery('#webdav-list');
+
+        if (!items || items.length === 0) {
+            listEl.html('<div class="webdav-empty">此目录为空</div>');
+            return;
+        }
+
+        var html = '<table class="webdav-table"><thead><tr>' +
+            '<th>名称</th>' +
+            '<th>大小</th>' +
+            '<th>修改时间</th>' +
+            '<th>操作</th>' +
+            '</tr></thead><tbody>';
+
+        items.forEach(function(item) {
+            var icon = item.is_dir ? '📁' : '📄';
+            var nameHtml = item.is_dir
+                ? '<a href="#" class="webdav-dir-link" data-path="' + item.path + '">' + icon + ' ' + item.name + '</a>'
+                : '<span>' + icon + ' ' + item.name + '</span>';
+
+            html += '<tr>' +
+                '<td class="webdav-name">' + nameHtml + '</td>' +
+                '<td>' + item.size_human + '</td>' +
+                '<td>' + (item.modified || '-') + '</td>' +
+                '<td class="webdav-actions">';
+
+            if (!item.is_dir) {
+                html += '<button class="btn btn-xs webdav-btn-sync" data-path="' + item.path + '" data-name="' + item.name + '" title="同步到本地">同步</button>';
+                if (item.public_url) {
+                    html += '<button class="btn btn-xs webdav-btn-copy-url" data-url="' + item.public_url + '" title="复制链接">复制链接</button>';
+                }
+            }
+
+            html += '<button class="btn btn-xs webdav-btn-delete" data-path="' + item.path + '" data-name="' + item.name + '" title="删除">删除</button>' +
+                '</td></tr>';
+        });
+
+        html += '</tbody></table>';
+        listEl.html(html);
+
+        // 绑定目录点击事件
+        listEl.find('.webdav-dir-link').on('click', function(e) {
+            e.preventDefault();
+            var path = jQuery(this).data('path');
+            WebDAVManager.loadDirectory(path);
+        });
+
+        // 绑定删除按钮
+        listEl.find('.webdav-btn-delete').on('click', function() {
+            var path = jQuery(this).data('path');
+            var name = jQuery(this).data('name');
+            WebDAVManager.deleteItem(path, name);
+        });
+
+        // 绑定复制链接按钮
+        listEl.find('.webdav-btn-copy-url').on('click', function() {
+            var url = jQuery(this).data('url');
+            WebDAVManager.copyToClipboard(url);
+        });
+
+        // 绑定同步按钮
+        listEl.find('.webdav-btn-sync').on('click', function() {
+            var path = jQuery(this).data('path');
+            var name = jQuery(this).data('name');
+            WebDAVManager.syncToLocal(path, name);
+        });
+    },
+
+    updatePathDisplay: function() {
+        jQuery('#webdav-current-path').text(this.currentPath);
+    },
+
+    goUp: function() {
+        if (this.currentPath === '/') {
+            this.showFeedback('已在根目录', 'info');
+            return;
+        }
+
+        var segments = this.currentPath.split('/').filter(function(s) { return s !== ''; });
+        segments.pop();
+        var newPath = segments.length > 0 ? '/' + segments.join('/') : '/';
+        this.loadDirectory(newPath);
+    },
+
+    showCreateFolderDialog: function() {
+        var name = prompt('请输入文件夹名称：');
+        if (name && name.trim() !== '') {
+            this.createFolder(name.trim());
+        }
+    },
+
+    createFolder: function(name) {
+        var self = this;
+
+        this.showFeedback('正在创建...', 'info');
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: {
+                action: 'webdav_create_folder',
+                path: self.currentPath,
+                name: name
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('创建成功', 'success');
+                    self.loadDirectory(self.currentPath);
+                } else {
+                    self.showFeedback(response.message || '创建失败', 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    deleteItem: function(path, name) {
+        if (!confirm('确定要删除 "' + name + '" 吗？')) {
+            return;
+        }
+
+        var self = this;
+        this.showFeedback('正在删除...', 'info');
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: {
+                action: 'webdav_delete',
+                target: path
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('删除成功', 'success');
+                    self.loadDirectory(self.currentPath);
+                } else {
+                    self.showFeedback(response.message || '删除失败', 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    uploadFiles: function(files) {
+        var self = this;
+        var formData = new FormData();
+
+        for (var i = 0; i < files.length; i++) {
+            formData.append('file[]', files[i]);
+        }
+
+        formData.append('action', 'webdav_upload');
+        formData.append('path', this.currentPath);
+
+        this.showFeedback('正在上传...', 'info');
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('上传成功', 'success');
+                    self.loadDirectory(self.currentPath);
+                    // 清空文件选择
+                    jQuery('#webdav-upload-input').val('');
+                } else {
+                    self.showFeedback(response.message || '上传失败', 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    copyToClipboard: function(text) {
+        var self = this;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function() {
+                self.showFeedback('链接已复制到剪贴板', 'success');
+            }).catch(function() {
+                self.fallbackCopy(text);
+            });
+        } else {
+            self.fallbackCopy(text);
+        }
+    },
+
+    fallbackCopy: function(text) {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        try {
+            document.execCommand('copy');
+            this.showFeedback('链接已复制到剪贴板', 'success');
+        } catch (err) {
+            this.showFeedback('复制失败，请手动复制', 'error');
+        }
+
+        document.body.removeChild(textarea);
+    },
+
+    showFeedback: function(message, type) {
+        var feedbackEl = jQuery('#webdav-feedback');
+
+        if (!message) {
+            feedbackEl.text('').removeClass('webdav-feedback-success webdav-feedback-error webdav-feedback-info');
+            return;
+        }
+
+        feedbackEl.text(message)
+            .removeClass('webdav-feedback-success webdav-feedback-error webdav-feedback-info');
+
+        if (type === 'success') {
+            feedbackEl.addClass('webdav-feedback-success');
+        } else if (type === 'error') {
+            feedbackEl.addClass('webdav-feedback-error');
+        } else {
+            feedbackEl.addClass('webdav-feedback-info');
+        }
+
+        // 成功和信息类消息3秒后自动消失
+        if (type === 'success' || type === 'info') {
+            setTimeout(function() {
+                if (feedbackEl.text() === message) {
+                    feedbackEl.text('').removeClass('webdav-feedback-success webdav-feedback-error webdav-feedback-info');
+                }
+            }, 3000);
+        }
+    },
+
+    syncToLocal: function(path, name) {
+        if (!confirm('确定要将 "' + name + '" 同步到本地媒体库吗？')) {
+            return;
+        }
+
+        var self = this;
+        this.showFeedback('正在同步...', 'info');
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: {
+                action: 'webdav_sync_to_local',
+                path: path
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('同步成功！文件已添加到媒体库', 'success');
+                    // 3秒后刷新页面以显示新添加的文件
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    self.showFeedback(response.message || '同步失败', 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    }
+};
+
 // 导出到全局
 window.MediaLibrary = MediaLibrary;

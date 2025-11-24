@@ -2060,3 +2060,122 @@
 .webdav-feedback.success {
     color: #2c9c6a;
 }
+
+.webdav-feedback-info {
+    color: #0073aa;
+}
+
+.webdav-feedback-error {
+    color: #dc4a4a;
+}
+
+.webdav-feedback-success {
+    color: #2c9c6a;
+}
+
+.webdav-dir-link {
+    color: #0073aa;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.webdav-dir-link:hover {
+    color: #005a87;
+    text-decoration: underline;
+}
+
+.webdav-name {
+    font-weight: 500;
+}
+
+.webdav-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.webdav-btn-delete,
+.webdav-btn-copy-url,
+.webdav-btn-sync {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #444;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.webdav-btn-delete:hover {
+    background: #dc4a4a;
+    color: #fff;
+    border-color: #dc4a4a;
+}
+
+.webdav-btn-copy-url:hover {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+
+.webdav-btn-sync:hover {
+    background: #2c9c6a;
+    color: #fff;
+    border-color: #2c9c6a;
+}
+
+#webdav-current-path {
+    font-weight: 600;
+    color: #0073aa;
+}
+
+.sidebar-section .webdav-panel {
+    margin-top: 0;
+    border: none;
+    border-top: 1px solid #e8eaed;
+    border-radius: 0;
+    padding: 20px 0 0 0;
+}
+
+.sidebar-section .webdav-panel .webdav-title h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+/* 移动端 WebDAV 样式优化 */
+@media (max-width: 768px) {
+    .webdav-header {
+        flex-direction: column;
+    }
+
+    .webdav-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .webdav-actions .btn {
+        flex: 1;
+    }
+
+    .webdav-table {
+        font-size: 12px;
+    }
+
+    .webdav-table th,
+    .webdav-table td {
+        padding: 8px 6px;
+    }
+
+    .webdav-actions {
+        flex-direction: column;
+    }
+
+    .webdav-btn-delete,
+    .webdav-btn-copy-url,
+    .webdav-btn-sync {
+        width: 100%;
+    }
+}
+
