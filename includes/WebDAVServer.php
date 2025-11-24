@@ -1,12 +1,12 @@
 <?php
-if (!defined('__TYPECHO_ROOT_DIR__')) exit;
-
 /**
  * WebDAV 服务器基础类（提取自 picodav）
  * 这个文件包含了 WebDAV 协议的核心实现
  */
 
 namespace MediaLibrary\WebDAV;
+
+if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 class Exception extends \RuntimeException {}
 
