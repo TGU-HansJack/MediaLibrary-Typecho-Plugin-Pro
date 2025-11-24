@@ -2,7 +2,6 @@
     <div class="toolbar-primary">
         <div class="primary-actions">
             <button class="btn btn-primary" id="upload-btn">上传文件</button>
-            <button class="btn btn-secondary" id="scan-folder-btn">扫描文件夹</button>
             <button class="btn btn-danger" id="delete-selected" style="display:none;">删除选中</button>
         </div>
         <div class="toolbar-meta">

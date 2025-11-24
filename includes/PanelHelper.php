@@ -164,22 +164,10 @@ class MediaLibrary_PanelHelper
             $attachment['attachment'] = $attachmentData;
             $attachment['mime'] = isset($attachmentData['mime']) ? $attachmentData['mime'] : 'application/octet-stream';
             $attachment['isImage'] = isset($attachmentData['mime']) && (
-                strpos($attachmentData['mime'], 'image/') === 0 ||
+                strpos($attachmentData['mime'], 'image/') === 0 || 
                 in_array(strtolower(pathinfo($attachmentData['name'] ?? '', PATHINFO_EXTENSION)), ['avif'])
             );
-
-            // 判断文件来源类型
-            if (isset($attachmentData['storage']) && $attachmentData['storage'] === 'webdav') {
-                $attachment['source'] = 'webdav';
-                $attachment['sourceLabel'] = 'WebDAV';
-            } elseif (isset($attachmentData['source']) && $attachmentData['source'] === 'folder_import') {
-                $attachment['source'] = 'folder';
-                $attachment['sourceLabel'] = '文件夹文件';
-            } else {
-                $attachment['source'] = 'database';
-                $attachment['sourceLabel'] = '数据库录入';
-            }
-
+            
             $attachment['isDocument'] = isset($attachmentData['mime']) && (
                 strpos($attachmentData['mime'], 'application/pdf') === 0 ||
                 strpos($attachmentData['mime'], 'application/msword') === 0 ||
@@ -609,8 +597,7 @@ class MediaLibrary_PanelHelper
                     'path' => $fileData['relative_path'],
                     'size' => $fileData['size'],
                     'type' => $fileData['mime'],
-                    'mime' => $fileData['mime'],
-                    'source' => 'folder_import'  // 标记为文件夹导入
+                    'mime' => $fileData['mime']
                 ];
 
                 // 生成唯一的 slug
