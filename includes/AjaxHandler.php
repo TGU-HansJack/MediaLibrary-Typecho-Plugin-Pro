@@ -117,7 +117,7 @@ class MediaLibrary_AjaxHandler
     }
     
     /**
-     * 处理删除请求 - 纯文件夹模式
+     * 处理删除请求
      */
     private static function handleDeleteAction($request, $db)
     {
@@ -128,39 +128,73 @@ class MediaLibrary_AjaxHandler
             return;
         }
 
-        $deleteCount = 0;
-        $uploadDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads';
-
-        // 扫描文件夹，建立hash到路径的映射
-        $allFiles = [];
-        MediaLibrary_PanelHelper::scanDirectoryRecursive($uploadDir, '/usr/uploads', $allFiles);
-
-        $hashToPath = [];
-        foreach ($allFiles as $fileInfo) {
-            $fileId = md5($fileInfo['relative_path']);
-            $hashToPath[$fileId] = $fileInfo['full_path'];
+        // 获取 WebDAV 配置
+        $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+        $webdavClient = null;
+        if ($configOptions['enableWebDAV']) {
+            try {
+                $webdavClient = new MediaLibrary_WebDAVClient(
+                    $configOptions['webdavUrl'],
+                    $configOptions['webdavUsername'],
+                    $configOptions['webdavPassword']
+                );
+            } catch (Exception $e) {
+                // WebDAV 客户端初始化失败，继续使用本地删除
+                MediaLibrary_Logger::log('delete', 'WebDAV 客户端初始化失败: ' . $e->getMessage(), [], 'warning');
+            }
         }
 
+        $deleteCount = 0;
         foreach ($cids as $cid) {
-            // 通过hash找到文件路径
-            if (isset($hashToPath[$cid])) {
-                $filePath = $hashToPath[$cid];
+            $cid = intval($cid);
+            $attachment = $db->fetchRow($db->select()->from('table.contents')
+                ->where('cid = ? AND type = ?', $cid, 'attachment'));
 
+            if ($attachment) {
                 // 删除物理文件
-                if (file_exists($filePath) && is_file($filePath)) {
-                    if (@unlink($filePath)) {
-                        $deleteCount++;
-                        MediaLibrary_Logger::log('delete', '文件删除成功', [
-                            'cid' => $cid,
-                            'path' => $filePath
-                        ]);
-                    } else {
-                        MediaLibrary_Logger::log('delete', '文件删除失败：权限不足或文件被占用', [
-                            'cid' => $cid,
-                            'path' => $filePath
-                        ], 'warning');
+                if (isset($attachment['text'])) {
+                    $attachmentData = @unserialize($attachment['text']);
+                    if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+                        // 判断是否为文件夹导入的文件
+                        $isFolderImport = isset($attachmentData['source']) && $attachmentData['source'] === 'folder_import';
+
+                        // 对于文件夹导入的文件，只删除数据库记录，不删除物理文件
+                        if (!$isFolderImport) {
+                            // 首先尝试删除本地文件
+                            if (file_exists($filePath)) {
+                                @unlink($filePath);
+                            }
+
+                            // 如果启用了 WebDAV，也尝试从 WebDAV 删除
+                            if ($webdavClient && isset($attachmentData['webdav_path'])) {
+                                try {
+                                    $webdavClient->delete($attachmentData['webdav_path']);
+                                    MediaLibrary_Logger::log('delete', 'WebDAV 文件删除成功', [
+                                        'cid' => $cid,
+                                        'path' => $attachmentData['webdav_path']
+                                    ]);
+                                } catch (Exception $e) {
+                                    MediaLibrary_Logger::log('delete', 'WebDAV 文件删除失败: ' . $e->getMessage(), [
+                                        'cid' => $cid,
+                                        'path' => $attachmentData['webdav_path']
+                                    ], 'warning');
+                                }
+                            }
+                        } else {
+                            // 文件夹导入的文件，记录日志但不删除物理文件
+                            MediaLibrary_Logger::log('delete', '文件夹导入的文件，仅删除数据库记录', [
+                                'cid' => $cid,
+                                'path' => $attachmentData['path']
+                            ]);
+                        }
                     }
                 }
+
+                // 删除数据库记录
+                $db->query($db->delete('table.contents')->where('cid = ?', $cid));
+                $deleteCount++;
             }
         }
 
@@ -170,7 +204,7 @@ class MediaLibrary_AjaxHandler
         ]);
         echo json_encode(['success' => true, 'message' => "成功删除 {$deleteCount} 个文件"], JSON_UNESCAPED_UNICODE);
     }
-
+    
     /**
      * 处理上传请求
      */

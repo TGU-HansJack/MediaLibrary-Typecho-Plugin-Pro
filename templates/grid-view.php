@@ -45,7 +45,13 @@
                         <?php echo htmlspecialchars($attachment['title']); ?>
                     </div>
                     <div class="media-meta">
-                        <?php echo $attachment['size']; ?> • <?php echo isset($attachment['modified']) ? date('m/d', $attachment['modified']) : ''; ?>
+                        <?php echo $attachment['size']; ?> • <?php echo isset($attachment['created']) ? date('m/d', $attachment['created']) : ''; ?>
+                        <?php if ($attachment['parent_post']['status'] === 'archived'): ?>
+                            • 已归档
+                        <?php endif; ?>
+                    </div>
+                    <div class="media-source-badge" data-source="<?php echo $attachment['source']; ?>">
+                        <?php echo $attachment['sourceLabel']; ?>
                     </div>
                 </div>
             </div>
