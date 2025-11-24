@@ -125,11 +125,7 @@ class MediaLibrary_AjaxHandler
         $webdavClient = null;
         if ($configOptions['enableWebDAV']) {
             try {
-                $webdavClient = new MediaLibrary_WebDAVClient(
-                    $configOptions['webdavUrl'],
-                    $configOptions['webdavUsername'],
-                    $configOptions['webdavPassword']
-                );
+                $webdavClient = new MediaLibrary_WebDAVClient($configOptions);
             } catch (Exception $e) {
                 // WebDAV 客户端初始化失败，继续使用本地删除
                 MediaLibrary_Logger::log('delete', 'WebDAV 客户端初始化失败: ' . $e->getMessage(), [], 'warning');
@@ -137,52 +133,108 @@ class MediaLibrary_AjaxHandler
         }
 
         $deleteCount = 0;
+        $failedCount = 0;
+        $failedFiles = [];
+
         foreach ($cids as $cid) {
             $cid = intval($cid);
             $attachment = $db->fetchRow($db->select()->from('table.contents')
                 ->where('cid = ? AND type = ?', $cid, 'attachment'));
 
-            if ($attachment) {
-                // 删除物理文件
-                if (isset($attachment['text'])) {
-                    $attachmentData = @unserialize($attachment['text']);
-                    if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+            if (!$attachment) {
+                $failedCount++;
+                $failedFiles[] = ['cid' => $cid, 'reason' => '文件记录不存在'];
+                continue;
+            }
 
-                        // 首先尝试删除本地文件
-                        if (file_exists($filePath)) {
-                            @unlink($filePath);
+            $fileDeleted = false;
+            $dbDeleted = false;
+
+            // 删除物理文件
+            if (isset($attachment['text'])) {
+                $attachmentData = @unserialize($attachment['text']);
+                if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+                    // 首先尝试删除本地文件
+                    if (file_exists($filePath)) {
+                        if (@unlink($filePath)) {
+                            $fileDeleted = true;
+                        } else {
+                            MediaLibrary_Logger::log('delete', '本地文件删除失败', [
+                                'cid' => $cid,
+                                'path' => $attachmentData['path']
+                            ], 'warning');
                         }
+                    } else {
+                        // 文件不存在，视为已删除
+                        $fileDeleted = true;
+                    }
 
-                        // 如果启用了 WebDAV，也尝试从 WebDAV 删除
-                        if ($webdavClient && isset($attachmentData['webdav_path'])) {
-                            try {
-                                $webdavClient->delete($attachmentData['webdav_path']);
-                                MediaLibrary_Logger::log('delete', 'WebDAV 文件删除成功', [
-                                    'cid' => $cid,
-                                    'path' => $attachmentData['webdav_path']
-                                ]);
-                            } catch (Exception $e) {
-                                MediaLibrary_Logger::log('delete', 'WebDAV 文件删除失败: ' . $e->getMessage(), [
-                                    'cid' => $cid,
-                                    'path' => $attachmentData['webdav_path']
-                                ], 'warning');
-                            }
+                    // 如果启用了 WebDAV，也尝试从 WebDAV 删除
+                    if ($webdavClient && isset($attachmentData['webdav_path'])) {
+                        try {
+                            $webdavClient->delete($attachmentData['webdav_path']);
+                            MediaLibrary_Logger::log('delete', 'WebDAV 文件删除成功', [
+                                'cid' => $cid,
+                                'path' => $attachmentData['webdav_path']
+                            ]);
+                        } catch (Exception $e) {
+                            MediaLibrary_Logger::log('delete', 'WebDAV 文件删除失败: ' . $e->getMessage(), [
+                                'cid' => $cid,
+                                'path' => $attachmentData['webdav_path']
+                            ], 'warning');
                         }
                     }
+                } else {
+                    // 如果无法解析附件数据，也继续删除数据库记录
+                    $fileDeleted = true;
                 }
+            } else {
+                // 没有文件数据，直接删除数据库记录
+                $fileDeleted = true;
+            }
 
-                // 删除数据库记录
+            // 删除数据库记录
+            try {
                 $db->query($db->delete('table.contents')->where('cid = ?', $cid));
+                $dbDeleted = true;
                 $deleteCount++;
+            } catch (Exception $e) {
+                MediaLibrary_Logger::log('delete', '数据库记录删除失败: ' . $e->getMessage(), [
+                    'cid' => $cid
+                ], 'error');
+                $failedCount++;
+                $failedFiles[] = [
+                    'cid' => $cid,
+                    'title' => isset($attachment['title']) ? $attachment['title'] : '未知',
+                    'reason' => '数据库删除失败: ' . $e->getMessage()
+                ];
             }
         }
 
         MediaLibrary_Logger::log('delete', '删除操作完成', [
             'requested_cids' => $cids,
-            'deleted' => $deleteCount
+            'deleted' => $deleteCount,
+            'failed' => $failedCount
         ]);
-        echo json_encode(['success' => true, 'message' => "成功删除 {$deleteCount} 个文件"], JSON_UNESCAPED_UNICODE);
+
+        if ($failedCount > 0) {
+            $message = "成功删除 {$deleteCount} 个文件，{$failedCount} 个文件删除失败";
+            echo json_encode([
+                'success' => $deleteCount > 0,
+                'message' => $message,
+                'deleted' => $deleteCount,
+                'failed' => $failedCount,
+                'failed_files' => $failedFiles
+            ], JSON_UNESCAPED_UNICODE);
+        } else {
+            echo json_encode([
+                'success' => true,
+                'message' => "成功删除 {$deleteCount} 个文件",
+                'deleted' => $deleteCount
+            ], JSON_UNESCAPED_UNICODE);
+        }
     }
     
     /**
@@ -255,11 +307,7 @@ class MediaLibrary_AjaxHandler
                 return ['success' => false, 'message' => 'WebDAV 未启用'];
             }
 
-            $client = new MediaLibrary_WebDAVClient(
-                $configOptions['webdavUrl'],
-                $configOptions['webdavUsername'],
-                $configOptions['webdavPassword']
-            );
+            $client = new MediaLibrary_WebDAVClient($configOptions);
 
             // 获取数据库和选项
             $db = Typecho_Db::get();
@@ -270,7 +318,7 @@ class MediaLibrary_AjaxHandler
             foreach ($files as $file) {
                 if (isset($file['tmp_name']) && isset($file['name'])) {
                     $fileName = $file['name'];
-                    $remotePath = $configOptions['webdavPath'] . '/' . $fileName;
+                    $remotePath = $configOptions['webdavBasePath'] . '/' . $fileName;
                     $content = file_get_contents($file['tmp_name']);
 
                     // 上传到 WebDAV

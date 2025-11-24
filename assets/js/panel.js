@@ -490,8 +490,23 @@ updateToolbarButtons: function() {
         }).join('&');
         
         xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4 && xhr.status === 200) {
-                location.reload();
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            alert(response.message || '删除成功');
+                            location.reload();
+                        } else {
+                            alert('删除失败: ' + (response.message || '未知错误'));
+                        }
+                    } catch (e) {
+                        alert('删除操作响应解析失败');
+                        console.error('Response parse error:', e, xhr.responseText);
+                    }
+                } else {
+                    alert('删除操作失败，服务器返回错误 (HTTP ' + xhr.status + ')');
+                }
             }
         };
         
