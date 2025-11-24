@@ -49,10 +49,11 @@ jobs:
           fi
 
           # 输出到环境变量
+          DELIMITER="EOF_CHANGELOG_$(date +%s)"
           {
-            echo 'CHANGELOG<<EOF'
+            echo "CHANGELOG<<${DELIMITER}"
             cat CHANGELOG.md
-            echo EOF
+            echo "${DELIMITER}"
           } >> $GITHUB_OUTPUT
 
       - name: Create plugin ZIP
