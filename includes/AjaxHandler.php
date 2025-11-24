@@ -880,6 +880,38 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
     {
         $path = $request->get('path', '/');
 
+        // 检查 WebDAV 是否已启用
+        if (empty($configOptions['enableWebDAV'])) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'WebDAV 功能未启用。请在插件设置中启用 WebDAV 同步存储。',
+                'need_config' => true
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // 检查本地 WebDAV 文件夹是否配置
+        if (empty($configOptions['webdavLocalPath'])) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'WebDAV 本地文件夹未配置。请在插件设置中填写"本地 WebDAV 文件夹路径"。',
+                'need_config' => true
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // 检查本地文件夹是否存在
+        $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+        if (!is_dir($localPath)) {
+            echo json_encode([
+                'success' => false,
+                'message' => '本地 WebDAV 文件夹不存在: ' . $localPath . '。请先创建此目录或修改配置。',
+                'need_create' => true,
+                'local_path' => $localPath
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
         try {
             $sync = new MediaLibrary_WebDAVSync($configOptions);
             $subPath = trim($path, '/');

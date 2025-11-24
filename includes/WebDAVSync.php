@@ -27,8 +27,18 @@ class MediaLibrary_WebDAVSync
 
         // 本地 WebDAV 文件夹路径
         $this->localPath = isset($config['webdavLocalPath']) ? rtrim($config['webdavLocalPath'], '/\\') : '';
-        if (empty($this->localPath) || !is_dir($this->localPath)) {
-            throw new Exception('本地 WebDAV 文件夹路径未配置或不存在');
+        if (empty($this->localPath)) {
+            throw new Exception('本地 WebDAV 文件夹路径未配置');
+        }
+
+        // 如果目录不存在，尝试创建
+        if (!is_dir($this->localPath)) {
+            if (!@mkdir($this->localPath, 0755, true)) {
+                throw new Exception('本地 WebDAV 文件夹不存在且无法自动创建: ' . $this->localPath);
+            }
+            MediaLibrary_Logger::log('webdav_init', '自动创建本地 WebDAV 文件夹', [
+                'path' => $this->localPath
+            ]);
         }
 
         // 远程路径

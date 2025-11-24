@@ -704,6 +704,11 @@ jQuery(function($) {
 
         // 默认值
         $defaultLocalPath = isset($optionConfig->webdavLocalPath) ? $optionConfig->webdavLocalPath : '';
+        // 如果未设置，提供推荐路径
+        if (empty($defaultLocalPath)) {
+            $defaultLocalPath = __TYPECHO_ROOT_DIR__ . '/usr/uploads/webdav';
+        }
+
         $defaultEndpoint = isset($optionConfig->webdavEndpoint) ? $optionConfig->webdavEndpoint : '';
         $defaultRemotePath = isset($optionConfig->webdavRemotePath) ? $optionConfig->webdavRemotePath : '/typecho';
         $defaultUsername = isset($optionConfig->webdavUsername) ? $optionConfig->webdavUsername : '';
@@ -732,7 +737,11 @@ jQuery(function($) {
 
         $webdavLocalPath = new Typecho_Widget_Helper_Form_Element_Text('webdavLocalPath', null, $defaultLocalPath,
             '本地 WebDAV 文件夹路径',
-            '服务器上的 WebDAV 文件夹绝对路径，例如 <code>/var/www/webdav</code> 或 <code>E:\webdav</code>。文件将先保存到此文件夹，然后同步到远程');
+            '服务器上的 WebDAV 文件夹绝对路径。<br>
+            推荐路径：<code>' . __TYPECHO_ROOT_DIR__ . '/usr/uploads/webdav</code><br>
+            Linux 示例：<code>/var/www/html/usr/uploads/webdav</code><br>
+            Windows Server 示例：<code>C:\www\usr\uploads\webdav</code><br>
+            文件夹不存在时会自动创建（需要目录写入权限）');
         $form->addInput($webdavLocalPath);
 
         // 远程配置
