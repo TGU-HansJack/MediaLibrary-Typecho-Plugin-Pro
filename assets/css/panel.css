@@ -464,7 +464,7 @@
 .media-pagination-fixed {
     position: fixed;
     bottom: 0;
-    left: 0;
+    left: var(--sidebar-width); /* 从左侧栏宽度开始，避免覆盖左侧栏 */
     right: 0;
     height: var(--pagination-height);
     background: var(--ml-card);
@@ -1655,6 +1655,7 @@
 
     /* 调整固定分页 */
     .media-pagination-fixed {
+        left: 0; /* 移动端恢复从0开始 */
         padding: var(--space-sm) var(--space-md);
     }
 
