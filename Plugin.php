@@ -1,7 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogAction.php';
-require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVServerAction.php';
 
 /**
  * 媒体库管理插件，可以在后台对整体文件信息的查看和编辑、上传和删除，图片压缩和隐私检测，多媒体预览，文章编辑器中预览和插入的简单媒体库
@@ -26,14 +25,11 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
         Helper::addAction('medialibrary-log', 'MediaLibrary_LogAction');
-
-        // 注册 WebDAV 服务器 Action
-        Helper::addAction('medialibrary-webdav', 'MediaLibrary_WebDAVServerAction');
-
+        
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
         Typecho_Plugin::factory('admin/write-page.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
-
+        
         return '媒体库插件激活成功！';
     }
 
@@ -50,10 +46,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         // 移除控制台菜单
         Helper::removePanel(3, 'MediaLibrary/panel.php');
         Helper::removeAction('medialibrary-log');
-
-        // 移除 WebDAV 服务器 Action
-        Helper::removeAction('medialibrary-webdav');
-
+        
         return '媒体库插件已禁用！';
     }
     
