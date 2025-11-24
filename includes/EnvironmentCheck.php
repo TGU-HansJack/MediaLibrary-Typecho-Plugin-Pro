@@ -9,7 +9,7 @@ class MediaLibrary_EnvironmentCheck
     /**
      * 插件版本号
      */
-    const PLUGIN_VERSION = 'pro_0.1.0';
+    const PLUGIN_VERSION = 'pro_0.1.1';
 
     /**
      * 检查系统环境
