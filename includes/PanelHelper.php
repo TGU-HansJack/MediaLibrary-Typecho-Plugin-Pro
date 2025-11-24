@@ -95,13 +95,22 @@ class MediaLibrary_PanelHelper
 
         // 存储类型筛选
         // WebDAV 文件在上传时会在 text 字段中添加 'storage' => 'webdav' 标记
+        $adapterName = method_exists($db, 'getAdapterName') ? strtolower($db->getAdapterName()) : 'unknown';
+        $supportsBinaryLike = strpos($adapterName, 'mysql') !== false;
+        $likeOperator = $supportsBinaryLike ? 'LIKE BINARY' : 'LIKE';
+        $notLikeOperator = $supportsBinaryLike ? 'NOT LIKE BINARY' : 'NOT LIKE';
+        $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
+
         if ($storage !== 'all') {
             if ($storage === 'webdav') {
                 // 筛选 WebDAV 文件：查找 text 字段包含 webdav 存储标记的文件
-                $select->where('table.contents.text LIKE ?', '%s:7:"storage";s:6:"webdav"%');
+                $select->where("table.contents.text {$likeOperator} ?", $webdavMarker);
             } elseif ($storage === 'local') {
-                // 筛选本地文件：排除带有 webdav 标记的文件
-                $select->where('table.contents.text NOT LIKE ?', '%s:7:"storage";s:6:"webdav"%');
+                // 筛选本地文件：排除带有 webdav 标记的文件，同时允许 text 为空
+                $select->where(
+                    "(table.contents.text IS NULL OR table.contents.text = '' OR table.contents.text {$notLikeOperator} ?)",
+                    $webdavMarker
+                );
             }
         }
 
