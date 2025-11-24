@@ -29,13 +29,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
         // 注册 WebDAV 服务器 Action
         Helper::addAction('medialibrary-webdav', 'MediaLibrary_WebDAVServerAction');
-        Helper::addRoute(
-            'medialibrary-webdav',
-            '/action/medialibrary-webdav',
-            'MediaLibrary_WebDAVServerAction',
-            'action',
-            'do'
-        );
 
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -60,7 +53,6 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
 
         // 移除 WebDAV 服务器 Action
         Helper::removeAction('medialibrary-webdav');
-        Helper::removeRoute('medialibrary-webdav');
 
         return '媒体库插件已禁用！';
     }

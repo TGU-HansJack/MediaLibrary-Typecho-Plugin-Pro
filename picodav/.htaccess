@@ -1,0 +1,22 @@
+DirectoryIndex disabled
+
+<IfModule mod_version.c>
+	<IfVersion >= 2.4.13>
+		# Force Apache to pass the Authorization header to PHP
+		# See https://github.com/kd2org/picodav/issues/14
+		CGIPassAuth On
+	</IfVersion>
+</IfModule>
+
+RedirectMatch 404 \.picodav\.ini
+
+RewriteEngine On
+RewriteBase /
+
+# Uncomment the following 2 lignes to make things a bit faster for
+# downloading files, AND you don't use PicoDAV users to manage access,
+# but a regular .htpasswd file and config for your web server.
+#RewriteCond %{REQUEST_FILENAME} !-f [OR]
+#RewriteCond %{REQUEST_METHOD} !GET
+
+RewriteRule ^.*$ /index.php [END]
