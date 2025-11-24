@@ -39,7 +39,7 @@ jobs:
             echo "" >> CHANGELOG.md
 
             # 获取两个标签之间的提交
-            git log ${{ steps.prev_tag.outputs.PREV_TAG }}..${{ steps.tag.outputs.TAG_NAME }} \
+            git log ${{ steps.prev_tag.outputs.PREV_TAG }}..HEAD \
               --pretty=format:"- %s (%h)" \
               --no-merges >> CHANGELOG.md
           else
