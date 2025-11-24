@@ -109,7 +109,7 @@ $totalPages = $total > 0 ? ceil($total / $pageSize) : 1;
 $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
 
 // 版本号控制 - 用于强制刷新缓存
-$cssVersion = '3.4.0'; // WebDAV 增强版本：添加侧边栏管理面板、并发同步、重命名检测等功能
+$cssVersion = '3.4.1'; // WebDAV 增强版本：添加侧边栏管理面板、并发同步、重命名检测等功能
 ?>
 
 <link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/panel.css?v=<?php echo $cssVersion; ?>">
