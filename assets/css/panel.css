@@ -99,8 +99,31 @@
     background: var(--ml-card);
     border-right: 1px solid var(--ml-border);
     overflow-y: auto;
+    overflow-x: hidden;
     flex-shrink: 0;
     height: 100%;
+    max-height: 100%;
+    /* 优化滚动体验 */
+    scrollbar-width: thin;
+    scrollbar-color: var(--ml-border) transparent;
+}
+
+/* WebKit 浏览器滚动条样式 */
+.media-sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.media-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.media-sidebar::-webkit-scrollbar-thumb {
+    background: var(--ml-border);
+    border-radius: 4px;
+}
+
+.media-sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--ml-border-dark);
 }
 
 .sidebar-section {
@@ -110,6 +133,8 @@
 
 .sidebar-section:last-child {
     border-bottom: none;
+    /* 为最后一个部分添加额外的底部内边距，防止被分页遮挡 */
+    padding-bottom: var(--space-xl);
 }
 
 .sidebar-title {
@@ -409,8 +434,30 @@
     margin: 0;
     padding: var(--space-lg);
     overflow-y: auto;
+    overflow-x: hidden;
     flex: 1;
     height: 100%;
+    /* 优化滚动体验 */
+    scrollbar-width: thin;
+    scrollbar-color: var(--ml-border) transparent;
+}
+
+/* WebKit 浏览器滚动条样式 */
+.media-panel-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.media-panel-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.media-panel-body::-webkit-scrollbar-thumb {
+    background: var(--ml-border);
+    border-radius: 4px;
+}
+
+.media-panel-body::-webkit-scrollbar-thumb:hover {
+    background: var(--ml-border-dark);
 }
 
 /* 固定底部分页 */
@@ -1562,9 +1609,10 @@
     .media-sidebar {
         width: 100%;
         height: auto;
+        max-height: 50vh; /* 限制移动端左侧栏的最大高度 */
         border-right: none;
         border-bottom: 1px solid var(--ml-border);
-        overflow-y: visible;
+        overflow-y: auto;
     }
 
     .media-main {
