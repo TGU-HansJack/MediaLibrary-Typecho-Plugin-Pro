@@ -100,6 +100,22 @@ class MediaLibrary_AjaxHandler
                 case 'webdav_test':
                     self::handleWebDAVTestAction($request, $configOptions);
                     break;
+                case 'webdav_sync_download':
+                    self::handleWebDAVSyncDownloadAction($request, $configOptions);
+                    break;
+
+                case 'webdav_sync_to_local':
+                    self::handleWebDAVSyncToLocalAction($request, $configOptions, $db);
+                    break;
+
+                case 'webdav_sync_from_local':
+                    self::handleWebDAVSyncFromLocalAction($request, $configOptions, $db);
+                    break;
+
+                case 'webdav_sync_all_local':
+                    self::handleWebDAVSyncAllLocalAction($request, $configOptions, $db);
+                    break;
+
 
                 // 以下 WebDAV 同步方法已移除，请使用新的 WebDAVSync 类
 
@@ -1612,92 +1628,46 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
      */
     private static function handleWebDAVSyncAllLocalAction($request, $configOptions, $db)
     {
-        if (!$configOptions['webdavSyncEnabled']) {
+        if (empty($configOptions['webdavSyncEnabled'])) {
             echo json_encode(['success' => false, 'message' => '同步功能未启用'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
+        if (empty($configOptions['enableWebDAV'])) {
+            echo json_encode(['success' => false, 'message' => 'WebDAV 功能未启用'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
         try {
-            $client = self::getWebDAVClient($configOptions);
-            $syncPath = $configOptions['webdavSyncPath'];
-
-            // 确保目标目录存在
-            try {
-                $client->createDirectory($syncPath);
-            } catch (Exception $e) {
-                // 目录可能已存在，忽略错误
-            }
-
-            // 获取所有未同步的附件
-            $attachments = $db->fetchAll($db->select()->from('table.contents')
-                ->where('type = ?', 'attachment')
-                ->where('status = ?', 'publish'));
-
-            $successCount = 0;
-            $failCount = 0;
-            $skippedCount = 0;
-            $errors = [];
-
-            foreach ($attachments as $attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
-                    $skippedCount++;
-                    continue;
-                }
-
-                // 跳过已同步的文件
-                if (!empty($attachmentData['webdav_synced'])) {
-                    $skippedCount++;
-                    continue;
-                }
-
-                $localPath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                if (!file_exists($localPath)) {
-                    $failCount++;
-                    $errors[] = ['cid' => $attachment['cid'], 'error' => '本地文件不存在'];
-                    continue;
-                }
-
-                try {
-                    $filename = basename($attachmentData['path']);
-                    $remotePath = rtrim($syncPath, '/') . '/' . $filename;
-                    $mime = isset($attachmentData['mime']) ? $attachmentData['mime'] : 'application/octet-stream';
-
-                    $client->uploadFile($remotePath, $localPath, $mime);
-
-                    // 更新数据库标记
-                    $attachmentData['webdav_synced'] = true;
-                    $attachmentData['webdav_path'] = $remotePath;
-                    $attachmentData['webdav_sync_time'] = time();
-
-                    $db->query($db->update('table.contents')
-                        ->rows(['text' => serialize($attachmentData)])
-                        ->where('cid = ?', $attachment['cid']));
-
-                    $successCount++;
-                } catch (Exception $e) {
-                    $failCount++;
-                    $errors[] = ['cid' => $attachment['cid'], 'error' => $e->getMessage()];
-                }
-            }
+            $sync = new MediaLibrary_WebDAVSync($configOptions);
+            $result = $sync->syncAllToRemote();
 
             MediaLibrary_Logger::log('webdav_sync_all_local', '批量同步完成', [
-                'success' => $successCount,
-                'failed' => $failCount,
-                'skipped' => $skippedCount,
-                'total' => count($attachments)
+                'total' => $result['total'],
+                'synced' => $result['synced'],
+                'failed' => $result['failed'],
+                'skipped' => $result['skipped'],
+                'renamed' => $result['renamed']
             ]);
+
+            $message = sprintf(
+                '同步完成：成功 %d 个，跳过 %d 个，失败 %d 个',
+                $result['synced'],
+                $result['skipped'],
+                $result['failed']
+            );
 
             echo json_encode([
                 'success' => true,
-                'message' => sprintf('同步完成：成功 %d 个，失败 %d 个，跳过 %d 个', $successCount, $failCount, $skippedCount),
+                'message' => $message,
                 'stats' => [
-                    'success' => $successCount,
-                    'failed' => $failCount,
-                    'skipped' => $skippedCount,
-                    'total' => count($attachments)
+                    'total' => $result['total'],
+                    'synced' => $result['synced'],
+                    'failed' => $result['failed'],
+                    'skipped' => $result['skipped'],
+                    'renamed' => $result['renamed']
                 ],
-                'errors' => $errors
+                'errors' => $result['errors']
             ], JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
             MediaLibrary_Logger::log('webdav_sync_all_local', '批量同步失败: ' . $e->getMessage(), [], 'error');

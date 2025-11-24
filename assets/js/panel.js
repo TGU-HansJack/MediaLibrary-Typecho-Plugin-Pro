@@ -2437,6 +2437,35 @@ var WebDAVManager = {
         }
     },
 
+    normalizeSyncStats: function(rawStats) {
+        rawStats = rawStats || {};
+
+        var toNumber = function(value, fallback) {
+            if (typeof value === 'number' && !isNaN(value)) {
+                return value;
+            }
+            if (typeof value === 'string' && value.trim() !== '') {
+                var parsed = parseInt(value, 10);
+                if (!isNaN(parsed)) {
+                    return parsed;
+                }
+            }
+            return fallback || 0;
+        };
+
+        var stats = {
+            synced: toNumber(rawStats.synced, toNumber(rawStats.success, 0)),
+            failed: toNumber(rawStats.failed, 0),
+            skipped: toNumber(rawStats.skipped, toNumber(rawStats.skip, toNumber(rawStats.skippedCount, 0))),
+            renamed: toNumber(rawStats.renamed, toNumber(rawStats.rename, 0))
+        };
+
+        var total = toNumber(rawStats.total, stats.synced + stats.failed + stats.skipped);
+        stats.total = total;
+
+        return stats;
+    },
+
     syncToLocal: function(path, name) {
         if (!confirm('确定要将 "' + name + '" 同步到本地媒体库吗？')) {
             return;
@@ -2514,37 +2543,40 @@ var WebDAVManager = {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
+                    var stats = self.normalizeSyncStats(response.stats);
+
                     // 更新主进度条
                     if (progressBar.length) {
                         progressFill.css('width', '100%');
                         progressText.text(response.message);
                     }
 
-                    // 更新侧边栏
+                    // 更新侧边栏进度
                     if (sidebarProgress.length) {
                         sidebarProgressBar.css('width', '100%');
-                        var stats = response.stats || {};
-                        var total = stats.total || 0;
-                        sidebarProgressCount.text(total + '/' + total);
+                        var completedTotal = stats.synced + stats.failed + stats.skipped;
+                        var totalCount = stats.total > 0 ? stats.total : completedTotal;
+                        var displayValue = totalCount || completedTotal || 0;
+                        sidebarProgressCount.text(displayValue + '/' + displayValue);
                         sidebarProgressDetail.text('同步完成');
 
                         // 显示结果
                         setTimeout(function() {
                             sidebarProgress.hide();
                             sidebarResult.removeClass('success error').addClass('success').show();
-                            sidebarResult.find('.result-icon').text('✅');
+                            sidebarResult.find('.result-icon').text('✓');
                             sidebarResult.find('.result-title').text('同步成功');
 
-                            var details = '已同步: ' + (stats.synced || 0) + ' | ' +
-                                         '跳过: ' + (stats.skipped || 0);
+                            var sidebarDetails = '已同步 ' + stats.synced + ' | ' +
+                                                '跳过: ' + stats.skipped;
                             if (stats.renamed) {
-                                details += ' | 重命名: ' + stats.renamed;
+                                sidebarDetails += ' | 重命名 ' + stats.renamed;
                             }
                             if (stats.failed) {
-                                details += ' | 失败: ' + stats.failed;
+                                sidebarDetails += ' | 失败: ' + stats.failed;
                             }
 
-                            sidebarResult.find('.result-details').text(details);
+                            sidebarResult.find('.result-details').text(sidebarDetails);
 
                             syncButton.prop('disabled', false).find('.btn-text').text('批量同步');
 
@@ -2555,20 +2587,20 @@ var WebDAVManager = {
                         }, 500);
                     }
 
-                    self.showFeedback('同步完成！', 'success');
+                    self.showFeedback('同步完成', 'success');
 
                     // 显示详细结果
                     if (response.stats) {
                         var details = '同步结果：\n' +
-                            '成功：' + (response.stats.synced || 0) + ' 个\n' +
-                            '失败：' + (response.stats.failed || 0) + ' 个\n' +
-                            '跳过：' + (response.stats.skipped || 0) + ' 个\n';
+                            '成功：' + stats.synced + ' 个\n' +
+                            '失败：' + stats.failed + ' 个\n' +
+                            '跳过：' + stats.skipped + ' 个\n';
 
-                        if (response.stats.renamed) {
-                            details += '重命名：' + response.stats.renamed + ' 个\n';
+                        if (stats.renamed) {
+                            details += '重命名：' + stats.renamed + ' 个\n';
                         }
 
-                        details += '总计：' + response.stats.total + ' 个';
+                        details += '总计：' + stats.total + ' 个';
 
                         if (response.errors && response.errors.length > 0) {
                             details += '\n\n失败详情：\n';
@@ -2582,13 +2614,13 @@ var WebDAVManager = {
 
                         alert(details);
                     }
-
                     // 3秒后隐藏主进度条
                     if (progressBar.length) {
                         setTimeout(function() {
                             progressBar.fadeOut();
                         }, 3000);
                     }
+
                 } else {
                     // 失败处理
                     if (progressBar.length) {
