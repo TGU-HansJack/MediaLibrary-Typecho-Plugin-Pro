@@ -42,6 +42,9 @@ jobs:
             git log ${{ steps.prev_tag.outputs.PREV_TAG }}..HEAD \
               --pretty=format:"- %s (%h)" \
               --no-merges >> CHANGELOG.md
+
+            # 确保文件以换行符结束
+            echo "" >> CHANGELOG.md
           else
             echo "## 更新内容" > CHANGELOG.md
             echo "" >> CHANGELOG.md
@@ -49,10 +52,15 @@ jobs:
           fi
 
           # 输出到环境变量
+          echo "=== Generated CHANGELOG.md ==="
+          cat CHANGELOG.md
+          echo "=== End of CHANGELOG.md ==="
+
           DELIMITER="EOF_CHANGELOG_$(date +%s)"
           {
             echo "CHANGELOG<<${DELIMITER}"
             cat CHANGELOG.md
+            echo ""
             echo "${DELIMITER}"
           } >> $GITHUB_OUTPUT
 
