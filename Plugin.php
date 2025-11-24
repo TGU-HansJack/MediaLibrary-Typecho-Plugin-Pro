@@ -25,6 +25,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
         Helper::addAction('medialibrary-log', 'MediaLibrary_LogAction');
+        Helper::addAction('media-library', 'MediaLibrary_Action');
 
         // 添加写作页面的媒体库组件
         Typecho_Plugin::factory('admin/write-post.php')->bottom = array('MediaLibrary_Plugin', 'addMediaLibraryToWritePage');
@@ -49,7 +50,8 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
         // 移除控制台菜单
         Helper::removePanel(3, 'MediaLibrary/panel.php');
         Helper::removeAction('medialibrary-log');
-        
+        Helper::removeAction('media-library');
+
         return '媒体库插件已禁用！';
     }
     
