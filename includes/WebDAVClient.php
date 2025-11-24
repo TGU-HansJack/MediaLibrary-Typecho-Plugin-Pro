@@ -110,12 +110,20 @@ class MediaLibrary_WebDAVClient
 
             $modifiedNode = $prop->xpath('d:getlastmodified');
             $modified = $modifiedNode && !empty($modifiedNode[0]) ? (string)$modifiedNode[0] : '';
+            $modifiedTimestamp = 0;
             if ($modified !== '') {
                 $timestamp = strtotime($modified);
                 if ($timestamp) {
+                    $modifiedTimestamp = $timestamp;
                     $modified = date('Y-m-d H:i', $timestamp);
                 }
             }
+
+            // 提取 ETag（用于目录剪枝优化）
+            $etagNode = $prop->xpath('d:getetag');
+            $etag = $etagNode && !empty($etagNode[0]) ? (string)$etagNode[0] : '';
+            // 移除 ETag 中的引号
+            $etag = trim($etag, '"');
 
             $items[] = [
                 'name' => $name,
@@ -124,6 +132,8 @@ class MediaLibrary_WebDAVClient
                 'size' => $size,
                 'mime' => $mime,
                 'modified' => $modified,
+                'modified_timestamp' => $modifiedTimestamp,
+                'etag' => $etag,
                 'public_url' => $this->buildPublicUrl($relative)
             ];
         }
@@ -176,6 +186,79 @@ class MediaLibrary_WebDAVClient
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
         $this->executeCurl($ch);
         return true;
+    }
+
+    /**
+     * 移动文件或目录（重命名）
+     * 使用 WebDAV MOVE 方法，参考 flymd 实现
+     *
+     * @param string $sourcePath 源路径
+     * @param string $destPath 目标路径
+     * @param bool $overwrite 是否覆盖目标文件（默认false）
+     * @return bool
+     */
+    public function move($sourcePath, $destPath, $overwrite = false)
+    {
+        $source = $this->normalizeRelativePath($sourcePath);
+        $dest = $this->normalizeRelativePath($destPath);
+
+        if ($source === '/') {
+            throw new Exception('不能移动根目录');
+        }
+
+        $sourceUrl = $this->buildUrl($source);
+        $destUrl = $this->buildUrl($dest);
+
+        $ch = $this->prepareCurl($sourceUrl);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'MOVE');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Destination: ' . $destUrl,
+            'Overwrite: ' . ($overwrite ? 'T' : 'F')
+        ));
+
+        try {
+            $this->executeCurl($ch);
+            return true;
+        } catch (Exception $e) {
+            // 如果 MOVE 失败，可能是跨服务器或服务不支持
+            throw new Exception('MOVE 操作失败: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * 复制文件或目录
+     * 使用 WebDAV COPY 方法
+     *
+     * @param string $sourcePath 源路径
+     * @param string $destPath 目标路径
+     * @param bool $overwrite 是否覆盖目标文件（默认false）
+     * @return bool
+     */
+    public function copy($sourcePath, $destPath, $overwrite = false)
+    {
+        $source = $this->normalizeRelativePath($sourcePath);
+        $dest = $this->normalizeRelativePath($destPath);
+
+        if ($source === '/') {
+            throw new Exception('不能复制根目录');
+        }
+
+        $sourceUrl = $this->buildUrl($source);
+        $destUrl = $this->buildUrl($dest);
+
+        $ch = $this->prepareCurl($sourceUrl);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'COPY');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Destination: ' . $destUrl,
+            'Overwrite: ' . ($overwrite ? 'T' : 'F')
+        ));
+
+        try {
+            $this->executeCurl($ch);
+            return true;
+        } catch (Exception $e) {
+            throw new Exception('COPY 操作失败: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -285,6 +368,150 @@ class MediaLibrary_WebDAVClient
     }
 
     /**
+     * 并发上传多个文件
+     * 参考 flymd 项目实现，使用 curl_multi 提升批量上传速度
+     *
+     * @param array $files 文件列表 [[remotePath => localPath, mime => mime], ...]
+     * @param int $concurrency 并发数量（默认5）
+     * @param callable $progressCallback 进度回调 function($completed, $total, $file)
+     * @return array 上传结果 ['success' => [...], 'failed' => [...]]
+     */
+    public function uploadFilesConcurrent($files, $concurrency = 5, $progressCallback = null)
+    {
+        if (empty($files)) {
+            return ['success' => [], 'failed' => []];
+        }
+
+        $result = [
+            'success' => [],
+            'failed' => []
+        ];
+
+        $total = count($files);
+        $completed = 0;
+
+        // 分批处理，每批最多 $concurrency 个文件
+        for ($i = 0; $i < $total; $i += $concurrency) {
+            $batch = array_slice($files, $i, $concurrency, true);
+            $batchResult = $this->uploadBatch($batch);
+
+            // 合并结果
+            $result['success'] = array_merge($result['success'], $batchResult['success']);
+            $result['failed'] = array_merge($result['failed'], $batchResult['failed']);
+
+            // 更新进度
+            $completed += count($batch);
+            if ($progressCallback) {
+                call_user_func($progressCallback, $completed, $total, null);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * 使用 curl_multi 批量上传文件
+     *
+     * @param array $batch 文件批次
+     * @return array 上传结果
+     */
+    private function uploadBatch($batch)
+    {
+        $result = [
+            'success' => [],
+            'failed' => []
+        ];
+
+        // 创建 curl_multi 句柄
+        $mh = curl_multi_init();
+        $handles = [];
+        $fileHandles = [];
+
+        // 为每个文件创建 curl 句柄
+        foreach ($batch as $key => $fileInfo) {
+            $remotePath = $fileInfo['remotePath'];
+            $localPath = $fileInfo['localPath'];
+            $mime = isset($fileInfo['mime']) ? $fileInfo['mime'] : 'application/octet-stream';
+
+            try {
+                // 验证本地文件存在
+                if (!file_exists($localPath)) {
+                    throw new Exception('本地文件不存在: ' . $localPath);
+                }
+
+                $target = $this->normalizeRelativePath($remotePath);
+                $url = $this->buildUrl($target);
+                $ch = $this->prepareCurl($url);
+                $fp = fopen($localPath, 'rb');
+
+                if (!$fp) {
+                    curl_close($ch);
+                    throw new Exception('无法读取文件: ' . $localPath);
+                }
+
+                curl_setopt($ch, CURLOPT_UPLOAD, true);
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+                curl_setopt($ch, CURLOPT_INFILE, $fp);
+                curl_setopt($ch, CURLOPT_INFILESIZE, filesize($localPath));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: ' . $mime));
+
+                // 添加到 multi handle
+                curl_multi_add_handle($mh, $ch);
+
+                // 保存句柄和文件句柄的映射
+                $handles[(int)$ch] = [
+                    'key' => $key,
+                    'remotePath' => $remotePath,
+                    'localPath' => $localPath,
+                    'ch' => $ch
+                ];
+                $fileHandles[(int)$ch] = $fp;
+
+            } catch (Exception $e) {
+                $result['failed'][] = [
+                    'file' => $remotePath,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        // 执行并发请求
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            curl_multi_select($mh, 1.0);
+        } while ($running > 0);
+
+        // 处理结果
+        foreach ($handles as $id => $info) {
+            $ch = $info['ch'];
+            $httpCode = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $error = curl_error($ch);
+
+            // 关闭文件句柄
+            if (isset($fileHandles[$id]) && is_resource($fileHandles[$id])) {
+                fclose($fileHandles[$id]);
+            }
+
+            if ($error || $httpCode >= 400) {
+                $result['failed'][] = [
+                    'file' => $info['remotePath'],
+                    'error' => $error ? $error : 'HTTP ' . $httpCode
+                ];
+            } else {
+                $result['success'][] = $info['remotePath'];
+            }
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
+
+        return $result;
+    }
+
+    /**
      * 发送 PROPFIND 请求
      */
     private function propfind($path, $depth = 1)
@@ -295,7 +522,7 @@ class MediaLibrary_WebDAVClient
         $body = '<?xml version="1.0" encoding="utf-8"?>'
             . '<d:propfind xmlns:d="DAV:">'
             . '<d:prop>'
-            . '<d:displayname/><d:resourcetype/><d:getcontentlength/><d:getcontenttype/><d:getlastmodified/>'
+            . '<d:displayname/><d:resourcetype/><d:getcontentlength/><d:getcontenttype/><d:getlastmodified/><d:getetag/>'
             . '</d:prop>'
             . '</d:propfind>';
 

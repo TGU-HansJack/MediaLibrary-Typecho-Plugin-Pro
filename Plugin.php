@@ -823,6 +823,22 @@ jQuery(function($) {
             '删除本地 WebDAV 文件夹中的文件时如何处理远程文件');
         $form->addInput($deleteStrategy);
 
+        // 定时同步配置
+        $syncInterval = new Typecho_Widget_Helper_Form_Element_Text('webdavSyncInterval',
+            null,
+            '3600',
+            '定时同步间隔（秒）',
+            '定时同步的最小间隔时间（秒），默认 3600 秒（1小时）。仅在选择"定时同步"模式时生效。');
+        $form->addInput($syncInterval);
+
+        $cronKey = new Typecho_Widget_Helper_Form_Element_Text('webdavCronKey',
+            null,
+            md5(uniqid(mt_rand(), true)),
+            'Cron 任务密钥',
+            '用于保护 cron 任务的密钥。如果通过 URL 触发同步任务，需要提供此密钥。例如：<br>' .
+            '<code>curl "' . Helper::options()->siteUrl . 'usr/plugins/MediaLibrary/cron-webdav-sync.php?key=YOUR_KEY"</code>');
+        $form->addInput($cronKey);
+
         // 测试连接按钮
         $testSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
         $testSection->html('

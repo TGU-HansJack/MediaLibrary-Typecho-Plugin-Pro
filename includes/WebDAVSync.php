@@ -300,7 +300,9 @@ class MediaLibrary_WebDAVSync
             'hash' => $hash,
             'size' => $fileSize,
             'mtime' => $mtime,
-            'syncTime' => time()
+            'syncTime' => time(),
+            'remoteMtime' => $mtime, // 远程文件的修改时间（预期与本地相同）
+            'remoteEtag' => '' // ETag 将在下次列表/同步时更新
         ];
 
         $this->saveMetadata($metadata);
@@ -435,12 +437,64 @@ class MediaLibrary_WebDAVSync
     }
 
     /**
-     * 批量同步所有本地文件到远程
+     * 检测文件重命名
+     * 参考 flymd 实现，通过哈希匹配识别重命名操作
+     *
+     * @param array $localIndex 当前本地文件索引
+     * @param array $metadata 元数据
+     * @return array 重命名映射 [oldPath => newPath, ...]
+     */
+    private function detectRenames($localIndex, $metadata)
+    {
+        $renamedPairs = [];
+
+        // 找出本地存在但元数据中没有的文件（新文件或重命名后的文件）
+        $localOnly = [];
+        foreach ($localIndex as $path => $info) {
+            if (!isset($metadata['files'][$path]) || $metadata['files'][$path]['syncTime'] == 0) {
+                $localOnly[$path] = $info;
+            }
+        }
+
+        // 找出元数据中存在但本地没有的文件（已删除或重命名前的文件）
+        $metadataOnly = [];
+        foreach ($metadata['files'] as $path => $info) {
+            if (!isset($localIndex[$path]) && $info['syncTime'] > 0) {
+                $metadataOnly[$path] = $info;
+            }
+        }
+
+        // 如果没有候选文件，直接返回
+        if (empty($localOnly) || empty($metadataOnly)) {
+            return $renamedPairs;
+        }
+
+        // 通过哈希匹配检测重命名
+        foreach ($localOnly as $newPath => $newFile) {
+            foreach ($metadataOnly as $oldPath => $oldFile) {
+                // 哈希相同且大小相同，很可能是重命名
+                if ($newFile['hash'] === $oldFile['hash'] && $newFile['size'] === $oldFile['size']) {
+                    $renamedPairs[$oldPath] = $newPath;
+
+                    // 从候选列表中移除已匹配的文件
+                    unset($metadataOnly[$oldPath]);
+                    break; // 找到匹配后跳出内层循环
+                }
+            }
+        }
+
+        return $renamedPairs;
+    }
+
+    /**
+     * 批量同步所有本地文件到远程（支持并发）
      *
      * @param callable $progressCallback 进度回调函数
+     * @param bool $useConcurrent 是否使用并发同步（默认true）
+     * @param int $concurrency 并发数量（默认5）
      * @return array 同步结果
      */
-    public function syncAllToRemote($progressCallback = null)
+    public function syncAllToRemote($progressCallback = null, $useConcurrent = true, $concurrency = 5)
     {
         if (!$this->webdavClient) {
             throw new Exception('WebDAV 客户端未初始化');
@@ -457,45 +511,215 @@ class MediaLibrary_WebDAVSync
             'synced' => 0,
             'skipped' => 0,
             'failed' => 0,
+            'renamed' => 0,
             'errors' => []
         ];
 
-        $current = 0;
-        foreach ($localIndex as $relativePath => $fileInfo) {
-            $current++;
+        // 重命名检测（参考 flymd 实现）
+        $renamedPairs = $this->detectRenames($localIndex, $metadata);
 
-            if ($progressCallback) {
-                call_user_func($progressCallback, $current, $result['total'], $relativePath);
+        // 处理重命名操作
+        foreach ($renamedPairs as $oldPath => $newPath) {
+            try {
+                MediaLibrary_Logger::log('webdav_sync', '检测到文件重命名', [
+                    'old' => $oldPath,
+                    'new' => $newPath
+                ]);
+
+                // 使用 MOVE 操作重命名远程文件
+                $this->webdavClient->move($oldPath, $newPath, true);
+
+                // 更新元数据
+                if (isset($metadata['files'][$oldPath])) {
+                    $metadata['files'][$newPath] = $metadata['files'][$oldPath];
+                    $metadata['files'][$newPath]['syncTime'] = time();
+                    unset($metadata['files'][$oldPath]);
+                }
+
+                $result['renamed']++;
+
+                MediaLibrary_Logger::log('webdav_sync', '文件重命名成功', [
+                    'old' => $oldPath,
+                    'new' => $newPath
+                ]);
+
+            } catch (Exception $e) {
+                MediaLibrary_Logger::log('webdav_sync_error', '文件重命名失败，将重新上传', [
+                    'old' => $oldPath,
+                    'new' => $newPath,
+                    'error' => $e->getMessage()
+                ], 'warning');
+
+                // MOVE 失败时，标记为需要重新上传
+                // 不增加失败计数，因为会在后续上传阶段处理
+            }
+        }
+
+        // 筛选需要同步的文件
+        $filesToSync = [];
+        foreach ($localIndex as $relativePath => $fileInfo) {
+            // 如果文件刚被重命名，跳过
+            if (isset($renamedPairs[$relativePath]) || in_array($relativePath, $renamedPairs)) {
+                continue;
             }
 
-            try {
-                // 检查是否需要同步
-                $needSync = true;
-                if (isset($metadata['files'][$relativePath])) {
-                    $lastFile = $metadata['files'][$relativePath];
-                    if ($lastFile['hash'] === $fileInfo['hash'] && $lastFile['syncTime'] > 0) {
-                        $needSync = false;
-                        $result['skipped']++;
+            // 检查是否需要同步
+            $needSync = true;
+            if (isset($metadata['files'][$relativePath])) {
+                $lastFile = $metadata['files'][$relativePath];
+                if ($lastFile['hash'] === $fileInfo['hash'] && $lastFile['syncTime'] > 0) {
+                    $needSync = false;
+                    $result['skipped']++;
+                }
+            }
+
+            if ($needSync) {
+                // 构建完整的本地路径
+                $localPath = $this->localPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+                // 检测 MIME 类型
+                $mime = 'application/octet-stream';
+                if (function_exists('mime_content_type')) {
+                    $detectedMime = @mime_content_type($localPath);
+                    if ($detectedMime) {
+                        $mime = $detectedMime;
+                    }
+                } elseif (function_exists('finfo_file')) {
+                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                    $detectedMime = @finfo_file($finfo, $localPath);
+                    finfo_close($finfo);
+                    if ($detectedMime) {
+                        $mime = $detectedMime;
                     }
                 }
 
-                if ($needSync) {
-                    $this->syncFileToRemote($relativePath);
-                    $result['synced']++;
-                }
-            } catch (Exception $e) {
-                $result['failed']++;
-                $result['errors'][] = [
-                    'file' => $relativePath,
-                    'error' => $e->getMessage()
+                $filesToSync[$relativePath] = [
+                    'remotePath' => $relativePath,
+                    'localPath' => $localPath,
+                    'mime' => $mime,
+                    'hash' => $fileInfo['hash'],
+                    'size' => $fileInfo['size'],
+                    'mtime' => $fileInfo['mtime']
                 ];
-
-                MediaLibrary_Logger::log('webdav_sync_error', '同步文件失败', [
-                    'file' => $relativePath,
-                    'error' => $e->getMessage()
-                ], 'error');
             }
         }
+
+        // 如果没有文件需要同步，直接返回
+        if (empty($filesToSync)) {
+            return $result;
+        }
+
+        // 使用并发同步或顺序同步
+        if ($useConcurrent && count($filesToSync) > 1) {
+            // 并发同步模式
+            MediaLibrary_Logger::log('webdav_sync', "开始并发同步，共 " . count($filesToSync) . " 个文件，并发数: {$concurrency}");
+
+            try {
+                // 确保远程目录存在
+                $remoteDirs = [];
+                foreach ($filesToSync as $file) {
+                    $dir = dirname($file['remotePath']);
+                    if ($dir !== '.' && $dir !== '/' && !isset($remoteDirs[$dir])) {
+                        $remoteDirs[$dir] = true;
+                        try {
+                            $this->webdavClient->createDirectory($dir);
+                        } catch (Exception $e) {
+                            // 目录可能已存在，忽略错误
+                        }
+                    }
+                }
+
+                // 准备并发上传的文件列表
+                $uploadFiles = [];
+                foreach ($filesToSync as $relativePath => $file) {
+                    $uploadFiles[] = [
+                        'remotePath' => $file['remotePath'],
+                        'localPath' => $file['localPath'],
+                        'mime' => $file['mime']
+                    ];
+                }
+
+                // 执行并发上传
+                $uploadResult = $this->webdavClient->uploadFilesConcurrent(
+                    $uploadFiles,
+                    $concurrency,
+                    function($completed, $total, $file) use ($progressCallback) {
+                        if ($progressCallback) {
+                            call_user_func($progressCallback, $completed, $total, $file);
+                        }
+                    }
+                );
+
+                // 处理上传结果
+                foreach ($uploadResult['success'] as $remotePath) {
+                    if (isset($filesToSync[$remotePath])) {
+                        $file = $filesToSync[$remotePath];
+
+                        // 更新元数据
+                        $metadata['files'][$remotePath] = [
+                            'hash' => $file['hash'],
+                            'size' => $file['size'],
+                            'mtime' => $file['mtime'],
+                            'syncTime' => time()
+                        ];
+
+                        $result['synced']++;
+                    }
+                }
+
+                foreach ($uploadResult['failed'] as $failedFile) {
+                    $result['failed']++;
+                    $result['errors'][] = [
+                        'file' => $failedFile['file'],
+                        'error' => $failedFile['error']
+                    ];
+
+                    MediaLibrary_Logger::log('webdav_sync_error', '并发同步文件失败', [
+                        'file' => $failedFile['file'],
+                        'error' => $failedFile['error']
+                    ], 'error');
+                }
+
+            } catch (Exception $e) {
+                MediaLibrary_Logger::log('webdav_sync_error', '并发同步失败，回退到顺序同步', [
+                    'error' => $e->getMessage()
+                ], 'warning');
+
+                // 回退到顺序同步
+                $useConcurrent = false;
+            }
+        }
+
+        // 顺序同步模式（作为回退或小文件量时使用）
+        if (!$useConcurrent) {
+            $current = 0;
+            foreach ($filesToSync as $relativePath => $file) {
+                $current++;
+
+                if ($progressCallback) {
+                    call_user_func($progressCallback, $current, count($filesToSync), $relativePath);
+                }
+
+                try {
+                    $this->syncFileToRemote($relativePath);
+                    $result['synced']++;
+                } catch (Exception $e) {
+                    $result['failed']++;
+                    $result['errors'][] = [
+                        'file' => $relativePath,
+                        'error' => $e->getMessage()
+                    ];
+
+                    MediaLibrary_Logger::log('webdav_sync_error', '同步文件失败', [
+                        'file' => $relativePath,
+                        'error' => $e->getMessage()
+                    ], 'error');
+                }
+            }
+        }
+
+        // 保存元数据
+        $this->saveMetadata($metadata);
 
         return $result;
     }
