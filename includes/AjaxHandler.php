@@ -2170,9 +2170,8 @@ class MediaLibrary_AjaxHandler
     {
         $filePath = $request->get('file');
         $quality = intval($request->get('quality', 80));
-        $compressMethod = $request->get('compress_method', 'gd');
-        $replaceOriginal = $request->get('replace_original', 'true') === 'true';
-        $outputFormat = $request->get('output_format', 'original');
+        $method = $request->get('method', 'gd');
+        $replaceOriginal = $request->get('replaceOriginal', 'true') === 'true';
 
         if (empty($filePath)) {
             echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
@@ -2189,16 +2188,8 @@ class MediaLibrary_AjaxHandler
                 return;
             }
 
-            // 使用新的直接处理文件路径的方法
-            $result = MediaLibrary_ImageProcessing::compressImageByPath($fullPath, $quality, $compressMethod, $replaceOriginal, $outputFormat);
-
-            MediaLibrary_Logger::log('local_compress_image', $result['message'], [
-                'file' => $filePath,
-                'quality' => $quality,
-                'method' => $compressMethod,
-                'replace_original' => $replaceOriginal,
-                'output_format' => $outputFormat
-            ], !empty($result['success']) ? 'info' : 'error');
+            $imageProcessor = new MediaLibrary_ImageProcessing($configOptions);
+            $result = $imageProcessor->compressImage($fullPath, $quality, $method, $replaceOriginal);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
@@ -2214,16 +2205,12 @@ class MediaLibrary_AjaxHandler
      */
     private static function handleLocalCropImageAction($request)
     {
-        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
-
         $filePath = $request->get('file');
         $x = intval($request->get('x', 0));
         $y = intval($request->get('y', 0));
         $width = intval($request->get('width', 100));
         $height = intval($request->get('height', 100));
-        $replaceOriginal = $request->get('replace_original', 'true') === 'true';
-        $customName = $request->get('custom_name', '');
-        $useLibrary = $request->get('use_library', 'gd');
+        $replaceOriginal = $request->get('replaceOriginal', 'true') === 'true';
 
         if (empty($filePath)) {
             echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
@@ -2240,17 +2227,8 @@ class MediaLibrary_AjaxHandler
                 return;
             }
 
-            // 使用新的直接处理文件路径的方法
-            $result = MediaLibrary_ImageEditor::cropImageByPath($fullPath, $x, $y, $width, $height, $replaceOriginal, $customName, $useLibrary);
-
-            MediaLibrary_Logger::log('local_crop_image', $result['message'], [
-                'file' => $filePath,
-                'x' => $x,
-                'y' => $y,
-                'width' => $width,
-                'height' => $height,
-                'replace_original' => $replaceOriginal
-            ], !empty($result['success']) ? 'info' : 'error');
+            $imageProcessor = new MediaLibrary_ImageProcessing([]);
+            $result = $imageProcessor->cropImage($fullPath, $x, $y, $width, $height, $replaceOriginal);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
@@ -2266,12 +2244,11 @@ class MediaLibrary_AjaxHandler
      */
     private static function handleLocalAddWatermarkAction($request)
     {
-        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
-
         $filePath = $request->get('file');
-        $replaceOriginal = $request->get('replace_original', 'true') === 'true';
-        $customName = $request->get('custom_name', '');
-        $useLibrary = $request->get('use_library', 'gd');
+        $text = $request->get('text', '');
+        $position = $request->get('position', 'bottom-right');
+        $opacity = intval($request->get('opacity', 50));
+        $replaceOriginal = $request->get('replaceOriginal', 'true') === 'true';
 
         if (empty($filePath)) {
             echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
@@ -2288,35 +2265,8 @@ class MediaLibrary_AjaxHandler
                 return;
             }
 
-            // 收集水印配置
-            $watermarkConfig = [];
-            $watermarkConfig['type'] = $request->get('watermark_type', 'text');
-            $watermarkConfig['position'] = $request->get('watermark_position', 'bottom-right');
-            $watermarkConfig['x'] = intval($request->get('watermark_x', 10));
-            $watermarkConfig['y'] = intval($request->get('watermark_y', 10));
-            $watermarkConfig['opacity'] = intval($request->get('watermark_opacity', 70));
-
-            if ($watermarkConfig['type'] === 'text') {
-                $watermarkConfig['text'] = self::sanitizeWatermarkText($request->get('watermark_text', ''));
-                $watermarkConfig['fontSize'] = intval($request->get('watermark_font_size', 24));
-                $watermarkConfig['color'] = $request->get('watermark_color', '#ffffff');
-                $watermarkConfig['preset'] = $request->get('watermark_preset', '');
-                $fontName = $request->get('watermark_font', 'msyh.ttf');
-                $watermarkConfig['fontPath'] = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/fonts/' . $fontName;
-            } elseif ($watermarkConfig['type'] === 'image') {
-                $watermarkImage = $request->get('watermark_image', 'logo.png');
-                $watermarkConfig['imagePath'] = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/assets/images/' . $watermarkImage;
-                $watermarkConfig['scale'] = floatval($request->get('watermark_scale', 1));
-            }
-
-            // 使用新的直接处理文件路径的方法
-            $result = MediaLibrary_ImageEditor::addWatermarkByPath($fullPath, $watermarkConfig, $replaceOriginal, $customName, $useLibrary);
-
-            MediaLibrary_Logger::log('local_add_watermark', $result['message'], [
-                'file' => $filePath,
-                'config' => $watermarkConfig,
-                'replace_original' => $replaceOriginal
-            ], !empty($result['success']) ? 'info' : 'error');
+            $imageProcessor = new MediaLibrary_ImageProcessing([]);
+            $result = $imageProcessor->addWatermark($fullPath, $text, $position, $opacity, $replaceOriginal);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
