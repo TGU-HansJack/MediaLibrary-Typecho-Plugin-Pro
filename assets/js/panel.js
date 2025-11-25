@@ -1153,6 +1153,12 @@ checkPrivacy: function() {
     
     var cids = selectedImages.map(function(item) { return item.cid; });
     
+    var privacyBtn = document.getElementById('privacy-btn');
+    if (privacyBtn) {
+        privacyBtn.disabled = true;
+        privacyBtn.textContent = '检测中...';
+    }
+
     var xhr = new XMLHttpRequest();
     xhr.open('POST', currentUrl, true);
     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -1166,6 +1172,11 @@ checkPrivacy: function() {
     
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4) {
+            if (privacyBtn) {
+                privacyBtn.disabled = false;
+                privacyBtn.textContent = '隐私检测 (' + selectedImages.length + ')';
+            }
+
             if (xhr.status === 200) {
                 try {
                     var response = JSON.parse(xhr.responseText);
@@ -1261,12 +1272,20 @@ checkPrivacy: function() {
             }
         }
     };
-    
+
     xhr.ontimeout = function() {
+        if (privacyBtn) {
+            privacyBtn.disabled = false;
+            privacyBtn.textContent = '隐私检测 (' + selectedImages.length + ')';
+        }
         alert('请求超时，请重试');
     };
-    
+
     xhr.onerror = function() {
+        if (privacyBtn) {
+            privacyBtn.disabled = false;
+            privacyBtn.textContent = '隐私检测 (' + selectedImages.length + ')';
+        }
         alert('网络错误，请检查网络连接');
     };
     
