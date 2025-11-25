@@ -256,12 +256,12 @@ class MediaLibrary_WebDAVSync
             'size_human' => $this->formatFileSize($fileSize)
         ]);
 
-        // 构建远程路径
-        $remotePath = $this->remotePath . '/' . ltrim($relativePath, '/');
+        // 构建远程路径，确保包含配置的远程根目录
+        $remotePath = $this->buildRemoteEntryPath($relativePath);
 
         // 确保远程目录存在
         $remoteDir = dirname($remotePath);
-        if ($remoteDir !== '.' && $remoteDir !== '/') {
+        if ($remoteDir !== '.' && $remoteDir !== '/' && $remoteDir !== '') {
             MediaLibrary_Logger::log('webdav_sync', '确保远程目录存在', [
                 'dir' => $remoteDir
             ]);
@@ -332,7 +332,7 @@ class MediaLibrary_WebDAVSync
         }
 
         // 构建远程路径
-        $remotePath = $this->remotePath . '/' . ltrim($relativePath, '/');
+        $remotePath = $this->buildRemoteEntryPath($relativePath);
 
         MediaLibrary_Logger::log('webdav_delete', '开始删除远程文件', [
             'file' => $relativePath,
@@ -527,7 +527,11 @@ class MediaLibrary_WebDAVSync
                 ]);
 
                 // 使用 MOVE 操作重命名远程文件
-                $this->webdavClient->move($oldPath, $newPath, true);
+                $this->webdavClient->move(
+                    $this->buildRemoteEntryPath($oldPath),
+                    $this->buildRemoteEntryPath($newPath),
+                    true
+                );
 
                 // 更新元数据
                 if (isset($metadata['files'][$oldPath])) {
@@ -594,7 +598,7 @@ class MediaLibrary_WebDAVSync
                 }
 
                 $filesToSync[$relativePath] = [
-                    'remotePath' => $relativePath,
+                    'remoteEntryPath' => $this->buildRemoteEntryPath($relativePath),
                     'localPath' => $localPath,
                     'mime' => $mime,
                     'hash' => $fileInfo['hash'],
@@ -617,9 +621,14 @@ class MediaLibrary_WebDAVSync
             try {
                 // 确保远程目录存在
                 $remoteDirs = [];
-                foreach ($filesToSync as $file) {
-                    $dir = dirname($file['remotePath']);
-                    if ($dir !== '.' && $dir !== '/' && !isset($remoteDirs[$dir])) {
+                $remotePathMap = [];
+                foreach ($filesToSync as $relativePath => $file) {
+                    $dir = dirname($file['remoteEntryPath']);
+                    if ($dir === '.' || $dir === '') {
+                        $dir = $this->buildRemoteEntryPath('');
+                    }
+
+                    if ($dir !== '/' && $dir !== '' && !isset($remoteDirs[$dir])) {
                         $remoteDirs[$dir] = true;
                         try {
                             $this->webdavClient->createDirectory($dir);
@@ -627,13 +636,15 @@ class MediaLibrary_WebDAVSync
                             // 目录可能已存在，忽略错误
                         }
                     }
+
+                    $remotePathMap[$file['remoteEntryPath']] = $relativePath;
                 }
 
                 // 准备并发上传的文件列表
                 $uploadFiles = [];
-                foreach ($filesToSync as $relativePath => $file) {
+                foreach ($filesToSync as $file) {
                     $uploadFiles[] = [
-                        'remotePath' => $file['remotePath'],
+                        'remotePath' => $file['remoteEntryPath'],
                         'localPath' => $file['localPath'],
                         'mime' => $file['mime']
                     ];
@@ -652,30 +663,42 @@ class MediaLibrary_WebDAVSync
 
                 // 处理上传结果
                 foreach ($uploadResult['success'] as $remotePath) {
-                    if (isset($filesToSync[$remotePath])) {
-                        $file = $filesToSync[$remotePath];
-
-                        // 更新元数据
-                        $metadata['files'][$remotePath] = [
-                            'hash' => $file['hash'],
-                            'size' => $file['size'],
-                            'mtime' => $file['mtime'],
-                            'syncTime' => time()
-                        ];
-
-                        $result['synced']++;
+                    if (!isset($remotePathMap[$remotePath])) {
+                        continue;
                     }
+
+                    $relativePath = $remotePathMap[$remotePath];
+                    if (!isset($filesToSync[$relativePath])) {
+                        continue;
+                    }
+
+                    $file = $filesToSync[$relativePath];
+
+                    // 更新元数据
+                    $metadata['files'][$relativePath] = [
+                        'hash' => $file['hash'],
+                        'size' => $file['size'],
+                        'mtime' => $file['mtime'],
+                        'syncTime' => time()
+                    ];
+
+                    $result['synced']++;
                 }
 
                 foreach ($uploadResult['failed'] as $failedFile) {
+                    $relativePath = isset($remotePathMap[$failedFile['file']])
+                        ? $remotePathMap[$failedFile['file']]
+                        : $failedFile['file'];
+
                     $result['failed']++;
                     $result['errors'][] = [
-                        'file' => $failedFile['file'],
+                        'file' => $relativePath,
                         'error' => $failedFile['error']
                     ];
 
                     MediaLibrary_Logger::log('webdav_sync_error', '并发同步文件失败', [
-                        'file' => $failedFile['file'],
+                        'file' => $relativePath,
+                        'remote_path' => $failedFile['file'],
                         'error' => $failedFile['error']
                     ], 'error');
                 }
@@ -875,6 +898,28 @@ class MediaLibrary_WebDAVSync
         } else {
             return $bytes . ' B';
         }
+    }
+
+    /**
+     * 构建包含远程根目录的路径
+     *
+     * @param string $relativePath 本地相对路径
+     * @return string 远程路径
+     */
+    private function buildRemoteEntryPath($relativePath)
+    {
+        $relativePath = ltrim((string)$relativePath, '/');
+        $remoteRoot = trim((string)$this->remotePath, '/');
+
+        if ($remoteRoot === '') {
+            return $relativePath === '' ? '/' : '/' . $relativePath;
+        }
+
+        if ($relativePath === '') {
+            return $remoteRoot;
+        }
+
+        return $remoteRoot . '/' . $relativePath;
     }
 
     /**
