@@ -1218,9 +1218,16 @@
     height: 90vh !important;
 }
 
+.preview-modal .modal-dialog.document-preview .modal-content {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
 .preview-modal .modal-dialog.document-preview .modal-body {
     padding: 0 !important;
-    height: calc(100% - 60px) !important;
+    flex: 1 !important;
+    min-height: 0 !important;
 }
 
 .preview-modal .modal-dialog.document-preview iframe {
