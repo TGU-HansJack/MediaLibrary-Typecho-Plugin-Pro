@@ -892,6 +892,9 @@ class MediaLibrary_PanelHelper
 
         $value = $config->$key;
         if (is_array($value)) {
+            if (empty($value)) {
+                return $default;
+            }
             return in_array('1', $value);
         }
 
