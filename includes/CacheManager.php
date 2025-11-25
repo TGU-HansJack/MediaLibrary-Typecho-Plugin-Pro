@@ -32,19 +32,34 @@ class MediaLibrary_CacheManager
      */
     public static function init()
     {
-        self::$cacheDir = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/cache';
+        try {
+            // 确保 __TYPECHO_ROOT_DIR__ 已定义
+            if (!defined('__TYPECHO_ROOT_DIR__')) {
+                self::$cacheDir = sys_get_temp_dir() . '/medialibrary_cache';
+            } else {
+                self::$cacheDir = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/cache';
+            }
 
-        // 确保缓存目录存在
-        if (!is_dir(self::$cacheDir)) {
-            @mkdir(self::$cacheDir, 0755, true);
-        }
-
-        // 如果目录创建失败，使用临时目录
-        if (!is_dir(self::$cacheDir) || !is_writable(self::$cacheDir)) {
-            self::$cacheDir = sys_get_temp_dir() . '/medialibrary_cache';
+            // 确保缓存目录存在
             if (!is_dir(self::$cacheDir)) {
                 @mkdir(self::$cacheDir, 0755, true);
             }
+
+            // 如果目录创建失败，使用临时目录
+            if (!is_dir(self::$cacheDir) || !is_writable(self::$cacheDir)) {
+                self::$cacheDir = sys_get_temp_dir() . '/medialibrary_cache';
+                if (!is_dir(self::$cacheDir)) {
+                    @mkdir(self::$cacheDir, 0755, true);
+                }
+            }
+
+            // 最后的fallback：如果还是失败，使用系统临时目录本身
+            if (!is_dir(self::$cacheDir) || !is_writable(self::$cacheDir)) {
+                self::$cacheDir = sys_get_temp_dir();
+            }
+        } catch (Exception $e) {
+            // 如果初始化完全失败，使用系统临时目录
+            self::$cacheDir = sys_get_temp_dir();
         }
     }
 
@@ -57,24 +72,28 @@ class MediaLibrary_CacheManager
      */
     public static function getCachePath($cacheType, $suffix = '')
     {
-        if (self::$cacheDir === null) {
-            self::init();
-        }
+        try {
+            if (self::$cacheDir === null) {
+                self::init();
+            }
 
-        if (!isset(self::$cacheConfig[$cacheType])) {
+            if (!isset(self::$cacheConfig[$cacheType])) {
+                return null;
+            }
+
+            $filename = self::$cacheConfig[$cacheType];
+
+            // 替换占位符
+            if (!empty($suffix)) {
+                $filename = str_replace('{storage}', $suffix, $filename);
+            } else {
+                $filename = str_replace('-{storage}', '', $filename);
+            }
+
+            return self::$cacheDir . '/' . $filename;
+        } catch (Exception $e) {
             return null;
         }
-
-        $filename = self::$cacheConfig[$cacheType];
-
-        // 替换占位符
-        if (!empty($suffix)) {
-            $filename = str_replace('{storage}', $suffix, $filename);
-        } else {
-            $filename = str_replace('-{storage}', '', $filename);
-        }
-
-        return self::$cacheDir . '/' . $filename;
     }
 
     /**

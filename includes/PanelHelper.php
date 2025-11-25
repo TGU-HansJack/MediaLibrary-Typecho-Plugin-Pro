@@ -702,15 +702,23 @@ class MediaLibrary_PanelHelper
     public static function getTypeStatistics($db, $storage = 'all')
     {
         // 尝试从缓存读取
-        $cached = MediaLibrary_CacheManager::get('type-stats', $storage);
-        if ($cached !== null) {
-            return $cached;
+        try {
+            $cached = MediaLibrary_CacheManager::get('type-stats', $storage);
+            if ($cached !== null) {
+                return $cached;
+            }
+        } catch (Exception $e) {
+            // 缓存读取失败，继续执行数据库查询
         }
 
         // WebDAV 存储：统计本地 WebDAV 文件夹的文件
         if ($storage === 'webdav') {
             $stats = self::getWebDAVFolderTypeStatistics();
-            MediaLibrary_CacheManager::set('type-stats', $stats, $storage);
+            try {
+                MediaLibrary_CacheManager::set('type-stats', $stats, $storage);
+            } catch (Exception $e) {
+                // 缓存写入失败，不影响返回结果
+            }
             return $stats;
         }
 
@@ -765,7 +773,11 @@ class MediaLibrary_PanelHelper
         $statistics['document'] = $db->fetchObject($documentQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
 
         // 缓存结果
-        MediaLibrary_CacheManager::set('type-stats', $statistics, $storage);
+        try {
+            MediaLibrary_CacheManager::set('type-stats', $statistics, $storage);
+        } catch (Exception $e) {
+            // 缓存写入失败，不影响返回结果
+        }
 
         return $statistics;
     }
