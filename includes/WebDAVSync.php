@@ -794,12 +794,7 @@ class MediaLibrary_WebDAVSync
      */
     public function deleteLocalFile($relativePath)
     {
-        $normalizedRelativePath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath), DIRECTORY_SEPARATOR);
-        if ($normalizedRelativePath === '') {
-            return false;
-        }
-
-        $localFile = $this->localPath . DIRECTORY_SEPARATOR . $normalizedRelativePath;
+        $localFile = $this->localPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
 
         if (!file_exists($localFile)) {
             return true; // 文件不存在，视为删除成功
