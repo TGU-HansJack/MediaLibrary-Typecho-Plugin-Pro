@@ -1156,8 +1156,9 @@ showImageCompressModal: function() {
     },
     
 checkPrivacy: function() {
+    var self = this;
     var selectedImages = this.selectedItems.filter(function(item) {
-        return item.isImage && !item.isWebDAV;
+        return item.isImage && !self.isWebDAVFile(item);
     });
     
     if (selectedImages.length === 0) {
