@@ -41,35 +41,35 @@
             <ul class="filter-list">
                 <li class="filter-item <?php echo $type === 'all' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=all&page=1" class="filter-link">
-                        <span class="filter-icon">📄</span>
+                        <i class="filter-icon fas fa-file"></i>
                         <span class="filter-name">所有文件</span>
                         <span class="filter-count"><?php echo number_format($total); ?></span>
                     </a>
                 </li>
                 <li class="filter-item <?php echo $type === 'image' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=image&page=1" class="filter-link">
-                        <span class="filter-icon">🖼️</span>
+                        <i class="filter-icon fas fa-image"></i>
                         <span class="filter-name">图片</span>
                         <span class="filter-count"><?php echo number_format($typeStatistics['image']); ?></span>
                     </a>
                 </li>
                 <li class="filter-item <?php echo $type === 'video' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=video&page=1" class="filter-link">
-                        <span class="filter-icon">🎬</span>
+                        <i class="filter-icon fas fa-video"></i>
                         <span class="filter-name">视频</span>
                         <span class="filter-count"><?php echo number_format($typeStatistics['video']); ?></span>
                     </a>
                 </li>
                 <li class="filter-item <?php echo $type === 'audio' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=audio&page=1" class="filter-link">
-                        <span class="filter-icon">🎵</span>
+                        <i class="filter-icon fas fa-music"></i>
                         <span class="filter-name">音频</span>
                         <span class="filter-count"><?php echo number_format($typeStatistics['audio']); ?></span>
                     </a>
                 </li>
                 <li class="filter-item <?php echo $type === 'document' ? 'active' : ''; ?>">
                     <a href="<?php echo $currentUrl; ?>&type=document&page=1" class="filter-link">
-                        <span class="filter-icon">📝</span>
+                        <i class="filter-icon fas fa-file-alt"></i>
                         <span class="filter-name">文档</span>
                         <span class="filter-count"><?php echo number_format($typeStatistics['document']); ?></span>
                     </a>
@@ -144,12 +144,12 @@
             <!-- 同步操作按钮 -->
             <div class="webdav-actions">
                 <button type="button" id="webdav-sync-all-btn" class="webdav-action-btn primary-btn" title="同步所有本地文件到 WebDAV">
-                    <span class="btn-icon">🔄</span>
+                    <i class="btn-icon fas fa-sync"></i>
                     <span class="btn-text">批量同步</span>
                 </button>
 
                 <button type="button" id="webdav-test-connection-btn" class="webdav-action-btn secondary-btn" title="测试 WebDAV 连接">
-                    <span class="btn-icon">🔌</span>
+                    <i class="btn-icon fas fa-plug"></i>
                     <span class="btn-text">测试连接</span>
                 </button>
             </div>

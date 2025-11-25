@@ -2,6 +2,7 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/CacheManager.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
 
 /**
  * 面板助手类 - 处理面板显示逻辑
@@ -17,14 +18,37 @@ class MediaLibrary_PanelHelper
     {
         try {
             $config = Helper::options()->plugin('MediaLibrary');
-            // 兼容复选框和旧版本配置
-            $enableGetID3 = is_array($config->enableGetID3) ? in_array('1', $config->enableGetID3) : ($config->enableGetID3 == '1');
-            $enableExif = is_array($config->enableExif) ? in_array('1', $config->enableExif) : ($config->enableExif == '1');
-            $enableGD = is_array($config->enableGD) ? in_array('1', $config->enableGD) : ($config->enableGD == '1');
-            $enableImageMagick = is_array($config->enableImageMagick) ? in_array('1', $config->enableImageMagick) : ($config->enableImageMagick == '1');
-            $enableFFmpeg = is_array($config->enableFFmpeg) ? in_array('1', $config->enableFFmpeg) : ($config->enableFFmpeg == '1');
-            $enableVideoCompress = is_array($config->enableVideoCompress) ? in_array('1', $config->enableVideoCompress) : ($config->enableVideoCompress == '1');
-            $enableWebDAV = is_array($config->enableWebDAV) ? in_array('1', $config->enableWebDAV) : ($config->enableWebDAV == '1');
+            // 兼容复选框和旧版本配置，未设置时按环境能力自动启用
+            $enableGetID3 = self::normalizeCheckboxOption($config, 'enableGetID3') ?? false;
+
+            $enableExif = self::normalizeCheckboxOption($config, 'enableExif');
+            if ($enableExif === null) {
+                $enableExif = extension_loaded('exif') || MediaLibrary_ExifPrivacy::isExifToolAvailable();
+            }
+
+            $enableGD = self::normalizeCheckboxOption($config, 'enableGD');
+            if ($enableGD === null) {
+                $enableGD = extension_loaded('gd');
+            }
+
+            $enableImageMagick = self::normalizeCheckboxOption($config, 'enableImageMagick');
+            if ($enableImageMagick === null) {
+                $enableImageMagick = extension_loaded('imagick');
+            }
+
+            $enableFFmpeg = self::normalizeCheckboxOption($config, 'enableFFmpeg');
+            if ($enableFFmpeg === null) {
+                $enableFFmpeg = class_exists('MediaLibrary_EnvironmentCheck')
+                    ? MediaLibrary_EnvironmentCheck::checkFFmpeg()
+                    : false;
+            }
+
+            $enableVideoCompress = self::normalizeCheckboxOption($config, 'enableVideoCompress');
+            if ($enableVideoCompress === null) {
+                $enableVideoCompress = $enableFFmpeg;
+            }
+
+            $enableWebDAV = self::normalizeCheckboxOption($config, 'enableWebDAV') ?? false;
             $gdQuality = intval($config->gdQuality ?? 80);
             $videoQuality = intval($config->videoQuality ?? 23);
             $videoCodec = $config->videoCodec ?? 'libx264';
@@ -850,5 +874,31 @@ class MediaLibrary_PanelHelper
         }
 
         return $statistics;
+    }
+
+    /**
+     * 兼容性处理：读取复选框配置
+     *
+     * @param Typecho_Config $config
+     * @param string $key
+     * @param mixed $default
+     * @return bool|null
+     */
+    private static function normalizeCheckboxOption($config, $key, $default = null)
+    {
+        if (!isset($config->$key)) {
+            return $default;
+        }
+
+        $value = $config->$key;
+        if (is_array($value)) {
+            return in_array('1', $value);
+        }
+
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        return $value === true || $value === '1' || $value === 1;
     }
 }

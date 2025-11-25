@@ -339,8 +339,15 @@
 }
 
 .filter-icon {
-    font-size: 16px;
+    font-size: 14px;
     flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+    color: #656d76;
+}
+
+.filter-item.active .filter-icon {
+    color: #0969da;
 }
 
 .filter-name {
@@ -2758,9 +2765,244 @@
     .webdav-manager-section {
         margin-bottom: var(--space-md);
     }
-    
+
     .webdav-action-btn {
         font-size: 12px;
         padding: 6px 10px;
+    }
+}
+
+/* ========================================
+   列表视图 - GitHub 风格优化
+   ======================================== */
+
+/* 文件类型图标样式 */
+.file-type-icon {
+    font-size: 28px;
+    color: #656d76;
+    opacity: 0.8;
+}
+
+.file-preview-cell {
+    text-align: center !important;
+}
+
+.file-preview-cell .file-type-icon.fa-file-video {
+    color: #0969da;
+}
+
+.file-preview-cell .file-type-icon.fa-file-audio {
+    color: #8250df;
+}
+
+.file-preview-cell .file-type-icon.fa-file-pdf {
+    color: #d1242f;
+}
+
+.file-preview-cell .file-type-icon.fa-file-word {
+    color: #0969da;
+}
+
+.file-preview-cell .file-type-icon.fa-file-excel {
+    color: #1a7f37;
+}
+
+.file-preview-cell .file-type-icon.fa-file-powerpoint {
+    color: #d1242f;
+}
+
+.file-preview-cell .file-type-icon.fa-file-archive {
+    color: #bf8700;
+}
+
+.file-preview-cell .file-type-icon.fa-file-alt {
+    color: #656d76;
+}
+
+/* 文件名单元格 */
+.file-name-cell {
+    font-weight: 500;
+    color: #24292f;
+}
+
+.file-name-text {
+    display: inline-block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 文件大小单元格 */
+.file-size-cell {
+    color: #656d76;
+    font-size: 13px;
+}
+
+/* 文件时间单元格 */
+.file-time-cell {
+    color: #656d76;
+    font-size: 13px;
+}
+
+/* 文章链接 */
+.post-link {
+    color: #0969da;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.post-link:hover {
+    text-decoration: underline;
+}
+
+.no-post {
+    color: #8b949e;
+    font-size: 13px;
+}
+
+/* 操作按钮 - GitHub 风格 */
+.btn-xs {
+    padding: 3px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    border-radius: 6px;
+    font-weight: 500;
+    border: 1px solid #d0d7de;
+    background: #f6f8fa;
+    color: #24292f;
+    cursor: pointer;
+    transition: background-color 0.2s cubic-bezier(0.3, 0, 0.5, 1),
+                border-color 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+.btn-xs:hover {
+    background: #ffffff;
+    border-color: #d0d7de;
+}
+
+.btn-xs.btn-danger {
+    background: #ffffff;
+    color: #d1242f;
+    border-color: #d0d7de;
+}
+
+.btn-xs.btn-danger:hover {
+    background: #d1242f;
+    color: #ffffff;
+    border-color: #d1242f;
+}
+
+/* 空状态图标 */
+.empty-state .empty-icon {
+    font-size: 48px;
+    color: #d0d7de;
+    margin-bottom: 16px;
+}
+
+.empty-state .empty-icon i {
+    opacity: 0.6;
+}
+
+/* WebDAV 按钮图标 */
+.webdav-action-btn .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 表格行悬停效果优化 - GitHub 风格 */
+.media-list-table tbody tr {
+    transition: background-color 0.1s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+.media-list-table tbody tr:hover {
+    background: #f6f8fa;
+}
+
+/* 表格单元格样式优化 */
+.media-list-table th {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #656d76;
+}
+
+.media-list-table td {
+    font-size: 14px;
+}
+
+/* 缩略图样式优化 */
+.media-thumb {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #d0d7de;
+    display: block;
+    margin: 0 auto;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    .file-type-icon {
+        color: #7d8590;
+    }
+
+    .file-name-cell {
+        color: #c9d1d9;
+    }
+
+    .file-size-cell,
+    .file-time-cell {
+        color: #7d8590;
+    }
+
+    .post-link {
+        color: #58a6ff;
+    }
+
+    .no-post {
+        color: #484f58;
+    }
+
+    .btn-xs {
+        background: #21262d;
+        color: #c9d1d9;
+        border-color: #30363d;
+    }
+
+    .btn-xs:hover {
+        background: #30363d;
+        border-color: #8b949e;
+    }
+
+    .btn-xs.btn-danger {
+        background: #21262d;
+        color: #f85149;
+        border-color: #30363d;
+    }
+
+    .btn-xs.btn-danger:hover {
+        background: #f85149;
+        color: #ffffff;
+        border-color: #f85149;
+    }
+
+    .empty-state .empty-icon {
+        color: #30363d;
+    }
+
+    .media-list-table tbody tr:hover {
+        background: #161b22;
+    }
+
+    .media-list-table th {
+        color: #7d8590;
+    }
+
+    .media-thumb {
+        border-color: #30363d;
     }
 }
