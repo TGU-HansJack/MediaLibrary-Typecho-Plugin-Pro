@@ -341,17 +341,36 @@ class MediaLibrary_CacheManager
      */
     public static function updatePostInfo($cid, $db)
     {
-        $postInfo = self::get('post-info') ?: [];
+        try {
+            $postInfo = self::get('post-info') ?: [];
 
-        $result = MediaLibrary_PanelHelper::getParentPost($db, $cid);
+            $attachment = $db->fetchRow($db->select()->from('table.contents')
+                ->where('cid = ? AND type = ?', $cid, 'attachment'));
 
-        if ($result['status'] === 'archived') {
-            $postInfo[$cid] = $result;
-        } else {
-            unset($postInfo[$cid]);
+            if ($attachment && $attachment['parent'] > 0) {
+                $parentPost = $db->fetchRow($db->select()->from('table.contents')
+                    ->where('cid = ?', $attachment['parent']));
+
+                if ($parentPost) {
+                    $postInfo[$cid] = [
+                        'status' => 'archived',
+                        'post' => [
+                            'cid' => $parentPost['cid'],
+                            'title' => $parentPost['title'],
+                            'type' => $parentPost['type']
+                        ]
+                    ];
+                } else {
+                    unset($postInfo[$cid]);
+                }
+            } else {
+                unset($postInfo[$cid]);
+            }
+
+            return self::set('post-info', $postInfo);
+        } catch (Exception $e) {
+            return false;
         }
-
-        return self::set('post-info', $postInfo);
     }
 
     /**
@@ -445,7 +464,7 @@ class MediaLibrary_CacheManager
         }
 
         // 生成新的文件详情
-        $info = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3);
+        $info = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3, false);
         $fileDetails[$hash] = array_merge($info, [
             'mtime' => $mtime,
             'path' => $filePath,
