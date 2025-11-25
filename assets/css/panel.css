@@ -1006,44 +1006,82 @@
     color: var(--ml-text-secondary);
 }
 
-/* 分页样式 */
+/* 分页样式 - Github 风格 */
 .pagination {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-lg) 0 0;
-    margin-top: var(--space-md);
-    border-top: 1px solid var(--ml-border);
+    gap: 6px;
+    padding: 0;
+    margin: 0;
 }
 
 .pagination a,
 .pagination span {
-    padding: 8px 14px;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: var(--radius-full);
-    background: transparent;
-    color: var(--ml-text-secondary);
+    min-width: 32px;
+    height: 32px;
+    padding: 5px 10px;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
+    color: #24292f;
+    text-align: center;
     text-decoration: none;
-    transition: all var(--transition-fast);
+    vertical-align: middle;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    background-color: #ffffff;
+    transition: background-color 0.2s cubic-bezier(0.3, 0, 0.5, 1),
+                border-color 0.2s cubic-bezier(0.3, 0, 0.5, 1);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    line-height: 1.4;
-    min-width: 38px;
 }
 
 .pagination a:hover {
-    background: var(--ml-surface-secondary);
-    color: var(--ml-text);
+    background-color: #f6f8fa;
+    border-color: #d0d7de;
+    text-decoration: none;
+    transition-duration: 0.1s;
+}
+
+.pagination a:active {
+    background-color: #ebecf0;
+    border-color: #d0d7de;
 }
 
 .pagination .current {
-    background: var(--ml-primary);
-    color: #fff;
-    box-shadow: var(--shadow-xs);
+    color: #ffffff;
+    background-color: #0969da;
+    border-color: #0969da;
+    pointer-events: none;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    .pagination a,
+    .pagination span {
+        color: #c9d1d9;
+        background-color: #0d1117;
+        border-color: #30363d;
+    }
+
+    .pagination a:hover {
+        background-color: #161b22;
+        border-color: #8b949e;
+    }
+
+    .pagination a:active {
+        background-color: #21262d;
+    }
+
+    .pagination .current {
+        color: #ffffff;
+        background-color: #1f6feb;
+        border-color: #1f6feb;
+    }
 }
 
 /* 模态框 - Windows 11 风格 */
