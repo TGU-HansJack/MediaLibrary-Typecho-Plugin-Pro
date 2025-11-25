@@ -1,7 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
-require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LocalFileManager.php';
 
 /**
  * 面板助手类 - 处理面板显示逻辑
@@ -103,9 +102,9 @@ class MediaLibrary_PanelHelper
     }
     
     /**
-     * 获取媒体列表（完全不依赖数据库）
+     * 获取媒体列表
      *
-     * @param Typecho_Db $db 数据库连接（保留参数以兼容旧代码，但不再使用）
+     * @param Typecho_Db $db 数据库连接
      * @param int $page 当前页码
      * @param int $pageSize 每页显示数量
      * @param string $keywords 搜索关键词
@@ -115,39 +114,129 @@ class MediaLibrary_PanelHelper
      */
     public static function getMediaList($db, $page, $pageSize, $keywords, $type, $storage = 'all')
     {
-        $configOptions = self::getPluginConfig();
-
-        // 根据存储类型筛选
+        // WebDAV 存储：直接读取本地 WebDAV 文件夹，不查询数据库
         if ($storage === 'webdav') {
-            // 只返回 WebDAV 文件
             return self::getWebDAVFolderList($page, $pageSize, $keywords, $type);
-        } elseif ($storage === 'local') {
-            // 只返回本地文件
-            return self::getLocalFolderList($page, $pageSize, $keywords, $type);
         }
 
-        // storage === 'all': 合并本地文件和 WebDAV 文件
-        $localResult = self::getLocalFolderList(1, 999999, $keywords, $type);
-        $allAttachments = $localResult['attachments'];
+        // 构建查询 - 添加去重和更严格的条件
+        $select = $db->select()->from('table.contents')
+            ->where('table.contents.type = ?', 'attachment')
+            ->where('table.contents.status = ?', 'publish')  // 只查询已发布的附件
+            ->order('table.contents.created', Typecho_Db::SORT_DESC);
 
-        // 如果启用了 WebDAV，也获取 WebDAV 文件
-        if (!empty($configOptions['enableWebDAV']) && !empty($configOptions['webdavLocalPath'])) {
-            $webdavResult = self::getWebDAVFolderList(1, 999999, $keywords, $type);
-            $allAttachments = array_merge($allAttachments, $webdavResult['attachments']);
+        if (!empty($keywords)) {
+            $select->where('table.contents.title LIKE ?', '%' . $keywords . '%');
         }
 
-        // 按修改时间重新排序
-        usort($allAttachments, function($a, $b) {
-            return $b['modified'] - $a['modified'];
-        });
+        // 存储类型筛选
+        // WebDAV 文件在上传时会在 text 字段中添加 'storage' => 'webdav' 标记
+        $adapterName = method_exists($db, 'getAdapterName') ? strtolower($db->getAdapterName()) : 'unknown';
+        $supportsBinaryLike = strpos($adapterName, 'mysql') !== false;
+        $likeOperator = $supportsBinaryLike ? 'LIKE BINARY' : 'LIKE';
+        $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
 
-        // 重新分页
-        $total = count($allAttachments);
+        if ($storage !== 'all') {
+            if ($storage === 'webdav') {
+                // 筛选 WebDAV 文件：查找 text 字段包含 webdav 存储标记的文件
+                $select->where("table.contents.text {$likeOperator} ?", $webdavMarker);
+            } elseif ($storage === 'local') {
+                // 筛选本地文件：排除带有 webdav 标记的文件，同时允许 text 为空
+                $likeExpression = "table.contents.text {$likeOperator} ?";
+                $select->where(
+                    "(table.contents.text IS NULL OR table.contents.text = '' OR ({$likeExpression}) = 0)",
+                    $webdavMarker
+                );
+            }
+        }
+
+        if ($type !== 'all') {
+            switch ($type) {
+                case 'image':
+                    $select->where('table.contents.text LIKE ?', '%image%');
+                    break;
+                case 'video':
+                    $select->where('table.contents.text LIKE ?', '%video%');
+                    break;
+                case 'audio':
+                    $select->where('table.contents.text LIKE ?', '%audio%');
+                    break;
+                case 'document':
+                    $select->where('table.contents.text LIKE ?', '%application%');
+                    break;
+            }
+        }
+        
+        // 获取总数 - 使用 DISTINCT 避免重复计数
+        $totalQuery = clone $select;
+        $total = $db->fetchObject($totalQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
+        
+        // 分页查询 - 添加 DISTINCT 和 GROUP BY
         $offset = ($page - 1) * $pageSize;
-        $pagedAttachments = array_slice($allAttachments, $offset, $pageSize);
+        $attachments = $db->fetchAll($select->group('table.contents.cid')->limit($pageSize)->offset($offset));
+        
+        // 处理附件数据 - 添加去重逻辑
+        $processedCids = array(); // 用于跟踪已处理的 CID
+        $uniqueAttachments = array();
+        
+        foreach ($attachments as $attachment) {
+            // 跳过已处理的 CID
+            if (in_array($attachment['cid'], $processedCids)) {
+                continue;
+            }
+            
+            $processedCids[] = $attachment['cid'];
+            
+            $textData = isset($attachment['text']) ? $attachment['text'] : '';
+            
+            $attachmentData = array();
+            if (!empty($textData)) {
+                $unserialized = @unserialize($textData);
+                if (is_array($unserialized)) {
+                    $attachmentData = $unserialized;
+                }
+            }
+            
+            $attachment['attachment'] = $attachmentData;
+            $attachment['mime'] = isset($attachmentData['mime']) ? $attachmentData['mime'] : 'application/octet-stream';
+            $attachment['isImage'] = isset($attachmentData['mime']) && (
+                strpos($attachmentData['mime'], 'image/') === 0 || 
+                in_array(strtolower(pathinfo($attachmentData['name'] ?? '', PATHINFO_EXTENSION)), ['avif'])
+            );
+            
+            $attachment['isDocument'] = isset($attachmentData['mime']) && (
+                strpos($attachmentData['mime'], 'application/pdf') === 0 ||
+                strpos($attachmentData['mime'], 'application/msword') === 0 ||
+                strpos($attachmentData['mime'], 'application/vnd.openxmlformats-officedocument.wordprocessingml') === 0 ||
+                strpos($attachmentData['mime'], 'application/vnd.ms-powerpoint') === 0 ||
+                strpos($attachmentData['mime'], 'application/vnd.openxmlformats-officedocument.presentationml') === 0 ||
+                strpos($attachmentData['mime'], 'application/vnd.ms-excel') === 0 ||
+                strpos($attachmentData['mime'], 'application/vnd.openxmlformats-officedocument.spreadsheetml') === 0
+            );
 
+            $attachment['isVideo'] = isset($attachmentData['mime']) && strpos($attachmentData['mime'], 'video/') === 0;
+            $attachment['size'] = MediaLibrary_FileOperations::formatFileSize(isset($attachmentData['size']) ? intval($attachmentData['size']) : 0);
+            
+            if (isset($attachmentData['path']) && !empty($attachmentData['path'])) {
+                $attachment['url'] = Typecho_Common::url($attachmentData['path'], Typecho_Widget::widget('Widget_Options')->siteUrl);
+                $attachment['hasValidUrl'] = true;
+            } else {
+                $attachment['url'] = '';
+                $attachment['hasValidUrl'] = false;
+            }
+            
+            if (!isset($attachment['title']) || empty($attachment['title'])) {
+                $attachment['title'] = isset($attachmentData['name']) ? $attachmentData['name'] : '未命名文件';
+            }
+            
+            // 获取所属文章信息
+            $attachment['parent_post'] = self::getParentPost($db, $attachment['cid']);
+            
+            $uniqueAttachments[] = $attachment;
+        }
+        
         return [
-            'attachments' => $pagedAttachments,
+            'attachments' => $uniqueAttachments,
             'total' => $total
         ];
     }
@@ -309,144 +398,6 @@ class MediaLibrary_PanelHelper
     }
 
     /**
-     * 获取本地文件系统的文件列表（不经过数据库）
-     *
-     * @param int $page 当前页码
-     * @param int $pageSize 每页显示数量
-     * @param string $keywords 搜索关键词
-     * @param string $type 文件类型过滤
-     * @return array 媒体列表数据
-     */
-    private static function getLocalFolderList($page, $pageSize, $keywords, $type)
-    {
-        try {
-            // 获取 Typecho 默认上传目录
-            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
-            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
-
-            // 检查本地文件夹是否存在
-            if (!is_dir($localPath)) {
-                return [
-                    'attachments' => [],
-                    'total' => 0,
-                    'error' => '本地上传目录不存在: ' . $localPath
-                ];
-            }
-
-            // 使用 LocalFileManager 读取文件
-            $fileManager = new MediaLibrary_LocalFileManager($localPath);
-            $allItems = $fileManager->listLocalFiles('', true); // 递归获取所有文件
-
-            // 过滤文件（不包括目录）
-            $files = array_filter($allItems, function($item) {
-                return $item['type'] === 'file';
-            });
-
-            // 应用关键词过滤
-            if (!empty($keywords)) {
-                $files = array_filter($files, function($item) use ($keywords) {
-                    return stripos($item['name'], $keywords) !== false;
-                });
-            }
-
-            // 应用类型过滤
-            if ($type !== 'all') {
-                $files = array_filter($files, function($item) use ($type) {
-                    $mime = $item['mime'];
-                    switch ($type) {
-                        case 'image':
-                            return strpos($mime, 'image/') === 0;
-                        case 'video':
-                            return strpos($mime, 'video/') === 0;
-                        case 'audio':
-                            return strpos($mime, 'audio/') === 0;
-                        case 'document':
-                            return strpos($mime, 'application/') === 0;
-                        default:
-                            return true;
-                    }
-                });
-            }
-
-            // 按修改时间降序排序
-            usort($files, function($a, $b) {
-                return $b['modified'] - $a['modified'];
-            });
-
-            $total = count($files);
-
-            // 分页
-            $offset = ($page - 1) * $pageSize;
-            $pagedFiles = array_slice($files, $offset, $pageSize);
-
-            // 转换为面板期望的格式
-            $attachments = [];
-            foreach ($pagedFiles as $file) {
-                $mime = $file['mime'];
-                $isImage = strpos($mime, 'image/') === 0 ||
-                          in_array(strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)), ['avif']);
-                $isVideo = strpos($mime, 'video/') === 0;
-                $isDocument = strpos($mime, 'application/') === 0 ||
-                              in_array(strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)),
-                                      ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
-
-                // 构建 URL
-                $relativePath = ltrim($file['path'], '/');
-                $url = $fileManager->buildFileUrl($relativePath);
-
-                $attachments[] = [
-                    'cid' => 0, // 本地文件系统文件没有数据库 ID
-                    'title' => $file['name'],
-                    'slug' => '',
-                    'created' => $file['modified'],
-                    'modified' => $file['modified'],
-                    'text' => '',
-                    'order' => 0,
-                    'authorId' => 0,
-                    'template' => '',
-                    'type' => 'attachment',
-                    'status' => 'publish',
-                    'password' => '',
-                    'commentsNum' => 0,
-                    'allowComment' => '0',
-                    'allowPing' => '0',
-                    'allowFeed' => '0',
-                    'parent' => 0,
-                    'attachment' => [
-                        'name' => $file['name'],
-                        'path' => $relativePath,
-                        'size' => $file['size'],
-                        'type' => 'file',
-                        'mime' => $mime,
-                        'storage' => 'local_direct'
-                    ],
-                    'mime' => $mime,
-                    'isImage' => $isImage,
-                    'isVideo' => $isVideo,
-                    'isDocument' => $isDocument,
-                    'size' => MediaLibrary_FileOperations::formatFileSize($file['size']),
-                    'url' => $url,
-                    'hasValidUrl' => !empty($url),
-                    'parent_post' => ['status' => 'unarchived', 'post' => null],
-                    'local_direct_file' => true // 标记为本地文件系统文件
-                ];
-            }
-
-            return [
-                'attachments' => $attachments,
-                'total' => $total
-            ];
-
-        } catch (Exception $e) {
-            return [
-                'attachments' => [],
-                'total' => 0,
-                'error' => '本地文件系统读取失败: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
      * 根据文件名猜测 MIME 类型
      *
      * @param string $filename 文件名
@@ -499,7 +450,7 @@ class MediaLibrary_PanelHelper
      * @param array $configOptions 配置选项
      * @return string 文件 URL
      */
-    public static function buildWebDAVFileUrl($relativePath, $configOptions)
+    private static function buildWebDAVFileUrl($relativePath, $configOptions)
     {
         // 方法1: 如果配置了公共URL前缀，直接使用
         if (!empty($configOptions['webdavPublicUrl'])) {

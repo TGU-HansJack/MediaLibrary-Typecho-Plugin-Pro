@@ -6,8 +6,6 @@
 
     // 全局变量
     var currentImageCid = null;
-    var currentImageStorage = 'database';
-    var currentImageFilePath = '';
     var originalImageWidth = 0;
     var originalImageHeight = 0;
     var cropStartX = 0;
@@ -78,8 +76,6 @@
             }
             
             currentImageCid = item.data('cid');
-            currentImageStorage = item.attr('data-storage') || 'database';
-            currentImageFilePath = item.attr('data-file-path') || '';
             var imageUrl = item.data('url');
             
             // 重置裁剪框和预览
@@ -468,32 +464,11 @@
             var applyBtn = $(this);
             applyBtn.prop('disabled', true).text('处理中...');
             
-            var requestUrl = window.mediaLibraryCurrentUrl;
-            var requestData;
-
-            if (currentImageStorage === 'webdav') {
-                requestData = {
-                    action: 'webdav_crop_image',
-                    file: currentImageFilePath,
-                    x: cropX,
-                    y: cropY,
-                    width: cropWidth,
-                    height: cropHeight,
-                    replace_original: replaceOriginal ? 'true' : 'false'
-                };
-            } else if ((currentImageStorage === 'local_direct' || !currentImageCid) && currentImageFilePath) {
-                requestData = {
-                    action: 'local_crop_image',
-                    file: currentImageFilePath,
-                    x: cropX,
-                    y: cropY,
-                    width: cropWidth,
-                    height: cropHeight,
-                    replaceOriginal: replaceOriginal ? 'true' : 'false'
-                };
-            } else {
-                requestData = {
-                    action: 'crop_image',
+            // 发送裁剪请求
+            $.ajax({
+                url: window.mediaLibraryCurrentUrl + '&action=crop_image',
+                type: 'POST',
+                data: {
                     cid: currentImageCid,
                     x: cropX,
                     y: cropY,
@@ -502,14 +477,7 @@
                     use_library: useLibrary,
                     replace_original: replaceOriginal ? '1' : '0',
                     custom_name: customName
-                };
-            }
-
-            // 发送裁剪请求
-            $.ajax({
-                url: requestUrl,
-                type: 'POST',
-                data: requestData,
+                },
                 dataType: 'json',
                 success: function(response) {
                     if (response.success) {
@@ -588,8 +556,6 @@
             }
             
             currentImageCid = item.data('cid');
-            currentImageStorage = item.attr('data-storage') || 'database';
-            currentImageFilePath = item.attr('data-file-path') || '';
             var imageUrl = item.data('url');
             
             // 重置水印界面
@@ -808,58 +774,28 @@
             
             var watermarkX = Math.round(watermarkOverlay.position().left / scale);
             var watermarkY = Math.round(watermarkOverlay.position().top / scale);
-
-            if ((currentImageStorage !== 'database') && watermarkType !== 'text') {
-                alert('当前存储类型仅支持文本水印，请切换到文字水印模式');
-                return;
-            }
             
             // 构建请求数据
-            var requestData;
-            if (currentImageStorage === 'webdav') {
-                requestData = {
-                    action: 'webdav_add_watermark',
-                    file: currentImageFilePath,
-                    text: $('#watermark-text').val(),
-                    position: watermarkPosition,
-                    opacity: watermarkOpacity,
-                    replace_original: replaceOriginal ? 'true' : 'false'
-                };
-            } else if ((currentImageStorage === 'local_direct' || !currentImageCid) && currentImageFilePath) {
-                requestData = {
-                    action: 'local_add_watermark',
-                    file: currentImageFilePath,
-                    text: $('#watermark-text').val(),
-                    position: watermarkPosition,
-                    opacity: watermarkOpacity,
-                    replaceOriginal: replaceOriginal ? 'true' : 'false'
-                };
-            } else {
-                requestData = {
-                    action: 'add_watermark',
-                    cid: currentImageCid,
-                    watermark_type: watermarkType,
-                    watermark_position: watermarkPosition,
-                    watermark_x: watermarkX,
-                    watermark_y: watermarkY,
-                    watermark_opacity: watermarkOpacity,
-                    use_library: useLibrary,
-                    replace_original: replaceOriginal ? '1' : '0',
-                    custom_name: customName
-                };
-            }
+            var requestData = {
+                cid: currentImageCid,
+                watermark_type: watermarkType,
+                watermark_position: watermarkPosition,
+                watermark_x: watermarkX,
+                watermark_y: watermarkY,
+                watermark_opacity: watermarkOpacity,
+                use_library: useLibrary,
+                replace_original: replaceOriginal ? '1' : '0',
+                custom_name: customName
+            };
             
             // 根据水印类型添加特定参数
             if (watermarkType === 'text') {
-                var watermarkText = $('#watermark-text').val();
-                requestData.watermark_text = watermarkText;
-                if (currentImageStorage === 'database') {
-                    requestData.watermark_font_size = $('#watermark-font-size').val();
-                    requestData.watermark_color = $('#watermark-color').val();
-                    requestData.watermark_font = $('#watermark-font').val();
-                    requestData.watermark_preset = $('#watermark-preset').val();
-                }
-            } else if (currentImageStorage === 'database') {
+                requestData.watermark_text = $('#watermark-text').val();
+                requestData.watermark_font_size = $('#watermark-font-size').val();
+                requestData.watermark_color = $('#watermark-color').val();
+                requestData.watermark_font = $('#watermark-font').val();
+                requestData.watermark_preset = $('#watermark-preset').val();
+            } else {
                 requestData.watermark_image = $('#watermark-image').val();
                 requestData.watermark_scale = watermarkScale;
             }
@@ -870,7 +806,7 @@
             
             // 发送水印请求
             $.ajax({
-                url: window.mediaLibraryCurrentUrl,
+                url: window.mediaLibraryCurrentUrl + '&action=add_watermark',
                 type: 'POST',
                 data: requestData,
                 dataType: 'json',

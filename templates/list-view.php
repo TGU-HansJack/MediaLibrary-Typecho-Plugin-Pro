@@ -13,29 +13,13 @@
     <tbody>
         <?php if (!empty($attachments)): ?>
             <?php foreach ($attachments as $attachment): ?>
-                <?php
-                    $storageType = !empty($attachment['attachment']['storage'])
-                        ? $attachment['attachment']['storage']
-                        : (!empty($attachment['webdav_file']) ? 'webdav' : 'database');
-                    $rawPath = isset($attachment['attachment']['path']) ? (string)$attachment['attachment']['path'] : '';
-                    $normalizedPath = ltrim(str_replace('\\', '/', $rawPath), '/');
-                    $uploadDir = trim(defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads', '/');
-                    $relativePath = $normalizedPath;
-                    if ($uploadDir !== '' && strpos($normalizedPath, $uploadDir . '/') === 0) {
-                        $relativePath = substr($normalizedPath, strlen($uploadDir) + 1);
-                    } elseif ($uploadDir !== '' && $normalizedPath === $uploadDir) {
-                        $relativePath = '';
-                    }
-                ?>
                 <tr data-cid="<?php echo $attachment['cid']; ?>" 
                     data-url="<?php echo htmlspecialchars($attachment['url']); ?>" 
                     data-type="<?php echo htmlspecialchars($attachment['mime']); ?>"
                     data-title="<?php echo htmlspecialchars($attachment['title']); ?>"
                     data-has-url="<?php echo $attachment['hasValidUrl'] ? '1' : '0'; ?>"
                     data-is-image="<?php echo $attachment['isImage'] ? '1' : '0'; ?>"
-                    data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>"
-                    data-storage="<?php echo htmlspecialchars($storageType); ?>"
-                    data-file-path="<?php echo htmlspecialchars($relativePath); ?>">
+                    data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>">
                     <td data-label="选择"><input type="checkbox" value="<?php echo $attachment['cid']; ?>"></td>
                     <td data-label="预览">
                         <?php if ($attachment['isImage'] && $attachment['hasValidUrl']): ?>
