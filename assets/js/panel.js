@@ -2670,7 +2670,6 @@ var WebDAVManager = {
         var self = this;
         var testButton = jQuery('#webdav-test-connection-btn');
         var sidebarResult = jQuery('#webdav-sync-result');
-        var statusIndicator = jQuery('.webdav-status-indicator');
 
         // 禁用按钮
         testButton.prop('disabled', true).find('.btn-text').text('测试中...');
@@ -2702,17 +2701,6 @@ var WebDAVManager = {
 
                 sidebarResult.find('.result-details').text(details || response.message);
 
-                // 更新状态指示器
-                if (response.success) {
-                    statusIndicator.removeClass('status-error status-warn')
-                        .addClass('status-ok')
-                        .attr('title', response.message || '连接成功');
-                } else {
-                    statusIndicator.removeClass('status-ok status-warn')
-                        .addClass('status-error')
-                        .attr('title', response.message || '连接失败');
-                }
-
                 // 5秒后隐藏
                 setTimeout(function() {
                     sidebarResult.fadeOut();
@@ -2727,11 +2715,6 @@ var WebDAVManager = {
                 sidebarResult.find('.result-icon').text('❌');
                 sidebarResult.find('.result-title').text('测试失败');
                 sidebarResult.find('.result-details').text('网络错误');
-
-                // 更新状态指示器为错误状态
-                statusIndicator.removeClass('status-ok status-warn')
-                    .addClass('status-error')
-                    .attr('title', '网络错误');
 
                 setTimeout(function() {
                     sidebarResult.fadeOut();

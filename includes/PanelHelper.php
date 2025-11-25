@@ -34,7 +34,6 @@ class MediaLibrary_PanelHelper
             $webdavRemotePath = isset($config->webdavRemotePath) ? trim($config->webdavRemotePath) : '/typecho';
             $webdavUsername = isset($config->webdavUsername) ? trim($config->webdavUsername) : '';
             $webdavPassword = isset($config->webdavPassword) ? (string)$config->webdavPassword : '';
-            $webdavPublicUrl = isset($config->webdavPublicUrl) ? trim($config->webdavPublicUrl) : '';
             $webdavVerifySSL = !isset($config->webdavVerifySSL) || (is_array($config->webdavVerifySSL) ? in_array('1', $config->webdavVerifySSL) : ($config->webdavVerifySSL == '1'));
             $webdavSyncEnabled = is_array($config->webdavSyncEnabled ?? false) ? in_array('1', $config->webdavSyncEnabled) : (($config->webdavSyncEnabled ?? '0') == '1');
             $webdavSyncMode = isset($config->webdavSyncMode) ? (string)$config->webdavSyncMode : 'manual';
@@ -62,7 +61,6 @@ class MediaLibrary_PanelHelper
             $webdavBasePath = '/';
             $webdavUsername = '';
             $webdavPassword = '';
-            $webdavPublicUrl = '';
             $webdavVerifySSL = true;
             $webdavSyncEnabled = false;
             $webdavSyncPath = '/uploads';
@@ -89,7 +87,6 @@ class MediaLibrary_PanelHelper
             'webdavBasePath' => self::normalizeWebDAVPath($webdavBasePath),
             'webdavUsername' => $webdavUsername,
             'webdavPassword' => $webdavPassword,
-            'webdavPublicUrl' => $webdavPublicUrl,
             'webdavVerifySSL' => $webdavVerifySSL,
             'webdavTimeout' => 10,
             'webdavSyncEnabled' => $webdavSyncEnabled,
@@ -452,17 +449,13 @@ class MediaLibrary_PanelHelper
      */
     private static function buildWebDAVFileUrl($relativePath, $configOptions)
     {
-        // 方法1: 如果配置了公共URL前缀，直接使用
-        if (!empty($configOptions['webdavPublicUrl'])) {
-            $publicUrl = rtrim($configOptions['webdavPublicUrl'], '/');
-            return $publicUrl . '/' . ltrim($relativePath, '/');
-        }
-
-        // 方法2: 从本地 WebDAV 路径构建 URL
-        // 尝试将本地路径转换为 web 可访问路径
+        // 从本地 WebDAV 路径构建 URL
+        // 如果配置了 webdavLocalPath，尝试生成可访问的 URL
         $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
-        $rootDir = __TYPECHO_ROOT_DIR__;
 
+        // 尝试将本地路径转换为 web 可访问路径
+        // 假设 webdav 文件夹在网站根目录下
+        $rootDir = __TYPECHO_ROOT_DIR__;
         if (strpos($localPath, $rootDir) === 0) {
             $webPath = substr($localPath, strlen($rootDir));
             $webPath = str_replace('\\', '/', $webPath);
@@ -470,11 +463,14 @@ class MediaLibrary_PanelHelper
             return Typecho_Common::url($webPath . '/' . $relativePath, Helper::options()->siteUrl);
         }
 
-        // 方法3: 通过 PHP 代理访问
-        // 使用插件自带的预览代理
-        $siteUrl = Helper::options()->siteUrl;
-        $proxyUrl = Typecho_Common::url('/usr/plugins/MediaLibrary/webdav-proxy.php', $siteUrl);
-        return $proxyUrl . '?file=' . urlencode($relativePath);
+        // 如果无法生成 URL，返回空字符串
+        // 可以考虑通过 WebDAV 远程 URL 访问
+        if (!empty($configOptions['webdavEndpoint'])) {
+            $remotePath = isset($configOptions['webdavRemotePath']) ? trim($configOptions['webdavRemotePath'], '/') : 'typecho';
+            return rtrim($configOptions['webdavEndpoint'], '/') . '/' . $remotePath . '/' . ltrim($relativePath, '/');
+        }
+
+        return '';
     }
 
     /**
