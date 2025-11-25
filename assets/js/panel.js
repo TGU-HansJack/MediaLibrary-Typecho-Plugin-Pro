@@ -385,10 +385,24 @@ var MediaLibrary = {
                     cid: checkbox.value,
                     isImage: item.getAttribute('data-is-image') === '1',
                     isVideo: item.getAttribute('data-is-video') === '1' || type.indexOf('video/') === 0,
-                    type: type
+                    type: type,
+                    isWebDAV: item.getAttribute('data-webdav-file') === '1'
                 });
             }
         }.bind(this));
+    },
+
+    isWebDAVFile: function(item) {
+        if (!item) {
+            return false;
+        }
+        if (typeof item.isWebDAV !== 'undefined') {
+            return item.isWebDAV;
+        }
+        if (typeof item.cid !== 'undefined') {
+            return String(item.cid) === '0';
+        }
+        return false;
     },
     
 updateToolbarButtons: function() {
@@ -399,7 +413,7 @@ updateToolbarButtons: function() {
     var addWatermarkBtn = document.getElementById('add-watermark-btn'); // 添加这行
     
     var selectedImages = this.selectedItems.filter(function(item) {
-        return item.isImage;
+        return item.isImage && !item.isWebDAV;
     });
     
     var selectedVideos = this.selectedItems.filter(function(item) {
@@ -1143,7 +1157,7 @@ showImageCompressModal: function() {
     
 checkPrivacy: function() {
     var selectedImages = this.selectedItems.filter(function(item) {
-        return item.isImage;
+        return item.isImage && !item.isWebDAV;
     });
     
     if (selectedImages.length === 0) {

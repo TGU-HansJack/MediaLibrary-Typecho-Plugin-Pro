@@ -7,7 +7,8 @@
                  data-title="<?php echo htmlspecialchars($attachment['title']); ?>"
                  data-has-url="<?php echo $attachment['hasValidUrl'] ? '1' : '0'; ?>"
                  data-is-image="<?php echo $attachment['isImage'] ? '1' : '0'; ?>"
-                 data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>">
+                 data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>"
+                 data-webdav-file="<?php echo !empty($attachment['webdav_file']) ? '1' : '0'; ?>">
                 <div class="media-checkbox">
                     <input type="checkbox" value="<?php echo $attachment['cid']; ?>">
                 </div>

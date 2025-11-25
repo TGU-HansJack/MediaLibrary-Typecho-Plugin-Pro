@@ -13,13 +13,14 @@
     <tbody>
         <?php if (!empty($attachments)): ?>
             <?php foreach ($attachments as $attachment): ?>
-                <tr data-cid="<?php echo $attachment['cid']; ?>"
-                    data-url="<?php echo htmlspecialchars($attachment['url']); ?>"
+                <tr data-cid="<?php echo $attachment['cid']; ?>" 
+                    data-url="<?php echo htmlspecialchars($attachment['url']); ?>" 
                     data-type="<?php echo htmlspecialchars($attachment['mime']); ?>"
                     data-title="<?php echo htmlspecialchars($attachment['title']); ?>"
                     data-has-url="<?php echo $attachment['hasValidUrl'] ? '1' : '0'; ?>"
                     data-is-image="<?php echo $attachment['isImage'] ? '1' : '0'; ?>"
-                    data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>">
+                    data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>"
+                    data-webdav-file="<?php echo !empty($attachment['webdav_file']) ? '1' : '0'; ?>">
                     <td data-label="选择"><input type="checkbox" value="<?php echo $attachment['cid']; ?>"></td>
                     <td data-label="预览" class="file-preview-cell">
                         <?php if ($attachment['isImage'] && $attachment['hasValidUrl']): ?>
