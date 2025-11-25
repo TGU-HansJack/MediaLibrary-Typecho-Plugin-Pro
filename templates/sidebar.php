@@ -194,6 +194,12 @@
                         ?>
                     </span>
                 </div>
+                <?php if (!empty($webdavStatus['preset']) && $webdavStatus['preset'] !== 'custom'): ?>
+                <div class="info-item">
+                    <span class="info-label">服务模板</span>
+                    <span class="info-value"><?php echo htmlspecialchars($webdavStatus['preset_name']); ?></span>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

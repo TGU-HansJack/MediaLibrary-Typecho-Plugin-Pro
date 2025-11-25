@@ -3,6 +3,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/CacheManager.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/EnvironmentCheck.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVPresets.php';
 
 /**
  * 面板助手类 - 处理面板显示逻辑
@@ -54,6 +55,12 @@ class MediaLibrary_PanelHelper
             $videoCodec = $config->videoCodec ?? 'libx264';
 
             // WebDAV 配置
+            $webdavPreset = isset($config->webdavPreset) ? trim($config->webdavPreset) : 'custom';
+            $presets = MediaLibrary_WebDAVPresets::getPresets();
+            if (!isset($presets[$webdavPreset])) {
+                $webdavPreset = 'custom';
+            }
+
             $webdavLocalPath = isset($config->webdavLocalPath) ? trim($config->webdavLocalPath) : '';
             $webdavEndpoint = isset($config->webdavEndpoint) ? trim($config->webdavEndpoint) : '';
             $webdavRemotePath = isset($config->webdavRemotePath) ? trim($config->webdavRemotePath) : '/typecho';
@@ -80,6 +87,7 @@ class MediaLibrary_PanelHelper
             $gdQuality = 80;
             $videoQuality = 23;
             $videoCodec = 'libx264';
+            $webdavPreset = 'custom';
             $webdavLocalPath = '';
             $webdavEndpoint = '';
             $webdavRemotePath = '/typecho';
@@ -106,6 +114,7 @@ class MediaLibrary_PanelHelper
             'gdQuality' => $gdQuality,
             'videoQuality' => $videoQuality,
             'videoCodec' => $videoCodec,
+            'webdavPreset' => $webdavPreset,
             'webdavLocalPath' => $webdavLocalPath,
             'webdavEndpoint' => $webdavEndpoint,
             'webdavRemotePath' => $webdavRemotePath,
@@ -647,12 +656,17 @@ class MediaLibrary_PanelHelper
      */
     public static function getWebDAVStatus($configOptions)
     {
+        $presetKey = isset($configOptions['webdavPreset']) ? $configOptions['webdavPreset'] : 'custom';
+        $presetInfo = MediaLibrary_WebDAVPresets::getPreset($presetKey);
+
         $status = [
             'enabled' => !empty($configOptions['enableWebDAV']),
             'configured' => false,
             'connected' => false,
             'message' => 'WebDAV 未启用',
-            'root' => isset($configOptions['webdavBasePath']) ? $configOptions['webdavBasePath'] : '/'
+            'root' => isset($configOptions['webdavBasePath']) ? $configOptions['webdavBasePath'] : '/',
+            'preset' => $presetKey,
+            'preset_name' => $presetInfo ? $presetInfo['name'] : '自定义'
         ];
 
         if (!$status['enabled']) {
@@ -700,6 +714,9 @@ class MediaLibrary_PanelHelper
         $webdavClass = 'disabled';
         $webdavBadge = $webdavStatus['enabled'] ? '未配置' : '未启用';
         $webdavDesc = $webdavStatus['message'];
+        if (!empty($webdavStatus['preset_name']) && $webdavStatus['preset'] !== 'custom') {
+            $webdavDesc .= '（模板：' . $webdavStatus['preset_name'] . '）';
+        }
 
         if ($webdavStatus['enabled']) {
             if (!$webdavStatus['configured']) {

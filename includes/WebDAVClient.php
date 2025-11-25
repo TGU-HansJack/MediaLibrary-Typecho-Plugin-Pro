@@ -362,9 +362,7 @@ class MediaLibrary_WebDAVClient
             return $base . '/';
         }
 
-        $segments = array_filter(explode('/', $normalized));
-        $encoded = array_map('rawurlencode', $segments);
-        return $base . '/' . implode('/', $encoded);
+        return $base . $this->encodeRelativePath($normalized);
     }
 
     /**
@@ -647,11 +645,22 @@ class MediaLibrary_WebDAVClient
             return $base . '/';
         }
 
-        return $base . $normalized;
+        return $base . $this->encodeRelativePath($normalized);
     }
 
     private function isSamePath($a, $b)
     {
         return rtrim($a, '/') === rtrim($b, '/');
+    }
+
+    private function encodeRelativePath($path)
+    {
+        $trimmed = ltrim($path, '/');
+        if ($trimmed === '') {
+            return '/';
+        }
+
+        $segments = array_map('rawurlencode', explode('/', $trimmed));
+        return '/' . implode('/', $segments);
     }
 }

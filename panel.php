@@ -197,7 +197,8 @@ window.mediaLibraryConfig = {
     enableWebDAV: <?php echo $webdavStatus['enabled'] ? 'true' : 'false'; ?>,
     webdavConfigured: <?php echo $webdavStatus['configured'] ? 'true' : 'false'; ?>,
     webdavConnected: <?php echo $webdavStatus['connected'] ? 'true' : 'false'; ?>,
-    webdavRoot: '<?php echo addslashes($webdavStatus['root']); ?>'
+    webdavRoot: '<?php echo addslashes($webdavStatus['root']); ?>',
+    webdavPreset: '<?php echo addslashes($webdavPreset ?? 'custom'); ?>'
 };
 </script>
 

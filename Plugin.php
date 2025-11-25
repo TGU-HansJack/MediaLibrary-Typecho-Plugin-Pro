@@ -1,6 +1,7 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LogAction.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVPresets.php';
 
 /**
  * 媒体库管理插件，可以在后台对整体文件信息的查看和编辑、上传和删除，图片压缩和隐私检测，多媒体预览，文章编辑器中预览和插入的简单媒体库
@@ -720,6 +721,12 @@ jQuery(function($) {
         $defaultSyncMode = isset($optionConfig->webdavSyncMode) ? $optionConfig->webdavSyncMode : 'onupload';
         $defaultConflictStrategy = isset($optionConfig->webdavConflictStrategy) ? $optionConfig->webdavConflictStrategy : 'newest';
         $defaultDeleteStrategy = isset($optionConfig->webdavDeleteStrategy) ? $optionConfig->webdavDeleteStrategy : 'auto';
+        $presets = MediaLibrary_WebDAVPresets::getPresets();
+        $defaultPresetKey = isset($optionConfig->webdavPreset) ? (string)$optionConfig->webdavPreset : 'custom';
+        if (!isset($presets[$defaultPresetKey])) {
+            $defaultPresetKey = 'custom';
+        }
+        $activePreset = $presets[$defaultPresetKey];
 
         $webdavSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
         $webdavSection->html('<h3 style="margin-top:30px">WebDAV 同步存储</h3><p style="color:#666;margin-top:5px">本地 WebDAV 文件夹作为缓存，自动同步到远程 WebDAV 服务器</p>');
@@ -731,6 +738,15 @@ jQuery(function($) {
             '启用 WebDAV',
             '启用后，上传文件将保存到本地 WebDAV 文件夹并自动同步到远程 WebDAV 服务器');
         $form->addInput($enableWebDAV);
+
+        $presetOptions = array();
+        foreach ($presets as $key => $presetInfo) {
+            $presetOptions[$key] = $presetInfo['name'];
+        }
+        $webdavPresetField = new Typecho_Widget_Helper_Form_Element_Select('webdavPreset', $presetOptions, $defaultPresetKey,
+            'WebDAV 服务模板',
+            '为常见 WebDAV 服务提供示例地址和账号说明，选择模板后仍可根据需要修改各字段。');
+        $form->addInput($webdavPresetField);
 
         // 本地配置
         $localSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
@@ -751,24 +767,52 @@ jQuery(function($) {
         $remoteSection->html('<h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">远程 WebDAV 服务器</h4>');
         $form->addItem($remoteSection);
 
+        $endpointDesc = '远程 WebDAV 服务器地址，例如 <code>https://example.com/remote.php/dav/files/username</code>';
+        if (!empty($activePreset['endpointHelp'])) {
+            $endpointDesc .= '<br><strong>模板提示：</strong>' . $activePreset['endpointHelp'];
+        }
         $webdavEndpoint = new Typecho_Widget_Helper_Form_Element_Text('webdavEndpoint', null, $defaultEndpoint,
             'WebDAV 服务地址',
-            '远程 WebDAV 服务器地址，例如 <code>https://example.com/remote.php/dav/files/username</code>');
+            $endpointDesc);
         $form->addInput($webdavEndpoint);
+        if (!empty($activePreset['endpointPlaceholder'])) {
+            $webdavEndpoint->input->setAttribute('placeholder', $activePreset['endpointPlaceholder']);
+        }
 
+        $remoteDesc = '在远程 WebDAV 服务器上的目标路径，例如 <code>/typecho</code> 或 <code>/uploads</code>';
+        if (!empty($activePreset['remotePathHelp'])) {
+            $remoteDesc .= '<br><strong>模板提示：</strong>' . $activePreset['remotePathHelp'];
+        }
         $webdavRemotePath = new Typecho_Widget_Helper_Form_Element_Text('webdavRemotePath', null, $defaultRemotePath,
             '远程同步路径',
-            '在远程 WebDAV 服务器上的目标路径，例如 <code>/typecho</code> 或 <code>/uploads</code>');
+            $remoteDesc);
         $form->addInput($webdavRemotePath);
+        if (!empty($activePreset['remotePathPlaceholder'])) {
+            $webdavRemotePath->input->setAttribute('placeholder', $activePreset['remotePathPlaceholder']);
+        }
 
+        if (!empty($activePreset['description'])) {
+            $presetDesc = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
+            $presetDesc->html('<p style="margin:5px 0;color:#666;">' . $activePreset['description'] . '</p>');
+            $form->addItem($presetDesc);
+        }
+
+        $usernameHelp = '用于远程 WebDAV 服务器认证的用户名';
+        if (!empty($activePreset['usernameHelp'])) {
+            $usernameHelp .= '<br><strong>模板提示：</strong>' . $activePreset['usernameHelp'];
+        }
         $webdavUsername = new Typecho_Widget_Helper_Form_Element_Text('webdavUsername', null, $defaultUsername,
             'WebDAV 用户名',
-            '用于远程 WebDAV 服务器认证的用户名');
+            $usernameHelp);
         $form->addInput($webdavUsername);
 
+        $passwordHelp = '用于远程 WebDAV 服务器认证的密码';
+        if (!empty($activePreset['passwordHelp'])) {
+            $passwordHelp .= '<br><strong>模板提示：</strong>' . $activePreset['passwordHelp'];
+        }
         $webdavPassword = new Typecho_Widget_Helper_Form_Element_Password('webdavPassword', null, $defaultPassword,
             'WebDAV 密码',
-            '用于远程 WebDAV 服务器认证的密码');
+            $passwordHelp);
         $form->addInput($webdavPassword);
 
         $webdavVerifySSL = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavVerifySSL',
