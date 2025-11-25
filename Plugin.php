@@ -778,6 +778,11 @@ jQuery(function($) {
             '如果 WebDAV 服务使用自签名证书，可取消勾选以跳过 SSL 验证（不推荐）');
         $form->addInput($webdavVerifySSL);
 
+        $webdavPublicUrl = new Typecho_Widget_Helper_Form_Element_Text('webdavPublicUrl', null, '',
+            'WebDAV 公共访问 URL（可选）',
+            '如果你的 WebDAV 文件夹可通过 Web 直接访问，可设置公共URL前缀。例如 <code>https://example.com/webdav</code>。如果不设置，将使用代理方式访问文件。');
+        $form->addInput($webdavPublicUrl);
+
         // 同步配置
         $syncSection = new Typecho_Widget_Helper_Layout('div', ['class' => 'typecho-option']);
         $syncSection->html('<h4 style="margin-top:20px;padding-top:20px;border-top:1px solid #e8eaed">同步策略</h4>');
