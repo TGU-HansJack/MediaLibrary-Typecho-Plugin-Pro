@@ -429,7 +429,8 @@ class MediaLibrary_PanelHelper
                     'url' => $url,
                     'hasValidUrl' => !empty($url),
                     'parent_post' => ['status' => 'unarchived', 'post' => null],
-                    'webdav_file' => true // 标记为 WebDAV 文件
+                    'webdav_file' => true,
+                    'webdav_path' => $file['path']
                 ];
             }
 

@@ -168,7 +168,13 @@ var MediaLibrary = {
                 e.preventDefault();
                 e.stopPropagation();
                 var cid = e.target.getAttribute('data-cid');
-                self.deleteFiles([cid]);
+                var row = e.target.closest('.media-item, tr[data-cid]');
+                var webdavPath = row ? row.getAttribute('data-webdav-path') : '';
+                var options = {};
+                if (webdavPath) {
+                    options.webdavPaths = [webdavPath];
+                }
+                self.deleteFiles([cid], options);
             }
         });
         
@@ -387,7 +393,8 @@ var MediaLibrary = {
                     isImage: item.getAttribute('data-is-image') === '1',
                     isVideo: item.getAttribute('data-is-video') === '1' || type.indexOf('video/') === 0,
                     type: type,
-                    isWebDAV: item.getAttribute('data-webdav-file') === '1'
+                    isWebDAV: item.getAttribute('data-webdav-file') === '1',
+                    webdavPath: item.getAttribute('data-webdav-path') || ''
                 });
             }
         }.bind(this));
@@ -490,27 +497,55 @@ updateToolbarButtons: function() {
         checkboxes.forEach(function(checkbox) {
             cids.push(checkbox.value);
         });
-        
+
         if (cids.length === 0) {
             alert('请选择要删除的文件');
             return;
         }
-        
-        this.deleteFiles(cids);
+
+        var webdavPaths = [];
+        var pathMap = {};
+        this.selectedItems.forEach(function(item) {
+            if (item.isWebDAV && item.webdavPath && !pathMap[item.webdavPath]) {
+                pathMap[item.webdavPath] = true;
+                webdavPaths.push(item.webdavPath);
+            }
+        });
+
+        this.deleteFiles(cids, { webdavPaths: webdavPaths });
     },
-    
-    deleteFiles: function(cids) {
+
+    deleteFiles: function(cids, options) {
+        options = options || {};
         if (!confirm('确定要删除这些文件吗？此操作不可恢复！')) {
             return;
         }
-        
+
         var xhr = new XMLHttpRequest();
         xhr.open('POST', currentUrl, true);
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         
-        var params = 'action=delete&' + cids.map(function(cid) {
-            return 'cids[]=' + encodeURIComponent(cid);
-        }).join('&');
+        var params = ['action=delete'];
+        if (Array.isArray(cids)) {
+            cids.forEach(function(cid) {
+                params.push('cids[]=' + encodeURIComponent(cid));
+            });
+        }
+
+        var webdavPaths = Array.isArray(options.webdavPaths) ? options.webdavPaths.slice() : [];
+        if (webdavPaths.length === 0 && (!options.skipSelectedWebDAV)) {
+            this.selectedItems.forEach(function(item) {
+                if (item.isWebDAV && item.webdavPath) {
+                    webdavPaths.push(item.webdavPath);
+                }
+            });
+        }
+
+        if (webdavPaths.length > 0) {
+            webdavPaths.forEach(function(path) {
+                params.push('webdav_paths[]=' + encodeURIComponent(path));
+            });
+        }
         
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
@@ -533,7 +568,7 @@ updateToolbarButtons: function() {
             }
         };
         
-        xhr.send(params);
+        xhr.send(params.join('&'));
     },
     
     showFileInfo: function(cid) {

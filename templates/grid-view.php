@@ -1,14 +1,15 @@
 <?php if (!empty($attachments)): ?>
     <div class="media-grid">
         <?php foreach ($attachments as $attachment): ?>
-            <div class="media-item" data-cid="<?php echo $attachment['cid']; ?>" 
-                 data-url="<?php echo htmlspecialchars($attachment['url']); ?>" 
-                 data-type="<?php echo htmlspecialchars($attachment['mime']); ?>"
-                 data-title="<?php echo htmlspecialchars($attachment['title']); ?>"
-                 data-has-url="<?php echo $attachment['hasValidUrl'] ? '1' : '0'; ?>"
-                 data-is-image="<?php echo $attachment['isImage'] ? '1' : '0'; ?>"
-                 data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>"
-                 data-webdav-file="<?php echo !empty($attachment['webdav_file']) ? '1' : '0'; ?>">
+                <div class="media-item" data-cid="<?php echo $attachment['cid']; ?>"
+                     data-url="<?php echo htmlspecialchars($attachment['url']); ?>"
+                     data-type="<?php echo htmlspecialchars($attachment['mime']); ?>"
+                     data-title="<?php echo htmlspecialchars($attachment['title']); ?>"
+                     data-has-url="<?php echo $attachment['hasValidUrl'] ? '1' : '0'; ?>"
+                     data-is-image="<?php echo $attachment['isImage'] ? '1' : '0'; ?>"
+                     data-is-video="<?php echo $attachment['isVideo'] ? '1' : '0'; ?>"
+                     data-webdav-file="<?php echo !empty($attachment['webdav_file']) ? '1' : '0'; ?>"
+                     data-webdav-path="<?php echo isset($attachment['webdav_path']) ? htmlspecialchars($attachment['webdav_path']) : ''; ?>">
                 <div class="media-checkbox">
                     <input type="checkbox" value="<?php echo $attachment['cid']; ?>">
                 </div>
