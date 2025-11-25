@@ -1,6 +1,7 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/CacheManager.php';
 
 /**
  * 面板助手类 - 处理面板显示逻辑
@@ -482,16 +483,22 @@ class MediaLibrary_PanelHelper
      */
     public static function getParentPost($db, $attachmentCid)
     {
+        // 尝试从缓存读取
+        $postInfo = MediaLibrary_CacheManager::get('post-info');
+        if ($postInfo !== null && isset($postInfo[$attachmentCid])) {
+            return $postInfo[$attachmentCid];
+        }
+
         try {
             $attachment = $db->fetchRow($db->select()->from('table.contents')
                 ->where('cid = ? AND type = ?', $attachmentCid, 'attachment'));
-                
+
             if ($attachment && $attachment['parent'] > 0) {
                 $parentPost = $db->fetchRow($db->select()->from('table.contents')
                     ->where('cid = ?', $attachment['parent']));
-                    
+
                 if ($parentPost) {
-                    return [
+                    $result = [
                         'status' => 'archived',
                         'post' => [
                             'cid' => $parentPost['cid'],
@@ -499,9 +506,14 @@ class MediaLibrary_PanelHelper
                             'type' => $parentPost['type']
                         ]
                     ];
+
+                    // 更新缓存
+                    MediaLibrary_CacheManager::updatePostInfo($attachmentCid, $db);
+
+                    return $result;
                 }
             }
-            
+
             return ['status' => 'unarchived', 'post' => null];
         } catch (Exception $e) {
             return ['status' => 'unarchived', 'post' => null];
@@ -510,69 +522,80 @@ class MediaLibrary_PanelHelper
     
     /**
      * 获取详细文件信息
-     * 
+     *
      * @param string $filePath 文件路径
      * @param bool $enableGetID3 是否启用GetID3
+     * @param bool $useCache 是否使用缓存
      * @return array 文件详情
      */
-    public static function getDetailedFileInfo($filePath, $enableGetID3 = false)
+    public static function getDetailedFileInfo($filePath, $enableGetID3 = false, $useCache = true)
     {
         $info = [];
-        
+
         if (!file_exists($filePath)) {
             return $info;
         }
-        
+
+        // 尝试从缓存读取
+        if ($useCache) {
+            $cached = MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, $enableGetID3);
+            if ($cached !== null) {
+                // 移除缓存管理字段
+                unset($cached['mtime'], $cached['path'], $cached['cached_at']);
+                return $cached;
+            }
+        }
+
         $info['size'] = filesize($filePath);
         $info['modified'] = filemtime($filePath);
         $info['permissions'] = substr(sprintf('%o', fileperms($filePath)), -4);
-        
+
         if (extension_loaded('fileinfo')) {
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $info['mime'] = finfo_file($finfo, $filePath);
             finfo_close($finfo);
-            
+
             $finfoMime = finfo_open(FILEINFO_MIME);
             $info['mime_full'] = finfo_file($finfoMime, $filePath);
             finfo_close($finfoMime);
         }
-        
+
         // 只有启用 GetID3 才使用
         if ($enableGetID3 && file_exists(__TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/lib/getid3/getid3.php')) {
             try {
                 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/lib/getid3/getid3.php';
                 $getID3 = new getID3;
                 $fileInfo = $getID3->analyze($filePath);
-                
+
                 if (isset($fileInfo['fileformat'])) {
                     $info['format'] = $fileInfo['fileformat'];
                 }
-                
+
                 if (isset($fileInfo['playtime_string'])) {
                     $info['duration'] = $fileInfo['playtime_string'];
                 }
-                
+
                 if (isset($fileInfo['bitrate'])) {
                     $info['bitrate'] = round($fileInfo['bitrate'] / 1000) . ' kbps';
                 }
-                
+
                 if (isset($fileInfo['video']['resolution_x']) && isset($fileInfo['video']['resolution_y'])) {
                     $info['dimensions'] = $fileInfo['video']['resolution_x'] . ' × ' . $fileInfo['video']['resolution_y'];
                 }
-                
+
                 if (isset($fileInfo['audio']['channels'])) {
                     $info['channels'] = $fileInfo['audio']['channels'] . ' 声道';
                 }
-                
+
                 if (isset($fileInfo['audio']['sample_rate'])) {
                     $info['sample_rate'] = number_format($fileInfo['audio']['sample_rate']) . ' Hz';
                 }
-                
+
             } catch (Exception $e) {
                 // GetID3 分析失败，忽略错误
             }
         }
-        
+
         return $info;
     }
 
@@ -678,9 +701,17 @@ class MediaLibrary_PanelHelper
      */
     public static function getTypeStatistics($db, $storage = 'all')
     {
+        // 尝试从缓存读取
+        $cached = MediaLibrary_CacheManager::get('type-stats', $storage);
+        if ($cached !== null) {
+            return $cached;
+        }
+
         // WebDAV 存储：统计本地 WebDAV 文件夹的文件
         if ($storage === 'webdav') {
-            return self::getWebDAVFolderTypeStatistics();
+            $stats = self::getWebDAVFolderTypeStatistics();
+            MediaLibrary_CacheManager::set('type-stats', $stats, $storage);
+            return $stats;
         }
 
         // 基础查询
@@ -732,6 +763,9 @@ class MediaLibrary_PanelHelper
         $documentQuery = clone $baseQuery;
         $documentQuery->where('table.contents.text LIKE ?', '%application%');
         $statistics['document'] = $db->fetchObject($documentQuery->select('COUNT(DISTINCT table.contents.cid) as total'))->total;
+
+        // 缓存结果
+        MediaLibrary_CacheManager::set('type-stats', $statistics, $storage);
 
         return $statistics;
     }

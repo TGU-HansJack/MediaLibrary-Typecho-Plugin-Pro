@@ -153,7 +153,15 @@ var MediaLibrary = {
                 self.checkPrivacy();
             });
         }
-        
+
+        // 缓存刷新按钮
+        var cacheRefreshBtn = document.getElementById('cache-refresh-btn');
+        if (cacheRefreshBtn) {
+            cacheRefreshBtn.addEventListener('click', function() {
+                self.refreshCache();
+            });
+        }
+
         // 删除单个
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('media-delete-btn')) {
@@ -1254,7 +1262,75 @@ checkPrivacy: function() {
     xhr.send(params);
 },
 
-    
+// 缓存刷新方法
+refreshCache: function() {
+    var self = this;
+    var btn = document.getElementById('cache-refresh-btn');
+
+    if (!confirm('确定要刷新所有缓存吗？\n\n这将重新生成类型统计、文件详情、EXIF隐私检测和智能压缩建议等缓存数据。\n\n首次刷新可能需要较长时间，具体取决于媒体库文件数量。')) {
+        return;
+    }
+
+    // 禁用按钮
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '刷新中...';
+    }
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', currentUrl, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.timeout = 300000; // 5分钟超时
+
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<svg style="width:14px;height:14px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" /></svg>刷新缓存';
+            }
+
+            if (xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        self.showFeedback('缓存刷新成功！已刷新: ' + (response.refreshed ? response.refreshed.join(', ') : '所有缓存'), 'success');
+
+                        // 刷新页面以使用新缓存
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1500);
+                    } else {
+                        self.showFeedback('缓存刷新失败: ' + response.message, 'error');
+                    }
+                } catch (e) {
+                    self.showFeedback('缓存刷新失败: 无法解析服务器响应', 'error');
+                }
+            } else {
+                self.showFeedback('缓存刷新失败: 网络错误 (HTTP ' + xhr.status + ')', 'error');
+            }
+        }
+    };
+
+    xhr.ontimeout = function() {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<svg style="width:14px;height:14px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" /></svg>刷新缓存';
+        }
+        self.showFeedback('缓存刷新超时，请稍后重试', 'error');
+    };
+
+    xhr.onerror = function() {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<svg style="width:14px;height:14px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" /></svg>刷新缓存';
+        }
+        self.showFeedback('网络错误，请检查网络连接', 'error');
+    };
+
+    xhr.send('action=cache_refresh&type=all');
+},
+
+
 // 在 checkPrivacy 方法后添加以下方法：
 
 displayPrivacyResults: function(results) {

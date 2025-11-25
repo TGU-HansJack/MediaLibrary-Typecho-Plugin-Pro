@@ -8,6 +8,7 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImagePro
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/VideoProcessing.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ExifPrivacy.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/CacheManager.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVSync.php';
 
 /**
@@ -114,6 +115,18 @@ class MediaLibrary_AjaxHandler
 
                 case 'webdav_sync_all_local':
                     self::handleWebDAVSyncAllLocalAction($request, $configOptions, $db);
+                    break;
+
+                case 'cache_refresh':
+                    self::handleCacheRefreshAction($request, $db, $options, $enableGetID3);
+                    break;
+
+                case 'cache_clear':
+                    self::handleCacheClearAction();
+                    break;
+
+                case 'cache_stats':
+                    self::handleCacheStatsAction();
                     break;
 
 
@@ -228,6 +241,9 @@ class MediaLibrary_AjaxHandler
                 $db->query($db->delete('table.contents')->where('cid = ?', $cid));
                 $dbDeleted = true;
                 $deleteCount++;
+
+                // 清除相关缓存
+                MediaLibrary_CacheManager::deleteAttachmentCache($cid, $db);
             } catch (Exception $e) {
                 MediaLibrary_Logger::log('delete', '数据库记录删除失败: ' . $e->getMessage(), [
                     'cid' => $cid
@@ -240,6 +256,11 @@ class MediaLibrary_AjaxHandler
                 ];
             }
         }
+
+        // 刷新类型统计缓存
+        MediaLibrary_CacheManager::refreshTypeStats($db, 'all');
+        MediaLibrary_CacheManager::refreshTypeStats($db, 'local');
+        MediaLibrary_CacheManager::refreshTypeStats($db, 'webdav');
 
         MediaLibrary_Logger::log('delete', '删除操作完成', [
             'requested_cids' => $cids,
@@ -555,6 +576,23 @@ class MediaLibrary_AjaxHandler
             'replace_original' => $replaceOriginal,
             'results' => $results
         ]);
+
+        // 更新相关缓存
+        foreach ($cids as $cid) {
+            // 更新文件详情缓存
+            $attachment = $db->fetchRow($db->select()->from('table.contents')
+                ->where('cid = ? AND type = ?', $cid, 'attachment'));
+
+            if ($attachment) {
+                $attachmentData = @unserialize($attachment['text']);
+                if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                    MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                    MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+                }
+            }
+        }
+
         echo json_encode(['success' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
     }
     
@@ -597,6 +635,21 @@ class MediaLibrary_AjaxHandler
             'replace_original' => $replaceOriginal,
             'results' => $results
         ]);
+
+        // 更新相关缓存
+        foreach ($cids as $cid) {
+            $attachment = $db->fetchRow($db->select()->from('table.contents')
+                ->where('cid = ? AND type = ?', $cid, 'attachment'));
+
+            if ($attachment) {
+                $attachmentData = @unserialize($attachment['text']);
+                if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                    MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                }
+            }
+        }
+
         echo json_encode(['success' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
     }
 
@@ -641,7 +694,22 @@ private static function handleCropImageAction($request, $db, $options, $user)
         'use_library' => $useLibrary,
         'result' => $result
     ], !empty($result['success']) ? 'info' : 'error');
-    
+
+    // 如果裁剪成功，更新缓存
+    if (!empty($result['success'])) {
+        $attachment = $db->fetchRow($db->select()->from('table.contents')
+            ->where('cid = ? AND type = ?', $cid, 'attachment'));
+
+        if ($attachment) {
+            $attachmentData = @unserialize($attachment['text']);
+            if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+            }
+        }
+    }
+
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
 }
 
@@ -720,7 +788,22 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         'use_library' => $useLibrary,
         'result' => $result
     ], !empty($result['success']) ? 'info' : 'error');
-    
+
+    // 如果添加水印成功，更新缓存
+    if (!empty($result['success'])) {
+        $attachment = $db->fetchRow($db->select()->from('table.contents')
+            ->where('cid = ? AND type = ?', $cid, 'attachment'));
+
+        if ($attachment) {
+            $attachmentData = @unserialize($attachment['text']);
+            if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+            }
+        }
+    }
+
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
 }
 
@@ -775,40 +858,30 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '请选择图片文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $gpsData = [];
         foreach ($cids as $cid) {
-            $attachment = $db->fetchRow($db->select()->from('table.contents')
-                ->where('cid = ? AND type = ?', $cid, 'attachment'));
-                
-            if ($attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                    if (file_exists($filePath) && strpos($attachmentData['mime'], 'image/') === 0) {
-                        $exifData = @exif_read_data($filePath);
-                        if ($exifData && isset($exifData['GPSLatitude'], $exifData['GPSLongitude'], $exifData['GPSLatitudeRef'], $exifData['GPSLongitudeRef'])
-                            && is_array($exifData['GPSLatitude']) && is_array($exifData['GPSLongitude'])) {
-                            
-                            try {
-                                $lat = MediaLibrary_ExifPrivacy::exifToFloat($exifData['GPSLatitude'], $exifData['GPSLatitudeRef']);
-                                $lng = MediaLibrary_ExifPrivacy::exifToFloat($exifData['GPSLongitude'], $exifData['GPSLongitudeRef']);
-                                
-                                $gpsData[] = [
-                                    'cid' => $cid,
-                                    'title' => $attachment['title'],
-                                    'coords' => [$lng, $lat],
-                                    'url' => Typecho_Common::url($attachmentData['path'], $options->siteUrl)
-                                ];
-                            } catch (Exception $e) {
-                                // GPS解析失败，跳过
-                            }
-                        }
+            // 尝试从缓存读取
+            $cached = MediaLibrary_CacheManager::getOrUpdateExifPrivacy($cid, $db, $options);
+
+            if ($cached && $cached['gps_coords']) {
+                $attachment = $db->fetchRow($db->select()->from('table.contents')
+                    ->where('cid = ? AND type = ?', $cid, 'attachment'));
+
+                if ($attachment) {
+                    $attachmentData = @unserialize($attachment['text']);
+                    if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                        $gpsData[] = [
+                            'cid' => $cid,
+                            'title' => $attachment['title'],
+                            'coords' => $cached['gps_coords'],
+                            'url' => Typecho_Common::url($attachmentData['path'], $options->siteUrl)
+                        ];
                     }
                 }
             }
         }
-        
+
         MediaLibrary_Logger::log('get_gps_data', 'GPS 数据获取完成', [
             'cids' => $cids,
             'count' => count($gpsData)
@@ -827,30 +900,35 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '请选择图片文件'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $suggestions = [];
         foreach ($cids as $cid) {
-            $attachment = $db->fetchRow($db->select()->from('table.contents')
-                ->where('cid = ? AND type = ?', $cid, 'attachment'));
-                
-            if ($attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                    if (file_exists($filePath) && strpos($attachmentData['mime'], 'image/') === 0) {
-                        $fileSize = filesize($filePath);
-                        $suggestion = MediaLibrary_ImageProcessing::getSmartCompressionSuggestion($filePath, $attachmentData['mime'], $fileSize);
+            // 尝试从缓存读取
+            $cached = MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+
+            if ($cached) {
+                $attachment = $db->fetchRow($db->select()->from('table.contents')
+                    ->where('cid = ? AND type = ?', $cid, 'attachment'));
+
+                if ($attachment) {
+                    $attachmentData = @unserialize($attachment['text']);
+                    if (is_array($attachmentData) && isset($attachmentData['name'])) {
                         $suggestions[] = [
                             'cid' => $cid,
                             'filename' => $attachmentData['name'],
-                            'size' => MediaLibrary_FileOperations::formatFileSize($fileSize),
-                            'suggestion' => $suggestion
+                            'size' => MediaLibrary_FileOperations::formatFileSize($cached['file_size']),
+                            'suggestion' => [
+                                'quality' => $cached['quality'],
+                                'format' => $cached['format'],
+                                'method' => $cached['method'],
+                                'reason' => $cached['reason']
+                            ]
                         ];
                     }
                 }
             }
         }
-        
+
         MediaLibrary_Logger::log('smart_suggestion', '智能压缩建议生成完毕', [
             'cids' => $cids,
             'count' => count($suggestions)
@@ -927,12 +1005,18 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         
         // 智能清除EXIF信息
         $result = MediaLibrary_ExifPrivacy::removeImageExif($filePath, $attachmentData['mime']);
+
+        // 如果清除成功，删除 EXIF 缓存
+        if (!empty($result['success'])) {
+            MediaLibrary_CacheManager::deleteExifPrivacy($cid);
+        }
+
         MediaLibrary_Logger::log('remove_exif', $result['message'], [
             'cid' => $cid,
             'path' => $attachmentData['path'],
             'result' => $result
         ], !empty($result['success']) ? 'info' : 'error');
-        
+
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 
@@ -1672,6 +1756,157 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         } catch (Exception $e) {
             MediaLibrary_Logger::log('webdav_sync_all_local', '批量同步失败: ' . $e->getMessage(), [], 'error');
             echo json_encode(['success' => false, 'message' => '批量同步失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理缓存刷新请求
+     */
+    private static function handleCacheRefreshAction($request, $db, $options, $enableGetID3)
+    {
+        try {
+            $type = $request->get('type', 'all');
+
+            if ($type === 'all') {
+                // 刷新所有缓存
+                $result = MediaLibrary_CacheManager::refreshAll($db, $options, $enableGetID3);
+                $message = $result['success'] ? '所有缓存刷新成功' : '部分缓存刷新失败';
+
+                MediaLibrary_Logger::log('cache_refresh', $message, [
+                    'refreshed' => $result['refreshed'],
+                    'failed' => $result['failed']
+                ], $result['success'] ? 'info' : 'warning');
+
+                echo json_encode([
+                    'success' => $result['success'],
+                    'message' => $message,
+                    'refreshed' => $result['refreshed'],
+                    'failed' => $result['failed']
+                ], JSON_UNESCAPED_UNICODE);
+            } else {
+                // 刷新指定类型的缓存
+                $success = false;
+                $message = '未知的缓存类型';
+
+                switch ($type) {
+                    case 'type-stats':
+                        $success = MediaLibrary_CacheManager::refreshTypeStats($db, 'all') &&
+                                   MediaLibrary_CacheManager::refreshTypeStats($db, 'local') &&
+                                   MediaLibrary_CacheManager::refreshTypeStats($db, 'webdav');
+                        $message = $success ? '类型统计缓存刷新成功' : '类型统计缓存刷新失败';
+                        break;
+
+                    case 'post-info':
+                        $success = MediaLibrary_CacheManager::refreshPostInfo($db);
+                        $message = $success ? '文章信息缓存刷新成功' : '文章信息缓存刷新失败';
+                        break;
+
+                    case 'file-details':
+                        $success = MediaLibrary_CacheManager::refreshFileDetails($db, $enableGetID3);
+                        $message = $success ? '文件详情缓存刷新成功' : '文件详情缓存刷新失败';
+                        break;
+
+                    case 'exif-privacy':
+                        $success = MediaLibrary_CacheManager::refreshExifPrivacy($db, $options);
+                        $message = $success ? 'EXIF隐私缓存刷新成功' : 'EXIF隐私缓存刷新失败';
+                        break;
+
+                    case 'smart-suggestions':
+                        $success = MediaLibrary_CacheManager::refreshSmartSuggestions($db);
+                        $message = $success ? '智能建议缓存刷新成功' : '智能建议缓存刷新失败';
+                        break;
+                }
+
+                MediaLibrary_Logger::log('cache_refresh', $message, ['type' => $type], $success ? 'info' : 'warning');
+
+                echo json_encode([
+                    'success' => $success,
+                    'message' => $message,
+                    'type' => $type
+                ], JSON_UNESCAPED_UNICODE);
+            }
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('cache_refresh', '缓存刷新失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '缓存刷新失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理缓存清空请求
+     */
+    private static function handleCacheClearAction()
+    {
+        try {
+            $result = MediaLibrary_CacheManager::clearAll();
+
+            $message = $result['success']
+                ? "成功清空 {$result['deleted']} 个缓存文件"
+                : "清空缓存失败，删除 {$result['deleted']} 个，失败 {$result['failed']} 个";
+
+            MediaLibrary_Logger::log('cache_clear', $message, [
+                'deleted' => $result['deleted'],
+                'failed' => $result['failed'],
+                'files' => $result['files']
+            ], $result['success'] ? 'info' : 'warning');
+
+            echo json_encode([
+                'success' => $result['success'],
+                'message' => $message,
+                'deleted' => $result['deleted'],
+                'failed' => $result['failed'],
+                'files' => $result['files']
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('cache_clear', '清空缓存失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '清空缓存失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理获取缓存统计请求
+     */
+    private static function handleCacheStatsAction()
+    {
+        try {
+            $stats = MediaLibrary_CacheManager::getStats();
+
+            // 格式化文件大小
+            $totalSizeFormatted = MediaLibrary_FileOperations::formatFileSize($stats['total_size']);
+
+            foreach ($stats['files'] as &$file) {
+                $file['size_formatted'] = MediaLibrary_FileOperations::formatFileSize($file['size']);
+                $file['age_formatted'] = self::formatAge($file['age']);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'cache_dir' => $stats['cache_dir'],
+                'total_size' => $stats['total_size'],
+                'total_size_formatted' => $totalSizeFormatted,
+                'files' => $stats['files']
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('cache_stats', '获取缓存统计失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '获取缓存统计失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 格式化时间间隔
+     *
+     * @param int $seconds 秒数
+     * @return string 格式化后的时间
+     */
+    private static function formatAge($seconds)
+    {
+        if ($seconds < 60) {
+            return $seconds . ' 秒前';
+        } elseif ($seconds < 3600) {
+            return floor($seconds / 60) . ' 分钟前';
+        } elseif ($seconds < 86400) {
+            return floor($seconds / 3600) . ' 小时前';
+        } else {
+            return floor($seconds / 86400) . ' 天前';
         }
     }
 }
