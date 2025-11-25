@@ -2740,6 +2740,165 @@ var WebDAVManager = {
                 self.showFeedback('网络错误', 'error');
             }
         });
+    },
+
+    /**
+     * 检测是否为 WebDAV 文件
+     * @param {Object} item 文件项数据
+     * @returns {boolean}
+     */
+    isWebDAVFile: function(item) {
+        return item && (item.webdav_file === true || (item.attachment && item.attachment.storage === 'webdav'));
+    },
+
+    /**
+     * 获取文件路径（WebDAV 文件使用相对路径，普通文件使用 cid）
+     * @param {Object} item 文件项数据
+     * @returns {string|number}
+     */
+    getFileIdentifier: function(item) {
+        if (this.isWebDAVFile(item)) {
+            return item.attachment && item.attachment.path ? item.attachment.path : item.title;
+        }
+        return item.cid || 0;
+    },
+
+    /**
+     * WebDAV 图片压缩
+     */
+    compressWebDAVImage: function(file, options) {
+        var self = this;
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: jQuery.extend({
+                action: 'webdav_compress_image',
+                file: file
+            }, options),
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('压缩成功: ' + response.message, 'success');
+                } else {
+                    self.showFeedback('压缩失败: ' + response.message, 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    /**
+     * WebDAV 图片裁剪
+     */
+    cropWebDAVImage: function(file, options) {
+        var self = this;
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: jQuery.extend({
+                action: 'webdav_crop_image',
+                file: file
+            }, options),
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('裁剪成功: ' + response.message, 'success');
+                } else {
+                    self.showFeedback('裁剪失败: ' + response.message, 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    /**
+     * WebDAV 图片添加水印
+     */
+    addWebDAVWatermark: function(file, options) {
+        var self = this;
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: jQuery.extend({
+                action: 'webdav_add_watermark',
+                file: file
+            }, options),
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('水印添加成功: ' + response.message, 'success');
+                } else {
+                    self.showFeedback('水印添加失败: ' + response.message, 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    /**
+     * WebDAV 图片隐私检测
+     */
+    checkWebDAVPrivacy: function(file) {
+        var self = this;
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: {
+                action: 'webdav_check_privacy',
+                file: file
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success !== false) {
+                    var message = response.has_privacy ?
+                        '发现隐私信息: ' + JSON.stringify(response.privacy_types) :
+                        '未发现隐私信息';
+                    self.showFeedback(message, response.has_privacy ? 'warning' : 'success');
+                } else {
+                    self.showFeedback('检测失败: ' + response.message, 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
+    },
+
+    /**
+     * WebDAV 图片清除 EXIF
+     */
+    removeWebDAVExif: function(file) {
+        var self = this;
+
+        jQuery.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: {
+                action: 'webdav_remove_exif',
+                file: file
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    self.showFeedback('EXIF 清除成功', 'success');
+                } else {
+                    self.showFeedback('EXIF 清除失败: ' + response.message, 'error');
+                }
+            },
+            error: function() {
+                self.showFeedback('网络错误', 'error');
+            }
+        });
     }
 };
 

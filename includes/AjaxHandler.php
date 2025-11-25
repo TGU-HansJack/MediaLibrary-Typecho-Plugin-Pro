@@ -9,6 +9,7 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/VideoPro
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ExifPrivacy.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVSync.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVFileProcessor.php';
 
 /**
  * Ajax请求处理类
@@ -114,6 +115,27 @@ class MediaLibrary_AjaxHandler
 
                 case 'webdav_sync_all_local':
                     self::handleWebDAVSyncAllLocalAction($request, $configOptions, $db);
+                    break;
+
+                // WebDAV 文件处理
+                case 'webdav_compress_image':
+                    self::handleWebDAVCompressImageAction($request, $configOptions);
+                    break;
+
+                case 'webdav_crop_image':
+                    self::handleWebDAVCropImageAction($request, $configOptions);
+                    break;
+
+                case 'webdav_add_watermark':
+                    self::handleWebDAVAddWatermarkAction($request, $configOptions);
+                    break;
+
+                case 'webdav_check_privacy':
+                    self::handleWebDAVCheckPrivacyAction($request, $configOptions);
+                    break;
+
+                case 'webdav_remove_exif':
+                    self::handleWebDAVRemoveExifAction($request, $configOptions);
                     break;
 
 
@@ -1672,6 +1694,177 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         } catch (Exception $e) {
             MediaLibrary_Logger::log('webdav_sync_all_local', '批量同步失败: ' . $e->getMessage(), [], 'error');
             echo json_encode(['success' => false, 'message' => '批量同步失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理 WebDAV 图片压缩请求
+     */
+    private static function handleWebDAVCompressImageAction($request, $configOptions)
+    {
+        if (empty($configOptions['enableWebDAV'])) {
+            echo json_encode(['success' => false, 'message' => 'WebDAV 功能未启用'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $file = $request->get('file');
+        $quality = $request->get('quality', 80);
+        $outputFormat = $request->get('output_format', 'original');
+        $compressMethod = $request->get('compress_method', 'gd');
+        $replaceOriginal = $request->get('replace_original') === 'true';
+        $customName = $request->get('custom_name', '');
+
+        if (empty($file)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $processor = new MediaLibrary_WebDAVFileProcessor($configOptions);
+            $result = $processor->compressImage($file, [
+                'quality' => $quality,
+                'output_format' => $outputFormat,
+                'compress_method' => $compressMethod,
+                'replace_original' => $replaceOriginal,
+                'custom_name' => $customName
+            ]);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_compress', '压缩失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '压缩失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理 WebDAV 图片裁剪请求
+     */
+    private static function handleWebDAVCropImageAction($request, $configOptions)
+    {
+        if (empty($configOptions['enableWebDAV'])) {
+            echo json_encode(['success' => false, 'message' => 'WebDAV 功能未启用'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $file = $request->get('file');
+        $x = $request->get('x', 0);
+        $y = $request->get('y', 0);
+        $width = $request->get('width', 0);
+        $height = $request->get('height', 0);
+        $replaceOriginal = $request->get('replace_original') === 'true';
+
+        if (empty($file)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $processor = new MediaLibrary_WebDAVFileProcessor($configOptions);
+            $result = $processor->cropImage($file, [
+                'x' => $x,
+                'y' => $y,
+                'width' => $width,
+                'height' => $height,
+                'replace_original' => $replaceOriginal
+            ]);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_crop', '裁剪失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '裁剪失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理 WebDAV 图片添加水印请求
+     */
+    private static function handleWebDAVAddWatermarkAction($request, $configOptions)
+    {
+        if (empty($configOptions['enableWebDAV'])) {
+            echo json_encode(['success' => false, 'message' => 'WebDAV 功能未启用'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $file = $request->get('file');
+        $text = $request->get('text', '');
+        $position = $request->get('position', 'bottom-right');
+        $opacity = $request->get('opacity', 50);
+        $replaceOriginal = $request->get('replace_original') === 'true';
+
+        if (empty($file)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $processor = new MediaLibrary_WebDAVFileProcessor($configOptions);
+            $result = $processor->addWatermark($file, [
+                'text' => $text,
+                'position' => $position,
+                'opacity' => $opacity,
+                'replace_original' => $replaceOriginal
+            ]);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_watermark', '添加水印失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '添加水印失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理 WebDAV 图片隐私检测请求
+     */
+    private static function handleWebDAVCheckPrivacyAction($request, $configOptions)
+    {
+        if (empty($configOptions['enableWebDAV'])) {
+            echo json_encode(['success' => false, 'message' => 'WebDAV 功能未启用'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $file = $request->get('file');
+
+        if (empty($file)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $processor = new MediaLibrary_WebDAVFileProcessor($configOptions);
+            $result = $processor->checkPrivacy($file);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_privacy', '隐私检测失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '隐私检测失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理 WebDAV 图片清除 EXIF 请求
+     */
+    private static function handleWebDAVRemoveExifAction($request, $configOptions)
+    {
+        if (empty($configOptions['enableWebDAV'])) {
+            echo json_encode(['success' => false, 'message' => 'WebDAV 功能未启用'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $file = $request->get('file');
+
+        if (empty($file)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $processor = new MediaLibrary_WebDAVFileProcessor($configOptions);
+            $result = $processor->removeExif($file);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('webdav_exif_remove', '清除 EXIF 失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode(['success' => false, 'message' => '清除 EXIF 失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
     }
 }
