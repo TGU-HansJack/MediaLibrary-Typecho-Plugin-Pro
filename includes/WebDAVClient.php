@@ -14,6 +14,7 @@ class MediaLibrary_WebDAVClient
     private $verifySSL;
     private $timeout;
     private $rootPrefix;
+    private $authHeader = null;
 
     public function __construct(array $config)
     {
@@ -26,19 +27,22 @@ class MediaLibrary_WebDAVClient
             throw new Exception('未配置 WebDAV 服务器地址');
         }
 
+        $endpoint = $this->normalizeEndpointScheme($endpoint);
         $this->endpoint = rtrim($endpoint, '/');
         $this->basePath = self::normalizeBasePath(isset($config['webdavBasePath']) ? $config['webdavBasePath'] : '/');
         $this->baseUri = rtrim($this->endpoint, '/') . ($this->basePath === '/' ? '' : $this->basePath);
         $this->username = isset($config['webdavUsername']) ? (string)$config['webdavUsername'] : '';
         $this->password = isset($config['webdavPassword']) ? (string)$config['webdavPassword'] : '';
         $this->verifySSL = empty($config['webdavVerifySSL']) ? false : true;
-        $this->timeout = isset($config['webdavTimeout']) ? max(3, intval($config['webdavTimeout'])) : 10;
+        $this->timeout = isset($config['webdavTimeout']) ? max(3, intval($config['webdavTimeout'])) : 30;
 
         $endpointPath = parse_url($this->endpoint, PHP_URL_PATH);
         $endpointPath = $endpointPath ? rtrim($endpointPath, '/') : '';
         $basePart = $this->basePath === '/' ? '' : $this->basePath;
         $combined = $endpointPath . $basePart;
         $this->rootPrefix = $combined === '' ? '/' : $combined;
+
+        $this->authHeader = $this->buildAuthHeader($this->username, $this->password);
     }
 
     /**
@@ -167,6 +171,7 @@ class MediaLibrary_WebDAVClient
         $url = $this->buildUrl($target);
         $ch = $this->prepareCurl($url);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'MKCOL');
+        $this->applyHeaders($ch);
         $this->executeCurl($ch);
         return true;
     }
@@ -184,6 +189,7 @@ class MediaLibrary_WebDAVClient
         $url = $this->buildUrl($target);
         $ch = $this->prepareCurl($url);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        $this->applyHeaders($ch);
         $this->executeCurl($ch);
         return true;
     }
@@ -211,7 +217,7 @@ class MediaLibrary_WebDAVClient
 
         $ch = $this->prepareCurl($sourceUrl);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'MOVE');
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        $this->applyHeaders($ch, array(
             'Destination: ' . $destUrl,
             'Overwrite: ' . ($overwrite ? 'T' : 'F')
         ));
@@ -248,7 +254,7 @@ class MediaLibrary_WebDAVClient
 
         $ch = $this->prepareCurl($sourceUrl);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'COPY');
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        $this->applyHeaders($ch, array(
             'Destination: ' . $destUrl,
             'Overwrite: ' . ($overwrite ? 'T' : 'F')
         ));
@@ -282,7 +288,7 @@ class MediaLibrary_WebDAVClient
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
         curl_setopt($ch, CURLOPT_INFILE, $fp);
         curl_setopt($ch, CURLOPT_INFILESIZE, filesize($localFile));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: ' . ($mime ?: 'application/octet-stream')));
+        $this->applyHeaders($ch, array('Content-Type: ' . ($mime ?: 'application/octet-stream')));
 
         try {
             $this->executeCurl($ch);
@@ -311,6 +317,7 @@ class MediaLibrary_WebDAVClient
 
         $ch = $this->prepareCurl($url);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
+        $this->applyHeaders($ch);
 
         // 将响应写入文件
         $fp = fopen($localPath, 'wb');
@@ -455,7 +462,7 @@ class MediaLibrary_WebDAVClient
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
                 curl_setopt($ch, CURLOPT_INFILE, $fp);
                 curl_setopt($ch, CURLOPT_INFILESIZE, filesize($localPath));
-                curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: ' . $mime));
+                $this->applyHeaders($ch, array('Content-Type: ' . $mime));
 
                 // 添加到 multi handle
                 curl_multi_add_handle($mh, $ch);
@@ -529,7 +536,7 @@ class MediaLibrary_WebDAVClient
             . '</d:propfind>';
 
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PROPFIND');
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        $this->applyHeaders($ch, array(
             'Depth: ' . intval($depth),
             'Content-Type: application/xml; charset="utf-8"'
         ));
@@ -547,6 +554,7 @@ class MediaLibrary_WebDAVClient
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->verifySSL);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->verifySSL ? 2 : 0);
         curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'MediaLibrary-WebDAV/1.0');
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_HEADER, false);
         return $ch;
@@ -662,5 +670,53 @@ class MediaLibrary_WebDAVClient
 
         $segments = array_map('rawurlencode', explode('/', $trimmed));
         return '/' . implode('/', $segments);
+    }
+
+    private function normalizeEndpointScheme($endpoint)
+    {
+        if (stripos($endpoint, 'davs://') === 0) {
+            return 'https://' . substr($endpoint, 7);
+        }
+        if (stripos($endpoint, 'dav://') === 0) {
+            return 'http://' . substr($endpoint, 6);
+        }
+        return $endpoint;
+    }
+
+    private function buildAuthHeader($username, $password)
+    {
+        $credentials = $username . ':' . $password;
+        if ($credentials === ':') {
+            return null;
+        }
+
+        if (function_exists('mb_convert_encoding')) {
+            $encodedCredentials = mb_convert_encoding($credentials, 'UTF-8', 'UTF-8');
+        } else {
+            $encodedCredentials = $credentials;
+        }
+
+        return base64_encode($encodedCredentials);
+    }
+
+    private function applyHeaders($ch, array $headers = [])
+    {
+        if ($this->authHeader !== null) {
+            $hasAuth = false;
+            foreach ($headers as $header) {
+                if (stripos($header, 'authorization:') === 0) {
+                    $hasAuth = true;
+                    break;
+                }
+            }
+
+            if (!$hasAuth) {
+                $headers[] = 'Authorization: Basic ' . $this->authHeader;
+            }
+        }
+
+        if (!empty($headers)) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
     }
 }
