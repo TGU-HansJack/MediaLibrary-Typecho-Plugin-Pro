@@ -1123,44 +1123,21 @@ showImageCompressModal: function() {
     },
     
 checkPrivacy: function() {
-    var self = this;
     var selectedImages = this.selectedItems.filter(function(item) {
         return item.isImage;
     });
-
+    
     if (selectedImages.length === 0) {
         alert('请选择图片文件进行隐私检测');
         return;
     }
-
-    // 分离 WebDAV 文件和普通文件
-    var webdavFiles = [];
-    var normalFiles = [];
-
-    selectedImages.forEach(function(item) {
-        if (self.isWebDAVFile(item)) {
-            webdavFiles.push(item);
-        } else {
-            normalFiles.push(item);
-        }
-    });
-
-    // 处理 WebDAV 文件
-    if (webdavFiles.length > 0) {
-        this.checkWebDAVPrivacyBatch(webdavFiles);
-    }
-
-    // 处理普通文件
-    if (normalFiles.length === 0) {
-        return;
-    }
-
-    var cids = normalFiles.map(function(item) { return item.cid; });
-
+    
+    var cids = selectedImages.map(function(item) { return item.cid; });
+    
     var xhr = new XMLHttpRequest();
     xhr.open('POST', currentUrl, true);
     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-
+    
     var params = 'action=check_privacy&' + cids.map(function(cid) {
         return 'cids[]=' + encodeURIComponent(cid);
     }).join('&');
@@ -2922,121 +2899,6 @@ var WebDAVManager = {
                 self.showFeedback('网络错误', 'error');
             }
         });
-    },
-
-    /**
-     * 批量检测 WebDAV 文件隐私
-     */
-    checkWebDAVPrivacyBatch: function(files) {
-        var self = this;
-        var results = [];
-        var completed = 0;
-        var total = files.length;
-
-        var privacyModal = document.getElementById('privacy-modal');
-        var privacyContent = document.getElementById('privacy-content');
-
-        if (privacyModal && privacyContent) {
-            privacyContent.innerHTML = '<p>正在检测 WebDAV 文件隐私信息...</p>';
-            privacyModal.style.display = 'flex';
-        }
-
-        files.forEach(function(file) {
-            var filePath = self.getFileIdentifier(file);
-
-            jQuery.ajax({
-                url: window.location.href,
-                type: 'POST',
-                data: {
-                    action: 'webdav_check_privacy',
-                    file: filePath
-                },
-                dataType: 'json',
-                success: function(response) {
-                    results.push({
-                        file: file,
-                        response: response
-                    });
-                },
-                error: function() {
-                    results.push({
-                        file: file,
-                        response: {
-                            success: false,
-                            message: '网络错误',
-                            filename: file.title || filePath
-                        }
-                    });
-                },
-                complete: function() {
-                    completed++;
-                    if (completed === total) {
-                        self.displayWebDAVPrivacyResults(results);
-                    }
-                }
-            });
-        });
-    },
-
-    /**
-     * 显示 WebDAV 隐私检测结果
-     */
-    displayWebDAVPrivacyResults: function(results) {
-        var self = this;
-        var privacyContent = document.getElementById('privacy-content');
-
-        if (!privacyContent) {
-            return;
-        }
-
-        var html = '<h4>WebDAV 文件隐私检测结果</h4>';
-        html += '<div style="max-height: 400px; overflow-y: auto;">';
-
-        results.forEach(function(result) {
-            var response = result.response;
-            var file = result.file;
-            var filePath = self.getFileIdentifier(file);
-
-            html += '<div style="padding: 15px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px;">';
-            html += '<div style="font-weight: bold; margin-bottom: 10px;">' + (response.filename || file.title) + '</div>';
-
-            if (response.success !== false) {
-                html += '<div style="margin-bottom: 10px;">';
-                html += '<span style="color: ' + (response.has_privacy ? '#dc3232' : '#46b450') + ';">';
-                html += response.has_privacy ? '发现隐私信息' : '未发现隐私信息';
-                html += '</span>';
-                html += '</div>';
-
-                if (response.has_privacy && response.privacy_info) {
-                    html += '<div><strong>发现的隐私信息:</strong></div>';
-                    html += '<ul style="margin: 10px 0; padding-left: 20px;">';
-
-                    for (var key in response.privacy_info) {
-                        html += '<li style="margin-bottom: 5px;">' + key + ': ' + response.privacy_info[key] + '</li>';
-                    }
-
-                    html += '</ul>';
-
-                    // 添加清除按钮
-                    if (config.hasExifTool) {
-                        html += '<div style="margin-top: 10px;">';
-                        html += '<button class="btn btn-warning btn-small" onclick="MediaLibrary.removeWebDAVExif(\'' + filePath.replace(/'/g, "\\'") + '\')">清除EXIF信息</button>';
-                        html += '</div>';
-                    } else {
-                        html += '<div style="margin-top: 10px; color: #999; font-size: 12px;">';
-                        html += '需要安装 ExifTool 库才能清除EXIF信息';
-                        html += '</div>';
-                    }
-                }
-            } else {
-                html += '<div style="color: #dc3232;">检测失败: ' + (response.message || '未知错误') + '</div>';
-            }
-
-            html += '</div>';
-        });
-
-        html += '</div>';
-        privacyContent.innerHTML = html;
     }
 };
 
