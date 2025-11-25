@@ -32,8 +32,6 @@ function goToPage(page, event) {
 // 主要功能对象
 var MediaLibrary = {
     selectedItems: [],
-    feedbackElement: null,
-    feedbackTimer: null,
     
     init: function() {
         this.bindEvents();
@@ -162,17 +160,7 @@ var MediaLibrary = {
                 e.preventDefault();
                 e.stopPropagation();
                 var cid = e.target.getAttribute('data-cid');
-                var container = e.target.closest('.media-item, tr[data-cid]');
-                var itemData = self.getItemDataFromElement(container);
-                if (!itemData) {
-                    itemData = {
-                        cid: cid,
-                        storage: 'database',
-                        filePath: '',
-                        attachment: { storage: 'database', path: '' }
-                    };
-                }
-                self.deleteFiles([itemData]);
+                self.deleteFiles([cid]);
             }
         });
         
@@ -409,62 +397,6 @@ var MediaLibrary = {
         }.bind(this));
     },
     
-    getItemDataFromElement: function(element) {
-        if (!element) {
-            return null;
-        }
-        var type = element.getAttribute('data-type') || '';
-        var storage = element.getAttribute('data-storage') || 'database';
-        var filePath = element.getAttribute('data-file-path') || '';
-        return {
-            cid: element.getAttribute('data-cid') || '',
-            isImage: element.getAttribute('data-is-image') === '1',
-            isVideo: element.getAttribute('data-is-video') === '1' || type.indexOf('video/') === 0,
-            type: type,
-            title: element.getAttribute('data-title') || '',
-            storage: storage,
-            filePath: filePath,
-            attachment: {
-                storage: storage,
-                path: filePath
-            },
-            webdav_file: storage === 'webdav'
-        };
-    },
-
-    isWebDAVFile: function(item) {
-        if (!item) return false;
-        if (item.storage && item.storage === 'webdav') {
-            return true;
-        }
-        return item.webdav_file === true || (item.attachment && item.attachment.storage === 'webdav');
-    },
-
-    getSelectedFilePath: function(item) {
-        if (!item) return '';
-        var path = item.filePath || (item.attachment && item.attachment.path) || '';
-        if (!path) {
-            return '';
-        }
-        path = path.replace(/^[\\/]+/, '');
-        var uploadDir = (config.uploadDir || '').replace(/^[\\/]+/, '').replace(/[\\/]+$/, '');
-        if (uploadDir && path.indexOf(uploadDir + '/') === 0) {
-            return path.substring(uploadDir.length + 1);
-        }
-        return path;
-    },
-
-    getFileIdentifier: function(item) {
-        if (this.isWebDAVFile(item)) {
-            return this.getSelectedFilePath(item) || item.title || '';
-        }
-        var localPath = this.getSelectedFilePath(item);
-        if (localPath) {
-            return localPath;
-        }
-        return item && item.cid ? item.cid : 0;
-    },
-    
 updateToolbarButtons: function() {
     var compressImagesBtn = document.getElementById('compress-images-btn');
     var compressVideosBtn = document.getElementById('compress-videos-btn');
@@ -544,161 +476,55 @@ updateToolbarButtons: function() {
 
     
     deleteSelected: function() {
-        if (!this.selectedItems || this.selectedItems.length === 0) {
-            alert('?????????');
-            return;
-        }
-        this.deleteFiles(this.selectedItems.slice());
-    },
-    
-    deleteFiles: function(items) {
-        items = Array.isArray(items) ? items : [];
-
-        if (items.length === 0) {
+        var cids = [];
+        var checkboxes = document.querySelectorAll('input[type="checkbox"][value]:checked');
+        checkboxes.forEach(function(checkbox) {
+            cids.push(checkbox.value);
+        });
+        
+        if (cids.length === 0) {
             alert('请选择要删除的文件');
             return;
         }
-
+        
+        this.deleteFiles(cids);
+    },
+    
+    deleteFiles: function(cids) {
         if (!confirm('确定要删除这些文件吗？此操作不可恢复！')) {
             return;
         }
-
-        this.showFeedback('正在删除...', 'info');
-
-        var self = this;
-        var dbCids = [];
-        var localTargets = [];
-        var webdavTargets = [];
-
-        items.forEach(function(item) {
-            if (typeof item === 'string' || typeof item === 'number') {
-                var cidValue = item.toString();
-                if (cidValue && cidValue !== '0') {
-                    dbCids.push(cidValue);
-                }
-                return;
-            }
-
-            var storage = (item && (item.storage || (item.attachment && item.attachment.storage))) || 'database';
-            var cid = item && item.cid ? item.cid.toString() : '';
-            var filePath = self.getSelectedFilePath(item);
-
-            if (storage === 'webdav') {
-                if (filePath) {
-                    webdavTargets.push(filePath);
-                }
-                return;
-            }
-
-            if (storage === 'local_direct' || storage === 'local') {
-                if (filePath) {
-                    localTargets.push(filePath);
-                } else if (cid && cid !== '0') {
-                    dbCids.push(cid);
-                }
-                return;
-            }
-
-            if (cid && cid !== '0') {
-                dbCids.push(cid);
-            }
-        });
-
-        var deduplicate = function(list) {
-            var seen = {};
-            return list.filter(function(value) {
-                if (!value) {
-                    return false;
-                }
-                if (seen[value]) {
-                    return false;
-                }
-                seen[value] = true;
-                return true;
-            });
-        };
-
-        dbCids = deduplicate(dbCids);
-        localTargets = deduplicate(localTargets);
-        webdavTargets = deduplicate(webdavTargets);
-
-        var requests = [];
-
-        if (dbCids.length > 0) {
-            var dbParams = 'action=delete&' + dbCids.map(function(cid) {
-                return 'cids[]=' + encodeURIComponent(cid);
-            }).join('&');
-            requests.push({ label: '数据库附件', params: dbParams });
-        }
-
-        if (localTargets.length > 0) {
-            var localParams = 'action=local_delete&' + localTargets.map(function(target) {
-                return 'targets[]=' + encodeURIComponent(target);
-            }).join('&');
-            requests.push({ label: '本地文件', params: localParams });
-        }
-
-        if (webdavTargets.length > 0) {
-            var webdavParams = 'action=webdav_delete&' + webdavTargets.map(function(target) {
-                return 'targets[]=' + encodeURIComponent(target);
-            }).join('&');
-            requests.push({ label: 'WebDAV 文件', params: webdavParams });
-        }
-
-        if (requests.length === 0) {
-            this.showFeedback('未找到可删除的目标', 'warning');
-            alert('未找到可删除的目标');
-            return;
-        }
-
-        var errors = [];
-
-        var processNext = function() {
-            if (requests.length === 0) {
-                if (errors.length > 0) {
-                    self.showFeedback('部分文件删除失败', 'error');
-                    alert('部分文件删除失败：\n' + errors.join('\n'));
-                } else {
-                    self.showFeedback('删除成功', 'success');
-                }
-                setTimeout(function() {
-                    window.location.reload();
-                }, 600);
-                return;
-            }
-
-            var current = requests.shift();
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', currentUrl, true);
-            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            var response = JSON.parse(xhr.responseText);
-                            if (!response.success) {
-                                errors.push(current.label + ': ' + (response.message || '操作失败'));
-                            }
-                        } catch (e) {
-                            errors.push(current.label + ': 响应解析失败');
+        
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', currentUrl, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        
+        var params = 'action=delete&' + cids.map(function(cid) {
+            return 'cids[]=' + encodeURIComponent(cid);
+        }).join('&');
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            alert(response.message || '删除成功');
+                            location.reload();
+                        } else {
+                            alert('删除失败: ' + (response.message || '未知错误'));
                         }
-                    } else {
-                        errors.push(current.label + ': HTTP ' + xhr.status);
+                    } catch (e) {
+                        alert('删除操作响应解析失败');
+                        console.error('Response parse error:', e, xhr.responseText);
                     }
-                    processNext();
+                } else {
+                    alert('删除操作失败，服务器返回错误 (HTTP ' + xhr.status + ')');
                 }
-            };
-
-            xhr.onerror = function() {
-                errors.push(current.label + ': 网络错误');
-                processNext();
-            };
-
-            xhr.send(current.params);
+            }
         };
-
-        processNext();
+        
+        xhr.send(params);
     },
     
     showFileInfo: function(cid, filePath, storage) {
@@ -2286,8 +2112,8 @@ escapeHtml: function(text) {
 },
 
 // 添加辅助函数解析文件大小
-    parseSize: function(size) {
-        if (typeof size === 'number') return size;
+parseSize: function(size) {
+    if (typeof size === 'number') return size;
     
     var units = {
         'b': 1,
@@ -2301,63 +2127,8 @@ escapeHtml: function(text) {
         return parseFloat(match[1]) * (units[match[2]] || 1);
     }
     
-        return 2 * 1024 * 1024; // 默认2MB
-    },
-
-    showFeedback: function(message, type) {
-        if (!this.feedbackElement) {
-            var el = document.createElement('div');
-            el.className = 'media-feedback-toast';
-            el.style.position = 'fixed';
-            el.style.top = '20px';
-            el.style.right = '20px';
-            el.style.padding = '10px 16px';
-            el.style.borderRadius = '6px';
-            el.style.background = '#32373c';
-            el.style.color = '#fff';
-            el.style.fontSize = '13px';
-            el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-            el.style.zIndex = '9999';
-            el.style.opacity = '0';
-            el.style.transition = 'opacity .2s ease, transform .2s ease';
-            el.style.transform = 'translateY(-10px)';
-            el.style.pointerEvents = 'none';
-            document.body.appendChild(el);
-            this.feedbackElement = el;
-        }
-
-        var el = this.feedbackElement;
-
-        if (!message) {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(-10px)';
-            return;
-        }
-
-        el.textContent = message;
-        var bg = '#32373c';
-        if (type === 'success') {
-            bg = '#2f8f2f';
-        } else if (type === 'error') {
-            bg = '#d63638';
-        } else if (type === 'warning') {
-            bg = '#f0ad4e';
-        }
-        el.style.background = bg;
-        el.style.transform = 'translateY(0)';
-        el.style.opacity = '1';
-
-        if (this.feedbackTimer) {
-            clearTimeout(this.feedbackTimer);
-        }
-
-        if (type !== 'error') {
-            this.feedbackTimer = setTimeout(function() {
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(-10px)';
-            }, 2500);
-        }
-    }
+    return 2 * 1024 * 1024; // 默认2MB
+}
 
 };
 

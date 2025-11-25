@@ -826,28 +826,19 @@
                 requestData = {
                     action: 'webdav_add_watermark',
                     file: currentImageFilePath,
-                    watermark_type: watermarkType,
-                    watermark_position: watermarkPosition,
-                    watermark_x: watermarkX,
-                    watermark_y: watermarkY,
-                    watermark_opacity: watermarkOpacity,
-                    use_library: useLibrary,
-                    replace_original: replaceOriginal ? 'true' : 'false',
-                    custom_name: customName
+                    text: $('#watermark-text').val(),
+                    position: watermarkPosition,
+                    opacity: watermarkOpacity,
+                    replace_original: replaceOriginal ? 'true' : 'false'
                 };
             } else if ((currentImageStorage === 'local_direct' || !currentImageCid) && currentImageFilePath) {
                 requestData = {
                     action: 'local_add_watermark',
                     file: currentImageFilePath,
-                    storage: currentImageStorage,
-                    watermark_type: watermarkType,
-                    watermark_position: watermarkPosition,
-                    watermark_x: watermarkX,
-                    watermark_y: watermarkY,
-                    watermark_opacity: watermarkOpacity,
-                    use_library: useLibrary,
-                    replace_original: replaceOriginal ? 'true' : 'false',
-                    custom_name: customName
+                    text: $('#watermark-text').val(),
+                    position: watermarkPosition,
+                    opacity: watermarkOpacity,
+                    replaceOriginal: replaceOriginal ? 'true' : 'false'
                 };
             } else {
                 requestData = {
@@ -863,16 +854,18 @@
                     custom_name: customName
                 };
             }
-
+            
             // 根据水印类型添加特定参数
             if (watermarkType === 'text') {
                 var watermarkText = $('#watermark-text').val();
                 requestData.watermark_text = watermarkText;
-                requestData.watermark_font_size = $('#watermark-font-size').val();
-                requestData.watermark_color = $('#watermark-color').val();
-                requestData.watermark_font = $('#watermark-font').val();
-                requestData.watermark_preset = $('#watermark-preset').val();
-            } else {
+                if (currentImageStorage === 'database') {
+                    requestData.watermark_font_size = $('#watermark-font-size').val();
+                    requestData.watermark_color = $('#watermark-color').val();
+                    requestData.watermark_font = $('#watermark-font').val();
+                    requestData.watermark_preset = $('#watermark-preset').val();
+                }
+            } else if (currentImageStorage === 'database') {
                 requestData.watermark_image = $('#watermark-image').val();
                 requestData.watermark_scale = watermarkScale;
             }
