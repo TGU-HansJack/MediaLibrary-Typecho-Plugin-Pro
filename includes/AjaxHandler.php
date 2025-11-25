@@ -10,6 +10,7 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ExifPriv
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVSync.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVFileProcessor.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/LocalFileManager.php';
 
 /**
  * Ajax请求处理类
@@ -136,6 +137,43 @@ class MediaLibrary_AjaxHandler
 
                 case 'webdav_remove_exif':
                     self::handleWebDAVRemoveExifAction($request, $configOptions);
+                    break;
+
+                // 本地文件系统处理（不依赖数据库）
+                case 'local_list':
+                    self::handleLocalListAction($request);
+                    break;
+
+                case 'local_get_info':
+                    self::handleLocalGetInfoAction($request, $enableGetID3);
+                    break;
+
+                case 'local_compress_image':
+                    self::handleLocalCompressImageAction($request, $configOptions);
+                    break;
+
+                case 'local_crop_image':
+                    self::handleLocalCropImageAction($request);
+                    break;
+
+                case 'local_add_watermark':
+                    self::handleLocalAddWatermarkAction($request);
+                    break;
+
+                case 'local_check_privacy':
+                    self::handleLocalCheckPrivacyAction($request);
+                    break;
+
+                case 'local_remove_exif':
+                    self::handleLocalRemoveExifAction($request);
+                    break;
+
+                case 'local_delete':
+                    self::handleLocalDeleteAction($request);
+                    break;
+
+                case 'local_create_folder':
+                    self::handleLocalCreateFolderAction($request);
                     break;
 
 
@@ -478,20 +516,29 @@ class MediaLibrary_AjaxHandler
     }
     
     /**
-     * 处理获取信息请求
+     * 处理获取信息请求（优先使用文件路径，向后兼容 cid）
      */
     private static function handleGetInfoAction($request, $db, $options, $enableGetID3)
     {
+        // 优先使用文件路径（直接文件系统访问）
+        $filePath = $request->get('file');
+
+        if (!empty($filePath)) {
+            // 使用文件路径，不依赖数据库
+            return self::handleLocalGetInfoAction($request, $enableGetID3);
+        }
+
+        // 回退到 cid 模式（向后兼容）
         $cid = intval($request->get('cid'));
         if (!$cid) {
-            MediaLibrary_Logger::log('get_info', '获取文件信息失败：无效的文件ID', [], 'warning');
-            echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
+            MediaLibrary_Logger::log('get_info', '获取文件信息失败：未提供文件路径或ID', [], 'warning');
+            echo json_encode(['success' => false, 'message' => '请提供文件路径或ID'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $attachment = $db->fetchRow($db->select()->from('table.contents')
             ->where('cid = ? AND type = ?', $cid, 'attachment'));
-            
+
         if (!$attachment) {
             MediaLibrary_Logger::log('get_info', '获取文件信息失败：文件不存在', [
                 'cid' => $cid
@@ -499,7 +546,7 @@ class MediaLibrary_AjaxHandler
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $attachmentData = array();
         if (isset($attachment['text']) && !empty($attachment['text'])) {
             $unserialized = @unserialize($attachment['text']);
@@ -507,27 +554,27 @@ class MediaLibrary_AjaxHandler
                 $attachmentData = $unserialized;
             }
         }
-        
+
         $parentPost = MediaLibrary_PanelHelper::getParentPost($db, $cid);
-        
+
         $detailedInfo = [];
         if (isset($attachmentData['path'])) {
             $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
             $detailedInfo = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3);
         }
-        
+
         $info = [
             'title' => isset($attachment['title']) ? $attachment['title'] : '未命名文件',
             'mime' => isset($attachmentData['mime']) ? $attachmentData['mime'] : 'unknown',
             'size' => MediaLibrary_FileOperations::formatFileSize(isset($attachmentData['size']) ? intval($attachmentData['size']) : 0),
-            'url' => isset($attachmentData['path']) ? 
+            'url' => isset($attachmentData['path']) ?
                 Typecho_Common::url($attachmentData['path'], $options->siteUrl) : '',
             'created' => isset($attachment['created']) ? date('Y-m-d H:i:s', $attachment['created']) : '',
             'path' => isset($attachmentData['path']) ? $attachmentData['path'] : '',
             'parent_post' => $parentPost,
             'detailed_info' => $detailedInfo
         ];
-        
+
         MediaLibrary_Logger::log('get_info', '获取文件信息成功', [
             'cid' => $cid,
             'title' => $info['title']
@@ -536,39 +583,75 @@ class MediaLibrary_AjaxHandler
     }
     
     /**
-     * 处理压缩图片请求
+     * 处理压缩图片请求（优先使用文件路径，向后兼容 cid）
      */
     private static function handleCompressImagesAction($request, $db, $options, $user, $defaultQuality)
     {
+        // 优先使用文件路径数组
+        $files = $request->getArray('files');
+
+        if (!empty($files)) {
+            // 使用文件路径，不依赖数据库
+            $quality = intval($request->get('quality', $defaultQuality));
+            $compressMethod = $request->get('compress_method', 'gd');
+            $replaceOriginal = $request->get('replace_original') === '1';
+
+            $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+            $results = [];
+
+            foreach ($files as $file) {
+                try {
+                    $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+                    $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+                    $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $file), DIRECTORY_SEPARATOR);
+
+                    if (!file_exists($fullPath)) {
+                        $results[] = ['success' => false, 'message' => '文件不存在: ' . $file];
+                        continue;
+                    }
+
+                    $imageProcessor = new MediaLibrary_ImageProcessing($configOptions);
+                    $result = $imageProcessor->compressImage($fullPath, $quality, $compressMethod, $replaceOriginal);
+                    $results[] = $result;
+                } catch (Exception $e) {
+                    $results[] = ['success' => false, 'message' => '压缩失败: ' . $e->getMessage()];
+                }
+            }
+
+            echo json_encode(['success' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // 回退到 cid 模式（向后兼容）
         $cids = $request->getArray('cids');
         $quality = intval($request->get('quality', $defaultQuality));
         $outputFormat = $request->get('output_format', 'original');
         $compressMethod = $request->get('compress_method', 'gd');
         $replaceOriginal = $request->get('replace_original') === '1';
         $customName = $request->get('custom_name', '');
-        
+
         if (empty($cids)) {
             MediaLibrary_Logger::log('compress_images', '压缩图片失败：未选择文件', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择要压缩的图片'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $results = [];
         foreach ($cids as $cid) {
             $result = MediaLibrary_ImageProcessing::compressImage(
-                $cid, 
-                $quality, 
-                $outputFormat, 
-                $compressMethod, 
-                $replaceOriginal, 
-                $customName, 
-                $db, 
-                $options, 
+                $cid,
+                $quality,
+                $outputFormat,
+                $compressMethod,
+                $replaceOriginal,
+                $customName,
+                $db,
+                $options,
                 $user
             );
             $results[] = $result;
         }
-        
+
         MediaLibrary_Logger::log('compress_images', '批量图片压缩完成', [
             'cids' => $cids,
             'quality' => $quality,
@@ -623,67 +706,85 @@ class MediaLibrary_AjaxHandler
     }
 
     /**
- * 处理裁剪图片请求
- */
-private static function handleCropImageAction($request, $db, $options, $user)
-{
-    require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
-    
-    $cid = intval($request->get('cid'));
-    $x = intval($request->get('x'));
-    $y = intval($request->get('y'));
-    $width = intval($request->get('width'));
-    $height = intval($request->get('height'));
-    $replaceOriginal = $request->get('replace_original') === '1';
-    $customName = $request->get('custom_name', '');
-    $useLibrary = $request->get('use_library', 'gd');
-    
-    if (!$cid) {
-        MediaLibrary_Logger::log('crop_image', '裁剪失败：无效的文件ID', [], 'warning');
-        echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
-        return;
-    }
-    
-    if ($width <= 0 || $height <= 0) {
-        MediaLibrary_Logger::log('crop_image', '裁剪失败：无效的裁剪尺寸', [
-            'width' => $width,
-            'height' => $height
-        ], 'warning');
-        echo json_encode(['success' => false, 'message' => '无效的裁剪尺寸'], JSON_UNESCAPED_UNICODE);
-        return;
-    }
-    
-    $result = MediaLibrary_ImageEditor::cropImage(
-        $cid, $x, $y, $width, $height, $replaceOriginal, $customName, $useLibrary, $db, $options, $user
-    );
-    MediaLibrary_Logger::log('crop_image', $result['message'], [
-        'cid' => $cid,
-        'replace_original' => $replaceOriginal,
-        'custom_name' => $customName,
-        'use_library' => $useLibrary,
-        'result' => $result
-    ], !empty($result['success']) ? 'info' : 'error');
-    
-    echo json_encode($result, JSON_UNESCAPED_UNICODE);
-}
+     * 处理裁剪图片请求（优先使用文件路径，向后兼容 cid）
+     */
+    private static function handleCropImageAction($request, $db, $options, $user)
+    {
+        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
 
-/**
- * 处理添加水印请求
- */
-private static function handleAddWatermarkAction($request, $db, $options, $user)
-{
-    require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
-    
-    $cid = intval($request->get('cid'));
-    $replaceOriginal = $request->get('replace_original') === '1';
-    $customName = $request->get('custom_name', '');
-    $useLibrary = $request->get('use_library', 'gd');
-    
-    if (!$cid) {
-        MediaLibrary_Logger::log('add_watermark', '水印失败：无效的文件ID', [], 'warning');
-        echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
-        return;
+        // 优先使用文件路径
+        $file = $request->get('file');
+
+        if (!empty($file)) {
+            // 使用文件路径，不依赖数据库
+            return self::handleLocalCropImageAction($request);
+        }
+
+        // 回退到 cid 模式（向后兼容）
+        $cid = intval($request->get('cid'));
+        $x = intval($request->get('x'));
+        $y = intval($request->get('y'));
+        $width = intval($request->get('width'));
+        $height = intval($request->get('height'));
+        $replaceOriginal = $request->get('replace_original') === '1';
+        $customName = $request->get('custom_name', '');
+        $useLibrary = $request->get('use_library', 'gd');
+
+        if (!$cid) {
+            MediaLibrary_Logger::log('crop_image', '裁剪失败：请提供文件路径或ID', [], 'warning');
+            echo json_encode(['success' => false, 'message' => '请提供文件路径或ID'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if ($width <= 0 || $height <= 0) {
+            MediaLibrary_Logger::log('crop_image', '裁剪失败：无效的裁剪尺寸', [
+                'width' => $width,
+                'height' => $height
+            ], 'warning');
+            echo json_encode(['success' => false, 'message' => '无效的裁剪尺寸'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $result = MediaLibrary_ImageEditor::cropImage(
+            $cid, $x, $y, $width, $height, $replaceOriginal, $customName, $useLibrary, $db, $options, $user
+        );
+        MediaLibrary_Logger::log('crop_image', $result['message'], [
+            'cid' => $cid,
+            'replace_original' => $replaceOriginal,
+            'custom_name' => $customName,
+            'use_library' => $useLibrary,
+            'result' => $result
+        ], !empty($result['success']) ? 'info' : 'error');
+
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
+
+    /**
+     * 处理添加水印请求（优先使用文件路径，向后兼容 cid）
+     */
+    private static function handleAddWatermarkAction($request, $db, $options, $user)
+    {
+        require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
+
+        // 优先使用文件路径
+        $file = $request->get('file');
+
+        if (!empty($file)) {
+            // 使用文件路径，不依赖数据库
+            return self::handleLocalAddWatermarkAction($request);
+        }
+
+        // 回退到 cid 模式（向后兼容）
+        $cid = intval($request->get('cid'));
+        $replaceOriginal = $request->get('replace_original') === '1';
+        $customName = $request->get('custom_name', '');
+        $useLibrary = $request->get('use_library', 'gd');
+
+        if (!$cid) {
+            MediaLibrary_Logger::log('add_watermark', '水印失败：请提供文件路径或ID', [], 'warning');
+            echo json_encode(['success' => false, 'message' => '请提供文件路径或ID'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
     
     // 收集水印配置
     $watermarkConfig = [];
@@ -748,14 +849,14 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
 
     
     /**
-     * 处理检查隐私信息请求
+     * 处理检查隐私信息请求（优先使用文件路径，向后兼容 cid）
      */
     private static function handleCheckPrivacyAction($request, $db, $options, $enableExif)
     {
         // 检查是否有可用的 EXIF 工具
         $hasExifTool = MediaLibrary_ExifPrivacy::isExifToolAvailable();
         $hasPhpExif = extension_loaded('exif');
-        
+
         if (!$enableExif || (!$hasExifTool && !$hasPhpExif)) {
             MediaLibrary_Logger::log('check_privacy', 'EXIF检测失败：功能未启用或无可用工具', [
                 'enable_exif' => $enableExif,
@@ -765,20 +866,51 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => 'EXIF功能未启用或无可用的EXIF工具'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
+        // 优先使用文件路径数组
+        $files = $request->getArray('files');
+
+        if (!empty($files)) {
+            // 使用文件路径，不依赖数据库
+            $results = [];
+            foreach ($files as $file) {
+                try {
+                    $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+                    $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+                    $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $file), DIRECTORY_SEPARATOR);
+
+                    if (!file_exists($fullPath)) {
+                        $results[] = ['success' => false, 'message' => '文件不存在: ' . $file, 'file' => $file];
+                        continue;
+                    }
+
+                    $exifPrivacy = new MediaLibrary_ExifPrivacy();
+                    $result = $exifPrivacy->checkPrivacy($fullPath);
+                    $result['file'] = $file;
+                    $results[] = $result;
+                } catch (Exception $e) {
+                    $results[] = ['success' => false, 'message' => '检测失败: ' . $e->getMessage(), 'file' => $file];
+                }
+            }
+
+            echo json_encode(['success' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // 回退到 cid 模式（向后兼容）
         $cids = $request->getArray('cids');
         if (empty($cids)) {
             MediaLibrary_Logger::log('check_privacy', 'EXIF检测失败：未选择图片', [], 'warning');
             echo json_encode(['success' => false, 'message' => '请选择要检测的图片'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $results = [];
         foreach ($cids as $cid) {
             $result = MediaLibrary_ExifPrivacy::checkImagePrivacy($cid, $db, $options);
             $results[] = $result;
         }
-        
+
         MediaLibrary_Logger::log('check_privacy', '隐私检测完成', [
             'cids' => $cids,
             'results' => $results
@@ -889,7 +1021,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         $hasExifTool = MediaLibrary_ExifPrivacy::isExifToolAvailable();
         $hasPhpExif = extension_loaded('exif');
         $hasGD = extension_loaded('gd');
-        
+
         if (!$enableExif || (!$hasExifTool && !$hasGD)) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：功能未启用或缺少工具', [
                 'enable_exif' => $enableExif,
@@ -899,17 +1031,26 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => 'EXIF功能未启用或无可用的EXIF清除工具'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
+        // 优先使用文件路径
+        $file = $request->get('file');
+
+        if (!empty($file)) {
+            // 使用文件路径，不依赖数据库
+            return self::handleLocalRemoveExifAction($request);
+        }
+
+        // 回退到 cid 模式（向后兼容）
         $cid = intval($request->get('cid'));
         if (!$cid) {
-            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：无效的文件ID', [], 'warning');
-            echo json_encode(['success' => false, 'message' => '无效的文件ID'], JSON_UNESCAPED_UNICODE);
+            MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：请提供文件路径或ID', [], 'warning');
+            echo json_encode(['success' => false, 'message' => '请提供文件路径或ID'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $attachment = $db->fetchRow($db->select()->from('table.contents')
             ->where('cid = ? AND type = ?', $cid, 'attachment'));
-            
+
         if (!$attachment) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不存在', [
                 'cid' => $cid
@@ -917,7 +1058,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $attachmentData = @unserialize($attachment['text']);
         if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件数据损坏', [
@@ -926,7 +1067,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '文件数据错误'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
         if (!file_exists($filePath)) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不存在于磁盘', [
@@ -936,7 +1077,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         // 检查是否为图片
         if (strpos($attachmentData['mime'], 'image/') !== 0) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不是图片', [
@@ -946,7 +1087,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode(['success' => false, 'message' => '只能清除图片文件的EXIF信息'], JSON_UNESCAPED_UNICODE);
             return;
         }
-        
+
         // 智能清除EXIF信息
         $result = MediaLibrary_ExifPrivacy::removeImageExif($filePath, $attachmentData['mime']);
         MediaLibrary_Logger::log('remove_exif', $result['message'], [
@@ -954,7 +1095,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             'path' => $attachmentData['path'],
             'result' => $result
         ], !empty($result['success']) ? 'info' : 'error');
-        
+
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 
@@ -1865,6 +2006,408 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         } catch (Exception $e) {
             MediaLibrary_Logger::log('webdav_exif_remove', '清除 EXIF 失败: ' . $e->getMessage(), [], 'error');
             echo json_encode(['success' => false, 'message' => '清除 EXIF 失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * ========== 本地文件系统处理方法（不依赖数据库） ==========
+     */
+
+    /**
+     * 列出本地文件夹
+     */
+    private static function handleLocalListAction($request)
+    {
+        $path = $request->get('path', '/');
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+
+            if (!is_dir($localPath)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '本地上传目录不存在: ' . $localPath
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $fileManager = new MediaLibrary_LocalFileManager($localPath);
+            $subPath = trim($path, '/');
+            $items = $fileManager->listLocalFiles($subPath);
+
+            $formattedItems = [];
+            foreach ($items as $item) {
+                $formattedItems[] = [
+                    'name' => $item['name'],
+                    'path' => $item['path'],
+                    'is_dir' => $item['type'] === 'directory' ? 1 : 0,
+                    'size' => $item['size'],
+                    'size_human' => $item['type'] === 'directory' ? '-' : MediaLibrary_FileOperations::formatFileSize($item['size']),
+                    'modified' => $item['modified'],
+                    'modified_format' => $item['modified_format'],
+                    'mime' => $item['mime'],
+                ];
+            }
+
+            MediaLibrary_Logger::log('local_list', '读取本地文件夹', [
+                'path' => $path,
+                'count' => count($formattedItems)
+            ]);
+
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'current_path' => $path,
+                    'items' => $formattedItems
+                ]
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_list', '本地文件列表失败: ' . $e->getMessage(), [
+                'path' => $path
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '操作失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 获取本地文件详细信息
+     */
+    private static function handleLocalGetInfoAction($request, $enableGetID3)
+    {
+        $filePath = $request->get('file');
+        $storage = $request->get('storage', 'local');
+
+        if (empty($filePath)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            if ($storage === 'webdav') {
+                $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+                if (empty($configOptions['webdavLocalPath'])) {
+                    echo json_encode(['success' => false, 'message' => '未配置 WebDAV 本地路径'], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $basePath = rtrim($configOptions['webdavLocalPath'], '/\\');
+                $fullPath = $basePath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+                if (!file_exists($fullPath)) {
+                    echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $mime = 'application/octet-stream';
+                if (extension_loaded('fileinfo')) {
+                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                    if ($finfo) {
+                        $detected = finfo_file($finfo, $fullPath);
+                        if ($detected) {
+                            $mime = $detected;
+                        }
+                        finfo_close($finfo);
+                    }
+                }
+
+                $info = [
+                    'title' => basename($filePath),
+                    'mime' => $mime,
+                    'size' => MediaLibrary_FileOperations::formatFileSize(filesize($fullPath)),
+                    'created' => date('Y-m-d H:i:s', filemtime($fullPath)),
+                    'path' => $filePath,
+                    'url' => MediaLibrary_PanelHelper::buildWebDAVFileUrl($filePath, $configOptions),
+                    'parent_post' => ['status' => 'unarchived', 'post' => null]
+                ];
+
+                if ($enableGetID3) {
+                    $additionalInfo = MediaLibrary_PanelHelper::getDetailedFileInfo($fullPath, $enableGetID3);
+                    if (!empty($additionalInfo)) {
+                        $info['detailed_info'] = $additionalInfo;
+                    }
+                }
+
+                echo json_encode(['success' => true, 'data' => $info], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fileManager = new MediaLibrary_LocalFileManager($localPath);
+
+            $fileDetails = $fileManager->getFileDetails($filePath);
+
+            if ($fileDetails === null) {
+                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            // 获取额外的详细信息
+            if ($enableGetID3 && isset($fileDetails['full_path'])) {
+                $additionalInfo = MediaLibrary_PanelHelper::getDetailedFileInfo($fileDetails['full_path'], $enableGetID3);
+                $fileDetails = array_merge($fileDetails, $additionalInfo);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'data' => $fileDetails
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_get_info', '获取文件信息失败: ' . $e->getMessage(), [
+                'file' => $filePath
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '获取文件信息失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 压缩本地图片
+     */
+    private static function handleLocalCompressImageAction($request, $configOptions)
+    {
+        $filePath = $request->get('file');
+        $quality = intval($request->get('quality', 80));
+        $method = $request->get('method', 'gd');
+        $replaceOriginal = $request->get('replaceOriginal', 'true') === 'true';
+
+        if (empty($filePath)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+
+            if (!file_exists($fullPath)) {
+                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $imageProcessor = new MediaLibrary_ImageProcessing($configOptions);
+            $result = $imageProcessor->compressImage($fullPath, $quality, $method, $replaceOriginal);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_compress_image', '压缩图片失败: ' . $e->getMessage(), [
+                'file' => $filePath
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '压缩图片失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 裁剪本地图片
+     */
+    private static function handleLocalCropImageAction($request)
+    {
+        $filePath = $request->get('file');
+        $x = intval($request->get('x', 0));
+        $y = intval($request->get('y', 0));
+        $width = intval($request->get('width', 100));
+        $height = intval($request->get('height', 100));
+        $replaceOriginal = $request->get('replaceOriginal', 'true') === 'true';
+
+        if (empty($filePath)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+
+            if (!file_exists($fullPath)) {
+                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $imageProcessor = new MediaLibrary_ImageProcessing([]);
+            $result = $imageProcessor->cropImage($fullPath, $x, $y, $width, $height, $replaceOriginal);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_crop_image', '裁剪图片失败: ' . $e->getMessage(), [
+                'file' => $filePath
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '裁剪图片失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 添加水印到本地图片
+     */
+    private static function handleLocalAddWatermarkAction($request)
+    {
+        $filePath = $request->get('file');
+        $text = $request->get('text', '');
+        $position = $request->get('position', 'bottom-right');
+        $opacity = intval($request->get('opacity', 50));
+        $replaceOriginal = $request->get('replaceOriginal', 'true') === 'true';
+
+        if (empty($filePath)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+
+            if (!file_exists($fullPath)) {
+                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $imageProcessor = new MediaLibrary_ImageProcessing([]);
+            $result = $imageProcessor->addWatermark($fullPath, $text, $position, $opacity, $replaceOriginal);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_add_watermark', '添加水印失败: ' . $e->getMessage(), [
+                'file' => $filePath
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '添加水印失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 检查本地图片隐私信息
+     */
+    private static function handleLocalCheckPrivacyAction($request)
+    {
+        $filePath = $request->get('file');
+
+        if (empty($filePath)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+
+            if (!file_exists($fullPath)) {
+                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $exifPrivacy = new MediaLibrary_ExifPrivacy();
+            $result = $exifPrivacy->checkPrivacy($fullPath);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_check_privacy', '隐私检测失败: ' . $e->getMessage(), [
+                'file' => $filePath
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '隐私检测失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 清除本地图片 EXIF 信息
+     */
+    private static function handleLocalRemoveExifAction($request)
+    {
+        $filePath = $request->get('file');
+
+        if (empty($filePath)) {
+            echo json_encode(['success' => false, 'message' => '未指定文件'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+
+            if (!file_exists($fullPath)) {
+                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $exifPrivacy = new MediaLibrary_ExifPrivacy();
+            $result = $exifPrivacy->removeExif($fullPath);
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_remove_exif', '清除 EXIF 失败: ' . $e->getMessage(), [
+                'file' => $filePath
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '清除 EXIF 失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 删除本地文件或目录
+     */
+    private static function handleLocalDeleteAction($request)
+    {
+        $target = $request->get('target', '');
+
+        if ($target === '/' || $target === '') {
+            echo json_encode(['success' => false, 'message' => '不能删除根目录'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fileManager = new MediaLibrary_LocalFileManager($localPath);
+
+            $result = $fileManager->delete($target);
+
+            if ($result) {
+                MediaLibrary_Logger::log('local_delete', '删除成功', ['target' => $target]);
+                echo json_encode(['success' => true, 'message' => '删除成功'], JSON_UNESCAPED_UNICODE);
+            } else {
+                echo json_encode(['success' => false, 'message' => '删除失败'], JSON_UNESCAPED_UNICODE);
+            }
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_delete', '删除失败: ' . $e->getMessage(), [
+                'target' => $target
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '删除失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 创建本地文件夹
+     */
+    private static function handleLocalCreateFolderAction($request)
+    {
+        $parentPath = $request->get('path', '/');
+        $name = trim($request->get('name', ''));
+
+        if ($name === '' || preg_match('/[\\\\\/]/', $name)) {
+            echo json_encode(['success' => false, 'message' => '文件夹名称不合法'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $target = rtrim($parentPath, '/') . '/' . $name;
+
+        try {
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+            $fileManager = new MediaLibrary_LocalFileManager($localPath);
+
+            $result = $fileManager->createDirectory($target);
+
+            if ($result) {
+                MediaLibrary_Logger::log('local_create_folder', '创建目录成功', ['path' => $target]);
+                echo json_encode(['success' => true, 'message' => '目录创建成功'], JSON_UNESCAPED_UNICODE);
+            } else {
+                echo json_encode(['success' => false, 'message' => '目录创建失败'], JSON_UNESCAPED_UNICODE);
+            }
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('local_create_folder', '创建目录失败: ' . $e->getMessage(), [
+                'path' => $target
+            ], 'error');
+            echo json_encode(['success' => false, 'message' => '创建目录失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
     }
 }

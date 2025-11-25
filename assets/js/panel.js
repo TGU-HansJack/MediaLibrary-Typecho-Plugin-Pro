@@ -170,7 +170,10 @@ var MediaLibrary = {
                 e.preventDefault();
                 e.stopPropagation();
                 var cid = e.target.getAttribute('data-cid');
-                self.showFileInfo(cid);
+                var container = e.target.closest('.media-item, tr[data-cid]');
+                var filePath = container ? container.getAttribute('data-file-path') : '';
+                var storage = container ? container.getAttribute('data-storage') : '';
+                self.showFileInfo(cid, filePath, storage);
             }
         });
         
@@ -373,11 +376,22 @@ var MediaLibrary = {
             var item = checkbox.closest('.media-item, tr[data-cid]');
             if (item) {
                 var type = item.getAttribute('data-type') || '';
+                var storage = item.getAttribute('data-storage') || 'database';
+                var filePath = item.getAttribute('data-file-path') || '';
+                var title = item.getAttribute('data-title') || '';
                 this.selectedItems.push({
                     cid: checkbox.value,
                     isImage: item.getAttribute('data-is-image') === '1',
                     isVideo: item.getAttribute('data-is-video') === '1' || type.indexOf('video/') === 0,
-                    type: type
+                    type: type,
+                    title: title,
+                    storage: storage,
+                    filePath: filePath,
+                    attachment: {
+                        storage: storage,
+                        path: filePath
+                    },
+                    webdav_file: storage === 'webdav'
                 });
             }
         }.bind(this));
@@ -513,9 +527,22 @@ updateToolbarButtons: function() {
         xhr.send(params);
     },
     
-    showFileInfo: function(cid) {
+    showFileInfo: function(cid, filePath, storage) {
+        var targetUrl = currentUrl + '&action=get_info';
+        if (filePath) {
+            targetUrl += '&file=' + encodeURIComponent(filePath);
+            if (storage) {
+                targetUrl += '&storage=' + encodeURIComponent(storage);
+            }
+        } else if (cid) {
+            targetUrl += '&cid=' + cid;
+        } else {
+            alert('无法获取文件详情：缺少文件标识');
+            return;
+        }
+
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', currentUrl + '&action=get_info&cid=' + cid, true);
+        xhr.open('GET', targetUrl, true);
         
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4 && xhr.status === 200) {
@@ -523,16 +550,24 @@ updateToolbarButtons: function() {
                     var response = JSON.parse(xhr.responseText);
                     if (response.success) {
                         var data = response.data;
+                        var title = data.title || data.name || '未命名文件';
+                        var mime = data.mime || data.filetype || '';
+                        var sizeLabel = data.size || data.size_human || '';
+                        var created = data.created || data.modified_format || '';
+                        var pathLabel = data.path || filePath || '';
+                        var urlValue = data.url || '';
                         var html = '<table class="file-info-table">';
-                        html += '<tr><td>文件名</td><td>' + data.title + '</td></tr>';
-                        html += '<tr><td>文件类型</td><td>' + data.mime + '</td></tr>';
-                        html += '<tr><td>文件大小</td><td>' + data.size + '</td></tr>';
-                        html += '<tr><td>上传时间</td><td>' + data.created + '</td></tr>';
-                        html += '<tr><td>文件路径</td><td>' + data.path + '</td></tr>';
-                        html += '<tr><td>访问地址</td><td><input type="text" value="' + data.url + '" readonly onclick="this.select()" style="width:100%;"></td></tr>';
+                        html += '<tr><td>文件名</td><td>' + title + '</td></tr>';
+                        html += '<tr><td>文件类型</td><td>' + (mime || '未知') + '</td></tr>';
+                        html += '<tr><td>文件大小</td><td>' + (sizeLabel || '-') + '</td></tr>';
+                        html += '<tr><td>上传时间</td><td>' + (created || '-') + '</td></tr>';
+                        html += '<tr><td>文件路径</td><td>' + (pathLabel || '-') + '</td></tr>';
+                        if (urlValue) {
+                            html += '<tr><td>访问地址</td><td><input type="text" value="' + urlValue + '" readonly onclick="this.select()" style="width:100%;"></td></tr>';
+                        }
                         
                         html += '<tr><td>所属文章</td><td>';
-                        if (data.parent_post.status === 'archived') {
+                        if (data.parent_post && data.parent_post.status === 'archived') {
                             html += '<div class="parent-post">';
                             html += '<a href="' + currentUrl.replace('extending.php?panel=MediaLibrary%2Fpanel.php', 'write-' + (data.parent_post.post.type.indexOf('post') === 0 ? 'post' : 'page') + '.php?cid=' + data.parent_post.post.cid) + '" target="_blank">' + data.parent_post.post.title + '</a>';
                             html += '</div>';
@@ -749,8 +784,7 @@ showImageCompressModal: function() {
             var html = '<p>已选择 ' + selectedImages.length + ' 个图片文件：</p>';
             html += '<ul style="max-height: 100px; overflow-y: auto; margin: 10px 0; padding-left: 20px;">';
             selectedImages.forEach(function(item) {
-                var element = document.querySelector('[data-cid="' + item.cid + '"]');
-                var filename = element ? element.getAttribute('data-title') || 'Unknown' : 'Unknown';
+                var filename = item.title || 'Unknown';
                 html += '<li>' + filename + '</li>';
             });
             html += '</ul>';
@@ -943,7 +977,8 @@ showImageCompressModal: function() {
     },
     
     
- startImageCompress: function() {
+startImageCompress: function() {
+    var self = this;
     var selectedImages = this.selectedItems.filter(function(item) {
         return item.isImage;
     });
@@ -953,80 +988,141 @@ showImageCompressModal: function() {
         return;
     }
     
-    var cids = selectedImages.map(function(item) { return item.cid; });
     var quality = document.getElementById('image-quality-slider').value;
     var outputFormat = document.getElementById('image-output-format').value;
     var compressMethod = document.getElementById('image-compress-method').value;
     var replaceOriginal = document.querySelector('input[name="image-replace-mode"]:checked').value === 'replace';
     var customName = document.getElementById('image-custom-name').value;
-    
-    // 显示进度
     var resultDiv = document.getElementById('image-compress-result');
+
     if (resultDiv) {
         resultDiv.innerHTML = '<div style="text-align: center; padding: 20px;"><div>正在压缩图片，请稍候...</div><div style="margin-top: 10px;"><div class="spinner"></div></div></div>';
         resultDiv.style.display = 'block';
     }
-    
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', currentUrl, true);
-    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    
-    var params = 'action=compress_images';
-    params += '&quality=' + quality;
-    params += '&output_format=' + outputFormat;
-    params += '&compress_method=' + compressMethod;
-    params += '&replace_original=' + (replaceOriginal ? '1' : '0');
-    params += '&custom_name=' + encodeURIComponent(customName);
-    params += '&' + cids.map(function(cid) {
-        return 'cids[]=' + encodeURIComponent(cid);
-    }).join('&');
-    
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                var response = JSON.parse(xhr.responseText);
-                
-                if (response.success) {
-                    var html = '<h4>压缩结果</h4>';
-                    html += '<div style="max-height: 200px; overflow-y: auto;">';
-                    
-                    response.results.forEach(function(result) {
-                        if (result.success) {
-                            html += '<div style="padding: 10px; margin-bottom: 10px; background: #f0f8ff; border-left: 3px solid #46b450;">';
-                            html += '<div style="color: #46b450; font-weight: bold;">✓ 压缩成功 (CID: ' + result.cid + ')</div>';
-                            html += '<div>原始大小: ' + result.original_size + ' → 压缩后: ' + result.compressed_size + '</div>';
-                            html += '<div>节省空间: ' + result.savings + ' | 方法: ' + result.method + ' | 格式: ' + result.format + '</div>';
+
+    var localItems = [];
+    var webdavItems = [];
+
+    selectedImages.forEach(function(item) {
+        if (self.isWebDAVFile(item)) {
+            webdavItems.push(item);
+        } else {
+            localItems.push(item);
+        }
+    });
+
+    var localCids = [];
+    var localFiles = [];
+    localItems.forEach(function(item) {
+        var path = self.getSelectedFilePath(item);
+        if (path) {
+            localFiles.push(path);
+        } else if (item.cid && item.cid !== '0') {
+            localCids.push(item.cid);
+        }
+    });
+
+    var hasLocal = localCids.length > 0 || localFiles.length > 0;
+    var hasWebDAV = webdavItems.length > 0;
+
+    if (!hasLocal && !hasWebDAV) {
+        alert('请选择有效的图片文件');
+        if (resultDiv) {
+            resultDiv.style.display = 'none';
+        }
+        return;
+    }
+
+    if (hasLocal) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', currentUrl, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+        var params = 'action=compress_images';
+        params += '&quality=' + quality;
+        params += '&output_format=' + outputFormat;
+        params += '&compress_method=' + compressMethod;
+        params += '&replace_original=' + (replaceOriginal ? '1' : '0');
+        params += '&custom_name=' + encodeURIComponent(customName);
+
+        if (localCids.length > 0) {
+            params += '&' + localCids.map(function(cid) {
+                return 'cids[]=' + encodeURIComponent(cid);
+            }).join('&');
+        }
+        if (localFiles.length > 0) {
+            params += '&' + localFiles.map(function(file) {
+                return 'files[]=' + encodeURIComponent(file);
+            }).join('&');
+        }
+
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            var html = '<h4>本地文件压缩结果</h4>';
+                            html += '<div style="max-height: 200px; overflow-y: auto;">';
+                            response.results.forEach(function(result) {
+                                var label = result.filename || result.file || (result.cid ? ('CID: ' + result.cid) : '未知文件');
+                                if (result.success) {
+                                    html += '<div style="padding: 10px; margin-bottom: 10px; background: #f0f8ff; border-left: 3px solid #46b450;">';
+                                    html += '<div style="color: #46b450; font-weight: bold;">✓ ' + label + '</div>';
+                                    if (result.original_size && result.compressed_size) {
+                                        html += '<div>原始大小: ' + result.original_size + ' → 压缩后: ' + result.compressed_size + '</div>';
+                                    }
+                                    if (result.savings) {
+                                        html += '<div>节省空间: ' + result.savings + '</div>';
+                                    }
+                                    html += '</div>';
+                                } else {
+                                    html += '<div style="padding: 10px; margin-bottom: 10px; background: #fff2f2; border-left: 3px solid #dc3232;">';
+                                    html += '<div style="color: #dc3232; font-weight: bold;">✗ ' + label + '</div>';
+                                    html += '<div>' + result.message + '</div>';
+                                    html += '</div>';
+                                }
+                            });
                             html += '</div>';
-                        } else {
-                            html += '<div style="padding: 10px; margin-bottom: 10px; background: #fff2f2; border-left: 3px solid #dc3232;">';
-                            html += '<div style="color: #dc3232; font-weight: bold;">✗ 压缩失败 (CID: ' + result.cid + ')</div>';
-                            html += '<div>' + result.message + '</div>';
+                            html += '<div style="margin-top: 15px; text-align: center;">';
+                            html += '<button class="btn btn-primary" onclick="location.reload()">刷新页面</button>';
                             html += '</div>';
+                            if (resultDiv) {
+                                resultDiv.innerHTML = html;
+                            }
+                        } else if (resultDiv) {
+                            resultDiv.innerHTML = '<div style="color: red;">✗ 批量压缩失败: ' + response.message + '</div>';
                         }
-                    });
-                    
-                    html += '</div>';
-                    html += '<div style="margin-top: 15px; text-align: center;">';
-                    html += '<button class="btn btn-primary" onclick="location.reload()">刷新页面</button>';
-                    html += '</div>';
-                    
-                    if (resultDiv) {
-                        resultDiv.innerHTML = html;
+                    } catch (e) {
+                        if (resultDiv) {
+                            resultDiv.innerHTML = '<div style="color: red;">✗ 压缩失败，请重试</div>';
+                        }
                     }
-                } else {
-                    if (resultDiv) {
-                        resultDiv.innerHTML = '<div style="color: red;">✗ 批量压缩失败: ' + response.message + '</div>';
-                    }
-                }
-            } catch (e) {
-                if (resultDiv) {
-                    resultDiv.innerHTML = '<div style="color: red;">✗ 压缩失败，请重试</div>';
+                } else if (resultDiv) {
+                    resultDiv.innerHTML = '<div style="color: red;">✗ 压缩请求失败，错误码 ' + xhr.status + '</div>';
                 }
             }
-        }
-    };
-    
-    xhr.send(params);
+        };
+
+        xhr.send(params);
+    }
+
+    if (hasWebDAV) {
+        this.batchProcessWebDAVFiles(
+            webdavItems,
+            'webdav_compress_image',
+            {
+                quality: quality,
+                output_format: outputFormat,
+                compress_method: compressMethod,
+                replace_original: replaceOriginal ? 'true' : 'false',
+                custom_name: customName
+            },
+            function(results) {
+                self.renderWebDAVCompressResults(results, resultDiv);
+            }
+        );
+    }
 },
 
     
@@ -1135,35 +1231,49 @@ checkPrivacy: function() {
 
     // 分离 WebDAV 文件和普通文件
     var webdavFiles = [];
-    var normalFiles = [];
+    var localFilePaths = [];
+    var localCids = [];
 
     selectedImages.forEach(function(item) {
         if (self.isWebDAVFile(item)) {
             webdavFiles.push(item);
         } else {
-            normalFiles.push(item);
+            var path = self.getSelectedFilePath(item);
+            if (path) {
+                localFilePaths.push(path);
+            }
+            if (item.cid && item.cid !== '0') {
+                localCids.push(item.cid);
+            }
         }
     });
 
-    // 处理 WebDAV 文件
     if (webdavFiles.length > 0) {
         this.checkWebDAVPrivacyBatch(webdavFiles);
     }
 
-    // 处理普通文件
-    if (normalFiles.length === 0) {
+    if (localFilePaths.length === 0 && localCids.length === 0) {
+        if (webdavFiles.length === 0) {
+            alert('请选择图片文件进行隐私检测');
+        }
         return;
     }
-
-    var cids = normalFiles.map(function(item) { return item.cid; });
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', currentUrl, true);
     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 
-    var params = 'action=check_privacy&' + cids.map(function(cid) {
-        return 'cids[]=' + encodeURIComponent(cid);
-    }).join('&');
+    var params = 'action=check_privacy';
+    if (localCids.length > 0) {
+        params += '&' + localCids.map(function(cid) {
+            return 'cids[]=' + encodeURIComponent(cid);
+        }).join('&');
+    }
+    if (localFilePaths.length > 0) {
+        params += '&' + localFilePaths.map(function(file) {
+            return 'files[]=' + encodeURIComponent(file);
+        }).join('&');
+    }
     
     // 添加超时设置
     xhr.timeout = 30000; // 30秒超时
@@ -1183,9 +1293,10 @@ checkPrivacy: function() {
                         var gpsImages = [];
                         
                         response.results.forEach(function(result) {
+                            var label = result.filename || result.file || (result.cid ? ('CID: ' + result.cid) : '未知文件');
                             if (result.success) {
                                 html += '<div style="padding: 15px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px;">';
-                                html += '<div style="font-weight: bold; margin-bottom: 10px;">' + result.filename + '</div>';
+                                html += '<div style="font-weight: bold; margin-bottom: 10px;">' + label + '</div>';
                                 html += '<div style="margin-bottom: 10px;">';
                                 html += '<span style="color: ' + (result.has_privacy ? '#dc3232' : '#46b450') + ';">';
                                 html += result.message;
@@ -1226,7 +1337,7 @@ checkPrivacy: function() {
                                 html += '</div>';
                             } else {
                                 html += '<div style="padding: 15px; margin-bottom: 15px; border: 1px solid #dc3232; border-radius: 4px; background: #fff2f2;">';
-                                html += '<div style="color: #dc3232; font-weight: bold;">检测失败 (CID: ' + result.cid + ')</div>';
+                                html += '<div style="color: #dc3232; font-weight: bold;">检测失败: ' + label + '</div>';
                                 html += '<div>' + result.message + '</div>';
                                 html += '</div>';
                             }
@@ -2771,7 +2882,11 @@ var WebDAVManager = {
      * @returns {boolean}
      */
     isWebDAVFile: function(item) {
-        return item && (item.webdav_file === true || (item.attachment && item.attachment.storage === 'webdav'));
+        if (!item) return false;
+        if (item.storage && item.storage === 'webdav') {
+            return true;
+        }
+        return item.webdav_file === true || (item.attachment && item.attachment.storage === 'webdav');
     },
 
     /**
@@ -2781,9 +2896,32 @@ var WebDAVManager = {
      */
     getFileIdentifier: function(item) {
         if (this.isWebDAVFile(item)) {
-            return item.attachment && item.attachment.path ? item.attachment.path : item.title;
+            return this.getSelectedFilePath(item) || item.title || '';
         }
-        return item.cid || 0;
+        var localPath = this.getSelectedFilePath(item);
+        if (localPath) {
+            return localPath;
+        }
+        return item && item.cid ? item.cid : 0;
+    },
+
+    /**
+     * 获取选中文件的相对路径
+     * @param {Object} item
+     * @returns {string}
+     */
+    getSelectedFilePath: function(item) {
+        if (!item) return '';
+        var path = item.filePath || (item.attachment && item.attachment.path) || '';
+        if (!path) {
+            return '';
+        }
+        path = path.replace(/^[\\/]+/, '');
+        var uploadDir = (config.uploadDir || '').replace(/^[\\/]+/, '').replace(/[\\/]+$/, '');
+        if (uploadDir && path.indexOf(uploadDir + '/') === 0) {
+            return path.substring(uploadDir.length + 1);
+        }
+        return path;
     },
 
     /**
@@ -2942,10 +3080,26 @@ var WebDAVManager = {
         }
 
         files.forEach(function(file) {
-            var filePath = self.getFileIdentifier(file);
+            var filePath = self.getSelectedFilePath(file);
+
+            if (!filePath) {
+                results.push({
+                    file: file,
+                    response: {
+                        success: false,
+                        message: '无法获取文件路径',
+                        filename: file.title || ''
+                    }
+                });
+                completed++;
+                if (completed === total) {
+                    self.displayWebDAVPrivacyResults(results);
+                }
+                return;
+            }
 
             jQuery.ajax({
-                url: window.location.href,
+                url: currentUrl,
                 type: 'POST',
                 data: {
                     action: 'webdav_check_privacy',
@@ -2995,10 +3149,11 @@ var WebDAVManager = {
         results.forEach(function(result) {
             var response = result.response;
             var file = result.file;
-            var filePath = self.getFileIdentifier(file);
+            var filePath = self.getSelectedFilePath(file);
+            var label = response.filename || file.title || filePath || '未知文件';
 
             html += '<div style="padding: 15px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px;">';
-            html += '<div style="font-weight: bold; margin-bottom: 10px;">' + (response.filename || file.title) + '</div>';
+            html += '<div style="font-weight: bold; margin-bottom: 10px;">' + label + '</div>';
 
             if (response.success !== false) {
                 html += '<div style="margin-bottom: 10px;">';
@@ -3037,6 +3192,111 @@ var WebDAVManager = {
 
         html += '</div>';
         privacyContent.innerHTML = html;
+    },
+
+    /**
+     * 批量处理 WebDAV 文件
+     */
+    batchProcessWebDAVFiles: function(files, action, options, callback) {
+        var self = this;
+        if (!files || files.length === 0) {
+            if (typeof callback === 'function') {
+                callback([]);
+            }
+            return;
+        }
+
+        var total = files.length;
+        var completed = 0;
+        var results = [];
+
+        files.forEach(function(item) {
+            var filePath = self.getSelectedFilePath(item);
+            if (!filePath) {
+                results.push({
+                    file: item,
+                    response: { success: false, message: '无法获取文件路径' }
+                });
+                completed++;
+                if (completed === total && typeof callback === 'function') {
+                    callback(results);
+                }
+                return;
+            }
+
+            var data = Object.assign({}, options, {
+                action: action,
+                file: filePath
+            });
+
+            jQuery.ajax({
+                url: window.location.href,
+                type: 'POST',
+                data: data,
+                dataType: 'json',
+                success: function(response) {
+                    results.push({
+                        file: item,
+                        response: response
+                    });
+                },
+                error: function() {
+                    results.push({
+                        file: item,
+                        response: { success: false, message: '网络错误' }
+                    });
+                },
+                complete: function() {
+                    completed++;
+                    if (completed === total && typeof callback === 'function') {
+                        callback(results);
+                    }
+                }
+            });
+        });
+    },
+
+    /**
+     * 渲染 WebDAV 压缩结果
+     */
+    renderWebDAVCompressResults: function(results, resultDiv) {
+        if (!resultDiv || !results || results.length === 0) {
+            return;
+        }
+
+        var html = '<h4>WebDAV 文件压缩结果</h4>';
+        html += '<div style="max-height: 200px; overflow-y: auto;">';
+
+        results.forEach(function(item) {
+            var response = item.response || {};
+            var label = response.filename || (item.file && item.file.title) || (item.file && item.file.filePath) || '未知文件';
+
+            if (response.success) {
+                html += '<div style="padding: 10px; margin-bottom: 10px; background: #eef9f1; border-left: 3px solid #2f8f2f;">';
+                html += '<div style="color: #2f8f2f; font-weight: bold;">✓ ' + label + '</div>';
+                if (response.original_size && response.compressed_size) {
+                    html += '<div>原始大小: ' + response.original_size + ' → ' + response.compressed_size + '</div>';
+                }
+                if (response.savings) {
+                    html += '<div>节省空间: ' + response.savings + '</div>';
+                }
+                html += '</div>';
+            } else {
+                html += '<div style="padding: 10px; margin-bottom: 10px; background: #fff2f2; border-left: 3px solid #dc3232;">';
+                html += '<div style="color: #dc3232; font-weight: bold;">✗ ' + label + '</div>';
+                html += '<div>' + (response.message || '操作失败') + '</div>';
+                html += '</div>';
+            }
+        });
+
+        html += '</div>';
+
+        if (resultDiv.innerHTML.trim() !== '') {
+            resultDiv.innerHTML += html;
+        } else {
+            resultDiv.innerHTML = html;
+        }
+        resultDiv.style.display = 'block';
     }
 };
 

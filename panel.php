@@ -191,6 +191,7 @@ window.mediaLibraryConfig = {
     allowedTypes: 'jpg,jpeg,png,gif,bmp,webp,svg,mp4,avi,mov,wmv,flv,mp3,wav,ogg,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,rar,avif',
     adminStaticUrl: '<?php echo $options->adminStaticUrl; ?>',
     pluginUrl: '<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary',
+    uploadDir: '<?php echo trim(defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads', '/'); ?>',
     hasExifTool: <?php echo MediaLibrary_ExifPrivacy::isExifToolAvailable() ? 'true' : 'false'; ?>,
     hasPhpExif: <?php echo extension_loaded('exif') ? 'true' : 'false'; ?>,
     enableWebDAV: <?php echo $webdavStatus['enabled'] ? 'true' : 'false'; ?>,
