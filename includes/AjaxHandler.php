@@ -43,7 +43,7 @@ class MediaLibrary_AjaxHandler
                     break;
                     
                 case 'upload':
-                    self::handleUploadAction();
+                    self::handleUploadAction($configOptions);
                     break;
                     
                 case 'get_info':
@@ -289,7 +289,7 @@ class MediaLibrary_AjaxHandler
     /**
      * 处理上传请求
      */
-    private static function handleUploadAction()
+    private static function handleUploadAction($configOptions)
     {
         if (empty($_FILES)) {
             MediaLibrary_Logger::log('upload', '上传失败：没有文件上传', [], 'warning');
@@ -303,13 +303,19 @@ class MediaLibrary_AjaxHandler
         try {
             // 如果是 WebDAV 存储，使用 WebDAV 上传
             if ($storage === 'webdav') {
-                $result = self::uploadToWebDAV($_FILES);
+                $result = self::uploadToWebDAV($_FILES, $configOptions);
+                $pendingSyncs = isset($result['pending_syncs']) ? $result['pending_syncs'] : [];
+                unset($result['pending_syncs']);
+
                 if ($result['success']) {
                     MediaLibrary_Logger::log('upload', 'WebDAV 上传成功', [
                         'files' => self::summarizeUploadedFiles(),
                         'result' => $result
                     ]);
                     echo json_encode($result, JSON_UNESCAPED_UNICODE);
+                    if (!empty($pendingSyncs)) {
+                        self::dispatchWebDAVBackgroundSync($pendingSyncs, $configOptions);
+                    }
                 } else {
                     MediaLibrary_Logger::log('upload', 'WebDAV 上传失败: ' . $result['message'], [
                         'files' => self::summarizeUploadedFiles()
@@ -344,14 +350,56 @@ class MediaLibrary_AjaxHandler
     }
 
     /**
+     * ???? WebDAV ???????????
+     *
+     * @param array $relativePaths
+     * @param array $configOptions
+     * @return void
+     */
+    private static function dispatchWebDAVBackgroundSync(array $relativePaths, array $configOptions)
+    {
+        if (empty($relativePaths) ||
+            empty($configOptions['enableWebDAV']) ||
+            empty($configOptions['webdavSyncEnabled']) ||
+            (($configOptions['webdavSyncMode'] ?? 'manual') !== 'onupload')) {
+            return;
+        }
+
+        $runner = function() use ($relativePaths, $configOptions) {
+            ignore_user_abort(true);
+            @set_time_limit(0);
+
+            try {
+                $sync = new MediaLibrary_WebDAVSync($configOptions);
+                foreach ($relativePaths as $relativePath) {
+                    try {
+                        $sync->syncFileToRemote($relativePath);
+                    } catch (Exception $e) {
+                        MediaLibrary_Logger::log('webdav_sync', '????????: ' . $e->getMessage(), [
+                            'file' => $relativePath
+                        ], 'warning');
+                    }
+                }
+            } catch (Exception $e) {
+                MediaLibrary_Logger::log('webdav_sync', '?????????: ' . $e->getMessage(), [], 'error');
+            }
+        };
+
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+            $runner();
+        } else {
+            register_shutdown_function($runner);
+        }
+    }
+
+    /**
+
      * 上传文件到 WebDAV
      */
-    private static function uploadToWebDAV($files)
+    private static function uploadToWebDAV($files, $configOptions)
     {
         try {
-            // 获取 WebDAV 配置
-            $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
-
             if (empty($configOptions['enableWebDAV'])) {
                 return ['success' => false, 'message' => 'WebDAV 未启用'];
             }
@@ -368,6 +416,7 @@ class MediaLibrary_AjaxHandler
             $user = Typecho_Widget::widget('Widget_User');
 
             $uploadedFiles = [];
+            $pendingSyncs = [];
             foreach ($files as $file) {
                 if (!isset($file['tmp_name']) || !isset($file['name']) || !is_uploaded_file($file['tmp_name'])) {
                     continue;
@@ -432,18 +481,11 @@ class MediaLibrary_AjaxHandler
                         // 如果启用了自动同步，立即同步到远程
                         if (!empty($configOptions['webdavSyncEnabled']) &&
                             $configOptions['webdavSyncMode'] === 'onupload') {
-                            try {
-                                $sync->syncFileToRemote($relativePath);
-                                MediaLibrary_Logger::log('upload', 'WebDAV 文件已同步到远程', [
-                                    'file' => $fileName,
-                                    'path' => $relativePath
-                                ]);
-                            } catch (Exception $e) {
-                                MediaLibrary_Logger::log('upload', 'WebDAV 远程同步失败: ' . $e->getMessage(), [
-                                    'file' => $fileName
-                                ], 'warning');
-                                // 不影响上传结果，只记录日志
-                            }
+                            $pendingSyncs[] = $relativePath;
+                            MediaLibrary_Logger::log('upload', 'WebDAV 文件已记录等待同步', [
+                                'file' => $fileName,
+                                'path' => $relativePath
+                            ]);
                         }
 
                         MediaLibrary_Logger::log('upload', 'WebDAV 文件上传并记录成功', [
@@ -468,7 +510,8 @@ class MediaLibrary_AjaxHandler
                 'success' => true,
                 'message' => '成功上传到 WebDAV',
                 'count' => count($uploadedFiles),
-                'data' => $uploadedFiles
+                'data' => $uploadedFiles,
+                'pending_syncs' => $pendingSyncs
             ];
         } catch (Exception $e) {
             MediaLibrary_Logger::log('upload', 'WebDAV 上传错误: ' . $e->getMessage(), [], 'error');

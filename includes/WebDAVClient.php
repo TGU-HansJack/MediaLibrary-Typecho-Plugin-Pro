@@ -378,6 +378,10 @@ class MediaLibrary_WebDAVClient
      */
     public function uploadFilesConcurrent($files, $concurrency = 5, $progressCallback = null)
     {
+        if (!function_exists('curl_multi_init') || !function_exists('curl_multi_add_handle')) {
+            throw new Exception('服务器未启用 cURL Multi 功能，无法使用并发上传');
+        }
+
         if (empty($files)) {
             return ['success' => [], 'failed' => []];
         }
@@ -651,4 +655,3 @@ class MediaLibrary_WebDAVClient
         return rtrim($a, '/') === rtrim($b, '/');
     }
 }
-
