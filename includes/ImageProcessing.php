@@ -293,19 +293,29 @@ class MediaLibrary_ImageProcessing
         // 创建图像资源
         switch ($originalMime) {
             case 'image/jpeg':
-                $image = imagecreatefromjpeg($sourcePath);
+                $image = @imagecreatefromjpeg($sourcePath);
                 break;
             case 'image/png':
-                $image = imagecreatefrompng($sourcePath);
+                $image = @imagecreatefrompng($sourcePath);
                 break;
             case 'image/gif':
-                $image = imagecreatefromgif($sourcePath);
+                $image = @imagecreatefromgif($sourcePath);
                 break;
             case 'image/webp':
-                $image = imagecreatefromwebp($sourcePath);
+                if (function_exists('imagecreatefromwebp')) {
+                    $image = @imagecreatefromwebp($sourcePath);
+                }
                 break;
             default:
-                return ['success' => false, 'message' => 'GD不支持的图片格式'];
+                $image = null;
+                break;
+        }
+
+        if (!$image && function_exists('imagecreatefromstring')) {
+            $imageData = @file_get_contents($sourcePath);
+            if ($imageData !== false) {
+                $image = @imagecreatefromstring($imageData);
+            }
         }
         
         if (!$image) {
@@ -536,9 +546,10 @@ class MediaLibrary_ImageProcessing
      * @param string $compressMethod 压缩方法 (gd/imagick/ffmpeg)
      * @param bool $replaceOriginal 是否替换原文件
      * @param string $outputFormat 输出格式 (original/jpeg/png/webp/gif)
+     * @param string $customName 自定义文件名前缀（仅在不替换原文件时使用）
      * @return array 操作结果
      */
-    public static function compressImageByPath($filePath, $quality = 80, $compressMethod = 'gd', $replaceOriginal = true, $outputFormat = 'original')
+    public static function compressImageByPath($filePath, $quality = 80, $compressMethod = 'gd', $replaceOriginal = true, $outputFormat = 'original', $customName = '')
     {
         // 检查文件是否存在
         if (!file_exists($filePath)) {
@@ -634,7 +645,12 @@ class MediaLibrary_ImageProcessing
         } else {
             // 保留原文件，创建新文件
             $outputExt = $outputFormat === 'original' ? $pathInfo['extension'] : $outputFormat;
-            $compressedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '_compressed.' . $outputExt;
+            $sanitizedCustomName = self::sanitizeCustomName($customName);
+            if (!empty($sanitizedCustomName)) {
+                $compressedPath = $pathInfo['dirname'] . '/' . $sanitizedCustomName . '.' . $outputExt;
+            } else {
+                $compressedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '_compressed.' . $outputExt;
+            }
 
             // 压缩图片
             $result = self::compressImageWithMethod($filePath, $compressedPath, $quality, $compressMethod, $outputFormat, $mime);
@@ -658,5 +674,19 @@ class MediaLibrary_ImageProcessing
             'method' => $compressMethod,
             'format' => $outputFormat
         ];
+    }
+
+    /**
+     * 过滤自定义文件名前缀，防止目录穿越
+     */
+    private static function sanitizeCustomName($name)
+    {
+        $name = trim((string)$name);
+        if ($name === '') {
+            return '';
+        }
+
+        $name = str_replace(['/', '\\'], '', $name);
+        return $name;
     }
 }

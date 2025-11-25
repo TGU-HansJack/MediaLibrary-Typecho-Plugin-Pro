@@ -593,28 +593,45 @@ class MediaLibrary_AjaxHandler
         if (!empty($files)) {
             // 使用文件路径，不依赖数据库
             $quality = intval($request->get('quality', $defaultQuality));
+            $outputFormat = $request->get('output_format', 'original');
             $compressMethod = $request->get('compress_method', 'gd');
-            $replaceOriginal = $request->get('replace_original') === '1';
+            $replaceOriginalParam = $request->get('replace_original', '1');
+            $replaceOriginal = ($replaceOriginalParam === '1' || $replaceOriginalParam === 'true' || $replaceOriginalParam === true);
+            $customName = trim($request->get('custom_name', ''));
 
-            $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
             $results = [];
+            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
 
             foreach ($files as $file) {
                 try {
-                    $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
-                    $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
                     $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $file), DIRECTORY_SEPARATOR);
 
                     if (!file_exists($fullPath)) {
-                        $results[] = ['success' => false, 'message' => '文件不存在: ' . $file];
+                        $results[] = [
+                            'success' => false,
+                            'message' => '文件不存在: ' . $file,
+                            'file' => $file
+                        ];
                         continue;
                     }
 
-                    $imageProcessor = new MediaLibrary_ImageProcessing($configOptions);
-                    $result = $imageProcessor->compressImage($fullPath, $quality, $compressMethod, $replaceOriginal);
+                    $result = MediaLibrary_ImageProcessing::compressImageByPath(
+                        $fullPath,
+                        $quality,
+                        $compressMethod,
+                        $replaceOriginal,
+                        $outputFormat,
+                        $customName
+                    );
+                    $result['file'] = $file;
                     $results[] = $result;
                 } catch (Exception $e) {
-                    $results[] = ['success' => false, 'message' => '压缩失败: ' . $e->getMessage()];
+                    $results[] = [
+                        'success' => false,
+                        'message' => '压缩失败: ' . $e->getMessage(),
+                        'file' => $file
+                    ];
                 }
             }
 
@@ -884,8 +901,7 @@ class MediaLibrary_AjaxHandler
                         continue;
                     }
 
-                    $exifPrivacy = new MediaLibrary_ExifPrivacy();
-                    $result = $exifPrivacy->checkPrivacy($fullPath);
+                    $result = MediaLibrary_ExifPrivacy::checkPrivacy($fullPath);
                     $result['file'] = $file;
                     $results[] = $result;
                 } catch (Exception $e) {
@@ -1222,9 +1238,10 @@ class MediaLibrary_AjaxHandler
      */
     private static function handleWebDAVDeleteAction($request, $configOptions)
     {
-        $target = self::normalizeWebDAVPath($request->get('target', ''));
+        $targets = $request->getArray('targets');
+        $singleTarget = self::normalizeWebDAVPath($request->get('target', ''));
 
-        if ($target === '/' || $target === '') {
+        if (empty($targets) && ($singleTarget === '/' || $singleTarget === '')) {
             echo json_encode(['success' => false, 'message' => '不能删除根目录'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -1232,38 +1249,71 @@ class MediaLibrary_AjaxHandler
         try {
             $sync = new MediaLibrary_WebDAVSync($configOptions);
 
-            // 删除本地文件
-            $deleted = $sync->deleteLocalFile($target);
-            if (!$deleted) {
-                throw new Exception('本地文件删除失败');
-            }
-
-            // 根据删除策略处理远程文件
-            $deleteStrategy = isset($configOptions['webdavDeleteStrategy']) ? $configOptions['webdavDeleteStrategy'] : 'auto';
-
-            if ($deleteStrategy === 'auto' && !empty($configOptions['webdavEndpoint'])) {
-                // 自动同步删除远程文件
-                try {
-                    $sync->deleteRemoteFile($target);
-                    MediaLibrary_Logger::log('webdav_delete', '删除本地文件并同步删除远程成功', [
-                        'path' => $target
-                    ]);
-                } catch (Exception $e) {
-                    MediaLibrary_Logger::log('webdav_delete', '本地文件已删除，但远程删除失败: ' . $e->getMessage(), [
-                        'path' => $target
-                    ], 'warning');
+            $deleteOne = function($target) use ($sync, $configOptions) {
+                $target = MediaLibrary_AjaxHandler::normalizeWebDAVPath($target);
+                if ($target === '/' || $target === '') {
+                    throw new Exception('不能删除根目录');
                 }
-            } else {
-                MediaLibrary_Logger::log('webdav_delete', '删除本地文件成功（未同步远程）', [
-                    'path' => $target,
-                    'strategy' => $deleteStrategy
-                ]);
+
+                $deleted = $sync->deleteLocalFile($target);
+                if (!$deleted) {
+                    throw new Exception('本地文件删除失败');
+                }
+
+                $deleteStrategy = isset($configOptions['webdavDeleteStrategy']) ? $configOptions['webdavDeleteStrategy'] : 'auto';
+
+                if ($deleteStrategy === 'auto' && !empty($configOptions['webdavEndpoint'])) {
+                    try {
+                        $sync->deleteRemoteFile($target);
+                        MediaLibrary_Logger::log('webdav_delete', '删除本地文件并同步删除远程成功', [
+                            'path' => $target
+                        ]);
+                    } catch (Exception $e) {
+                        MediaLibrary_Logger::log('webdav_delete', '本地文件已删除，但远程删除失败: ' . $e->getMessage(), [
+                            'path' => $target
+                        ], 'warning');
+                    }
+                } else {
+                    MediaLibrary_Logger::log('webdav_delete', '删除本地文件成功（未同步远程）', [
+                        'path' => $target,
+                        'strategy' => $deleteStrategy
+                    ]);
+                }
+
+                return true;
+            };
+
+            if (!empty($targets)) {
+                $results = [];
+                $successCount = 0;
+
+                foreach ($targets as $targetPath) {
+                    try {
+                        $deleteOne($targetPath);
+                        $successCount++;
+                        $results[] = ['target' => $targetPath, 'success' => true, 'message' => '删除成功'];
+                    } catch (Exception $e) {
+                        MediaLibrary_Logger::log('webdav_delete', '删除失败: ' . $e->getMessage(), [
+                            'path' => $targetPath
+                        ], 'error');
+                        $results[] = ['target' => $targetPath, 'success' => false, 'message' => $e->getMessage()];
+                    }
+                }
+
+                $allSuccess = $successCount === count($targets);
+                echo json_encode([
+                    'success' => $allSuccess,
+                    'message' => $allSuccess ? '删除成功' : '部分文件删除失败',
+                    'results' => $results
+                ], JSON_UNESCAPED_UNICODE);
+                return;
             }
 
+            $deleteOne($singleTarget);
             echo json_encode(['success' => true, 'message' => '删除成功'], JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
             MediaLibrary_Logger::log('webdav_delete', '删除失败: ' . $e->getMessage(), [
-                'path' => $target
+                'path' => $singleTarget ?: $targets
             ], 'error');
             echo json_encode(['success' => false, 'message' => 'WebDAV 操作失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
@@ -2169,9 +2219,15 @@ class MediaLibrary_AjaxHandler
     private static function handleLocalCompressImageAction($request, $configOptions)
     {
         $filePath = $request->get('file');
+        $storage = $request->get('storage', 'local');
         $quality = intval($request->get('quality', 80));
         $compressMethod = $request->get('compress_method', 'gd');
-        $replaceOriginal = $request->get('replace_original', 'true') === 'true';
+        $customName = trim($request->get('custom_name', ''));
+
+        // 统一参数处理：支持 '1', 'true', true
+        $replaceOriginalParam = $request->get('replace_original', 'true');
+        $replaceOriginal = ($replaceOriginalParam === '1' || $replaceOriginalParam === 'true' || $replaceOriginalParam === true);
+
         $outputFormat = $request->get('output_format', 'original');
 
         if (empty($filePath)) {
@@ -2180,24 +2236,37 @@ class MediaLibrary_AjaxHandler
         }
 
         try {
-            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
-            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
-            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            // 根据存储类型确定文件路径
+            if ($storage === 'webdav') {
+                $configOpts = MediaLibrary_PanelHelper::getPluginConfig();
+                if (empty($configOpts['webdavLocalPath'])) {
+                    echo json_encode(['success' => false, 'message' => '未配置 WebDAV 本地路径'], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+                $basePath = rtrim($configOpts['webdavLocalPath'], '/\\');
+                $fullPath = $basePath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            } else {
+                $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+                $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+                $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            }
 
             if (!file_exists($fullPath)) {
-                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                echo json_encode(['success' => false, 'message' => '文件不存在: ' . $fullPath], JSON_UNESCAPED_UNICODE);
                 return;
             }
 
             // 使用新的直接处理文件路径的方法
-            $result = MediaLibrary_ImageProcessing::compressImageByPath($fullPath, $quality, $compressMethod, $replaceOriginal, $outputFormat);
+            $result = MediaLibrary_ImageProcessing::compressImageByPath($fullPath, $quality, $compressMethod, $replaceOriginal, $outputFormat, $customName);
 
             MediaLibrary_Logger::log('local_compress_image', $result['message'], [
                 'file' => $filePath,
+                'storage' => $storage,
                 'quality' => $quality,
                 'method' => $compressMethod,
                 'replace_original' => $replaceOriginal,
-                'output_format' => $outputFormat
+                'output_format' => $outputFormat,
+                'custom_name' => $customName
             ], !empty($result['success']) ? 'info' : 'error');
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -2217,11 +2286,16 @@ class MediaLibrary_AjaxHandler
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
 
         $filePath = $request->get('file');
+        $storage = $request->get('storage', 'local');
         $x = intval($request->get('x', 0));
         $y = intval($request->get('y', 0));
         $width = intval($request->get('width', 100));
         $height = intval($request->get('height', 100));
-        $replaceOriginal = $request->get('replace_original', 'true') === 'true';
+
+        // 统一参数处理：支持 '1', 'true', true
+        $replaceOriginalParam = $request->get('replace_original', 'true');
+        $replaceOriginal = ($replaceOriginalParam === '1' || $replaceOriginalParam === 'true' || $replaceOriginalParam === true);
+
         $customName = $request->get('custom_name', '');
         $useLibrary = $request->get('use_library', 'gd');
 
@@ -2231,12 +2305,23 @@ class MediaLibrary_AjaxHandler
         }
 
         try {
-            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
-            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
-            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            // 根据存储类型确定文件路径
+            if ($storage === 'webdav') {
+                $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+                if (empty($configOptions['webdavLocalPath'])) {
+                    echo json_encode(['success' => false, 'message' => '未配置 WebDAV 本地路径'], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+                $basePath = rtrim($configOptions['webdavLocalPath'], '/\\');
+                $fullPath = $basePath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            } else {
+                $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+                $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+                $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            }
 
             if (!file_exists($fullPath)) {
-                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                echo json_encode(['success' => false, 'message' => '文件不存在: ' . $fullPath], JSON_UNESCAPED_UNICODE);
                 return;
             }
 
@@ -2245,6 +2330,7 @@ class MediaLibrary_AjaxHandler
 
             MediaLibrary_Logger::log('local_crop_image', $result['message'], [
                 'file' => $filePath,
+                'storage' => $storage,
                 'x' => $x,
                 'y' => $y,
                 'width' => $width,
@@ -2269,7 +2355,12 @@ class MediaLibrary_AjaxHandler
         require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ImageEditor.php';
 
         $filePath = $request->get('file');
-        $replaceOriginal = $request->get('replace_original', 'true') === 'true';
+        $storage = $request->get('storage', 'local');
+
+        // 统一参数处理：支持 '1', 'true', true
+        $replaceOriginalParam = $request->get('replace_original', 'true');
+        $replaceOriginal = ($replaceOriginalParam === '1' || $replaceOriginalParam === 'true' || $replaceOriginalParam === true);
+
         $customName = $request->get('custom_name', '');
         $useLibrary = $request->get('use_library', 'gd');
 
@@ -2279,12 +2370,23 @@ class MediaLibrary_AjaxHandler
         }
 
         try {
-            $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
-            $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
-            $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            // 根据存储类型确定文件路径
+            if ($storage === 'webdav') {
+                $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+                if (empty($configOptions['webdavLocalPath'])) {
+                    echo json_encode(['success' => false, 'message' => '未配置 WebDAV 本地路径'], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+                $basePath = rtrim($configOptions['webdavLocalPath'], '/\\');
+                $fullPath = $basePath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            } else {
+                $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+                $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
+                $fullPath = $localPath . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+            }
 
             if (!file_exists($fullPath)) {
-                echo json_encode(['success' => false, 'message' => '文件不存在'], JSON_UNESCAPED_UNICODE);
+                echo json_encode(['success' => false, 'message' => '文件不存在: ' . $fullPath], JSON_UNESCAPED_UNICODE);
                 return;
             }
 
@@ -2314,6 +2416,7 @@ class MediaLibrary_AjaxHandler
 
             MediaLibrary_Logger::log('local_add_watermark', $result['message'], [
                 'file' => $filePath,
+                'storage' => $storage,
                 'config' => $watermarkConfig,
                 'replace_original' => $replaceOriginal
             ], !empty($result['success']) ? 'info' : 'error');
@@ -2349,8 +2452,7 @@ class MediaLibrary_AjaxHandler
                 return;
             }
 
-            $exifPrivacy = new MediaLibrary_ExifPrivacy();
-            $result = $exifPrivacy->checkPrivacy($fullPath);
+            $result = MediaLibrary_ExifPrivacy::checkPrivacy($fullPath);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
@@ -2383,8 +2485,7 @@ class MediaLibrary_AjaxHandler
                 return;
             }
 
-            $exifPrivacy = new MediaLibrary_ExifPrivacy();
-            $result = $exifPrivacy->removeExif($fullPath);
+            $result = MediaLibrary_ExifPrivacy::removeExif($fullPath);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
@@ -2400,9 +2501,10 @@ class MediaLibrary_AjaxHandler
      */
     private static function handleLocalDeleteAction($request)
     {
-        $target = $request->get('target', '');
+        $targets = $request->getArray('targets');
+        $singleTarget = $request->get('target', '');
 
-        if ($target === '/' || $target === '') {
+        if (empty($targets) && ($singleTarget === '/' || $singleTarget === '')) {
             echo json_encode(['success' => false, 'message' => '不能删除根目录'], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -2412,17 +2514,53 @@ class MediaLibrary_AjaxHandler
             $localPath = __TYPECHO_ROOT_DIR__ . $uploadDir;
             $fileManager = new MediaLibrary_LocalFileManager($localPath);
 
-            $result = $fileManager->delete($target);
+            if (!empty($targets)) {
+                $results = [];
+                $successCount = 0;
+
+                foreach ($targets as $target) {
+                    if ($target === '/' || $target === '') {
+                        $results[] = ['target' => $target, 'success' => false, 'message' => '不能删除根目录'];
+                        continue;
+                    }
+
+                    try {
+                        $deleted = $fileManager->delete($target);
+                        if ($deleted) {
+                            $successCount++;
+                            MediaLibrary_Logger::log('local_delete', '删除成功', ['target' => $target]);
+                            $results[] = ['target' => $target, 'success' => true, 'message' => '删除成功'];
+                        } else {
+                            $results[] = ['target' => $target, 'success' => false, 'message' => '删除失败'];
+                        }
+                    } catch (Exception $ex) {
+                        MediaLibrary_Logger::log('local_delete', '删除失败: ' . $ex->getMessage(), [
+                            'target' => $target
+                        ], 'error');
+                        $results[] = ['target' => $target, 'success' => false, 'message' => $ex->getMessage()];
+                    }
+                }
+
+                $allSuccess = $successCount === count($targets);
+                echo json_encode([
+                    'success' => $allSuccess,
+                    'message' => $allSuccess ? '删除成功' : '部分文件删除失败',
+                    'results' => $results
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $result = $fileManager->delete($singleTarget);
 
             if ($result) {
-                MediaLibrary_Logger::log('local_delete', '删除成功', ['target' => $target]);
+                MediaLibrary_Logger::log('local_delete', '删除成功', ['target' => $singleTarget]);
                 echo json_encode(['success' => true, 'message' => '删除成功'], JSON_UNESCAPED_UNICODE);
             } else {
                 echo json_encode(['success' => false, 'message' => '删除失败'], JSON_UNESCAPED_UNICODE);
             }
         } catch (Exception $e) {
             MediaLibrary_Logger::log('local_delete', '删除失败: ' . $e->getMessage(), [
-                'target' => $target
+                'target' => $singleTarget ?: $targets
             ], 'error');
             echo json_encode(['success' => false, 'message' => '删除失败: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }

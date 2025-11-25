@@ -7,6 +7,29 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 class MediaLibrary_ExifPrivacy
 {
     /**
+     * 根据文件路径检测隐私信息（实例方法，兼容旧调用）
+     *
+     * @param string $filePath
+     * @return array
+     */
+    public static function checkPrivacy($filePath)
+    {
+        return self::checkFilePrivacy($filePath);
+    }
+
+    /**
+     * 清除 EXIF（实例方法，兼容旧调用）
+     *
+     * @param string $filePath
+     * @return array
+     */
+    public static function removeExif($filePath)
+    {
+        $mime = self::detectMimeType($filePath);
+        return self::removeImageExif($filePath, $mime);
+    }
+
+    /**
      * 检查是否有可用的 ExifTool
      * 
      * @return bool ExifTool是否可用
@@ -395,5 +418,141 @@ class MediaLibrary_ExifPrivacy
         }
         
         return ['success' => false, 'message' => 'ExifTool 不可用，无法清除EXIF信息'];
+    }
+
+    /**
+     * 直接根据文件路径检查隐私信息
+     *
+     * @param string $filePath
+     * @return array
+     */
+    public static function checkFilePrivacy($filePath)
+    {
+        if (!file_exists($filePath)) {
+            return ['success' => false, 'message' => '文件不存在'];
+        }
+
+        $mime = self::detectMimeType($filePath);
+        if (strpos($mime, 'image/') !== 0) {
+            return ['success' => false, 'message' => '只能检测图片文件'];
+        }
+
+        $filename = basename($filePath);
+        $privacyInfo = [];
+        $hasPrivacy = false;
+        $gpsCoords = null;
+
+        $exifData = self::readExifWithPhpExif($filePath);
+
+        if ($exifData && is_array($exifData)) {
+            if (isset($exifData['GPS']) && is_array($exifData['GPS'])) {
+                $gps = $exifData['GPS'];
+                if (isset($gps['GPSLatitude'], $gps['GPSLongitude'], $gps['GPSLatitudeRef'], $gps['GPSLongitudeRef'])) {
+                    try {
+                        $lat = self::exifToFloat($gps['GPSLatitude'], $gps['GPSLatitudeRef']);
+                        $lng = self::exifToFloat($gps['GPSLongitude'], $gps['GPSLongitudeRef']);
+
+                        if ($lat != 0 && $lng != 0) {
+                            $privacyInfo['GPS位置'] = "纬度: {$lat}, 经度: {$lng}";
+                            $gpsCoords = [$lng, $lat];
+                            $hasPrivacy = true;
+                        }
+                    } catch (Exception $e) {
+                        error_log('GPS parsing error: ' . $e->getMessage());
+                    }
+                }
+            }
+
+            if (isset($exifData['IFD0']) && is_array($exifData['IFD0'])) {
+                $ifd0 = $exifData['IFD0'];
+                $cameraInfo = [];
+
+                if (isset($ifd0['Make'])) $cameraInfo[] = $ifd0['Make'];
+                if (isset($ifd0['Model'])) $cameraInfo[] = $ifd0['Model'];
+
+                if (!empty($cameraInfo)) {
+                    $privacyInfo['设备信息'] = implode(' ', $cameraInfo);
+                    $hasPrivacy = true;
+                }
+
+                if (isset($ifd0['DateTime'])) {
+                    $privacyInfo['拍摄时间'] = $ifd0['DateTime'];
+                    $hasPrivacy = true;
+                }
+            }
+
+            if (isset($exifData['EXIF']) && is_array($exifData['EXIF'])) {
+                $exif = $exifData['EXIF'];
+
+                if (isset($exif['DateTimeOriginal'])) {
+                    $privacyInfo['原始拍摄时间'] = $exif['DateTimeOriginal'];
+                    $hasPrivacy = true;
+                }
+
+                if (isset($exif['DateTimeDigitized'])) {
+                    $privacyInfo['数字化时间'] = $exif['DateTimeDigitized'];
+                    $hasPrivacy = true;
+                }
+            }
+        }
+
+        $message = $hasPrivacy ? '发现隐私信息' : '未发现隐私信息';
+
+        $relativePath = '';
+        if (strpos($filePath, __TYPECHO_ROOT_DIR__) === 0) {
+            $relativePath = substr($filePath, strlen(__TYPECHO_ROOT_DIR__));
+        }
+
+        $imageUrl = null;
+        if (!empty($relativePath) && class_exists('Typecho_Common')) {
+            try {
+                $siteUrl = Helper::options()->siteUrl;
+                $imageUrl = Typecho_Common::url($relativePath, $siteUrl);
+            } catch (Exception $e) {
+                $imageUrl = null;
+            }
+        }
+
+        return [
+            'success' => true,
+            'filename' => $filename,
+            'has_privacy' => $hasPrivacy,
+            'privacy_info' => $privacyInfo,
+            'message' => $message,
+            'gps_coords' => $gpsCoords,
+            'image_url' => $imageUrl
+        ];
+    }
+
+    /**
+     * 检测 MIME 类型
+     */
+    private static function detectMimeType($filePath)
+    {
+        if (extension_loaded('fileinfo')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $mime = finfo_file($finfo, $filePath);
+                finfo_close($finfo);
+                if ($mime) {
+                    return $mime;
+                }
+            }
+        }
+
+        $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        $map = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'bmp' => 'image/bmp',
+            'avif' => 'image/avif',
+            'heic' => 'image/heic',
+            'heif' => 'image/heif'
+        ];
+
+        return isset($map[$ext]) ? $map[$ext] : 'application/octet-stream';
     }
 }
