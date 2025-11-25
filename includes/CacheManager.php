@@ -38,6 +38,14 @@ class MediaLibrary_CacheManager
         if (!is_dir(self::$cacheDir)) {
             @mkdir(self::$cacheDir, 0755, true);
         }
+
+        // 如果目录创建失败，使用临时目录
+        if (!is_dir(self::$cacheDir) || !is_writable(self::$cacheDir)) {
+            self::$cacheDir = sys_get_temp_dir() . '/medialibrary_cache';
+            if (!is_dir(self::$cacheDir)) {
+                @mkdir(self::$cacheDir, 0755, true);
+            }
+        }
     }
 
     /**
@@ -79,27 +87,32 @@ class MediaLibrary_CacheManager
      */
     public static function get($cacheType, $suffix = '', $maxAge = 0)
     {
-        $cachePath = self::getCachePath($cacheType, $suffix);
+        try {
+            $cachePath = self::getCachePath($cacheType, $suffix);
 
-        if (!$cachePath || !file_exists($cachePath)) {
-            return null;
-        }
-
-        // 检查缓存是否过期
-        if ($maxAge > 0) {
-            $fileTime = filemtime($cachePath);
-            if (time() - $fileTime > $maxAge) {
+            if (!$cachePath || !file_exists($cachePath)) {
                 return null;
             }
-        }
 
-        $content = @file_get_contents($cachePath);
-        if ($content === false) {
+            // 检查缓存是否过期
+            if ($maxAge > 0) {
+                $fileTime = filemtime($cachePath);
+                if (time() - $fileTime > $maxAge) {
+                    return null;
+                }
+            }
+
+            $content = @file_get_contents($cachePath);
+            if ($content === false) {
+                return null;
+            }
+
+            $data = @json_decode($content, true);
+            return $data;
+        } catch (Exception $e) {
+            // 缓存读取失败，返回 null 不影响正常功能
             return null;
         }
-
-        $data = @json_decode($content, true);
-        return $data;
     }
 
     /**
@@ -112,16 +125,21 @@ class MediaLibrary_CacheManager
      */
     public static function set($cacheType, $data, $suffix = '')
     {
-        $cachePath = self::getCachePath($cacheType, $suffix);
+        try {
+            $cachePath = self::getCachePath($cacheType, $suffix);
 
-        if (!$cachePath) {
+            if (!$cachePath) {
+                return false;
+            }
+
+            $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+            $result = @file_put_contents($cachePath, $json, LOCK_EX);
+            return $result !== false;
+        } catch (Exception $e) {
+            // 缓存写入失败，不影响正常功能
             return false;
         }
-
-        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-
-        $result = @file_put_contents($cachePath, $json, LOCK_EX);
-        return $result !== false;
     }
 
     /**
@@ -200,25 +218,49 @@ class MediaLibrary_CacheManager
      * 刷新附件所属文章信息缓存
      *
      * @param object $db 数据库对象
+     * @param int $batchSize 每批处理数量
      * @return bool 是否成功
      */
-    public static function refreshPostInfo($db)
+    public static function refreshPostInfo($db, $batchSize = 200)
     {
         try {
             $postInfo = [];
 
-            // 查询所有附件及其父文章信息
-            $attachments = $db->fetchAll($db->select('cid', 'parent')
-                ->from('table.contents')
-                ->where('type = ? AND parent > 0', 'attachment'));
+            // 分批查询所有附件及其父文章信息
+            $offset = 0;
+            $hasMore = true;
+            $parentIds = [];
 
-            if ($attachments) {
-                $parentIds = array_unique(array_column($attachments, 'parent'));
+            while ($hasMore) {
+                $query = $db->select('cid', 'parent')
+                    ->from('table.contents')
+                    ->where('type = ? AND parent > 0', 'attachment')
+                    ->limit($batchSize)
+                    ->offset($offset);
 
+                $attachments = $db->fetchAll($query);
+
+                if (empty($attachments)) {
+                    $hasMore = false;
+                    break;
+                }
+
+                foreach ($attachments as $attachment) {
+                    $parentIds[$attachment['parent']] = $attachment['parent'];
+                }
+
+                $offset += $batchSize;
+
+                if (count($attachments) < $batchSize) {
+                    $hasMore = false;
+                }
+            }
+
+            if (!empty($parentIds)) {
                 // 批量查询父文章信息
                 $posts = $db->fetchAll($db->select('cid', 'title', 'type', 'status')
                     ->from('table.contents')
-                    ->where('cid IN ?', $parentIds));
+                    ->where('cid IN ?', array_values($parentIds)));
 
                 $postMap = [];
                 foreach ($posts as $post) {
@@ -230,13 +272,37 @@ class MediaLibrary_CacheManager
                     ];
                 }
 
-                // 构建附件到文章的映射
-                foreach ($attachments as $attachment) {
-                    if (isset($postMap[$attachment['parent']])) {
-                        $postInfo[$attachment['cid']] = [
-                            'status' => 'archived',
-                            'post' => $postMap[$attachment['parent']]
-                        ];
+                // 重新遍历附件构建映射
+                $offset = 0;
+                $hasMore = true;
+
+                while ($hasMore) {
+                    $query = $db->select('cid', 'parent')
+                        ->from('table.contents')
+                        ->where('type = ? AND parent > 0', 'attachment')
+                        ->limit($batchSize)
+                        ->offset($offset);
+
+                    $attachments = $db->fetchAll($query);
+
+                    if (empty($attachments)) {
+                        $hasMore = false;
+                        break;
+                    }
+
+                    foreach ($attachments as $attachment) {
+                        if (isset($postMap[$attachment['parent']])) {
+                            $postInfo[$attachment['cid']] = [
+                                'status' => 'archived',
+                                'post' => $postMap[$attachment['parent']]
+                            ];
+                        }
+                    }
+
+                    $offset += $batchSize;
+
+                    if (count($attachments) < $batchSize) {
+                        $hasMore = false;
                     }
                 }
             }
@@ -274,37 +340,60 @@ class MediaLibrary_CacheManager
      *
      * @param object $db 数据库对象
      * @param bool $enableGetID3 是否启用 GetID3
+     * @param int $batchSize 每批处理数量
      * @return bool 是否成功
      */
-    public static function refreshFileDetails($db, $enableGetID3 = false)
+    public static function refreshFileDetails($db, $enableGetID3 = false, $batchSize = 100)
     {
         try {
             $fileDetails = self::get('file-details') ?: [];
 
-            // 获取所有附件
-            $attachments = $db->fetchAll($db->select()
-                ->from('table.contents')
-                ->where('type = ?', 'attachment'));
+            // 分批获取附件，避免内存溢出
+            $offset = 0;
+            $hasMore = true;
 
-            foreach ($attachments as $attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+            while ($hasMore) {
+                // 使用 LIMIT 分批查询
+                $query = $db->select()
+                    ->from('table.contents')
+                    ->where('type = ?', 'attachment')
+                    ->limit($batchSize)
+                    ->offset($offset);
 
-                    if (file_exists($filePath)) {
-                        $mtime = filemtime($filePath);
-                        $hash = md5($filePath);
+                $attachments = $db->fetchAll($query);
 
-                        // 只有文件修改时间变化时才重新生成
-                        if (!isset($fileDetails[$hash]) || $fileDetails[$hash]['mtime'] !== $mtime) {
-                            $info = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3);
-                            $fileDetails[$hash] = array_merge($info, [
-                                'mtime' => $mtime,
-                                'path' => $filePath,
-                                'cached_at' => time()
-                            ]);
+                if (empty($attachments)) {
+                    $hasMore = false;
+                    break;
+                }
+
+                foreach ($attachments as $attachment) {
+                    $attachmentData = @unserialize($attachment['text']);
+                    if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+                        if (file_exists($filePath)) {
+                            $mtime = filemtime($filePath);
+                            $hash = md5($filePath);
+
+                            // 只有文件修改时间变化时才重新生成
+                            if (!isset($fileDetails[$hash]) || $fileDetails[$hash]['mtime'] !== $mtime) {
+                                $info = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3, false);
+                                $fileDetails[$hash] = array_merge($info, [
+                                    'mtime' => $mtime,
+                                    'path' => $filePath,
+                                    'cached_at' => time()
+                                ]);
+                            }
                         }
                     }
+                }
+
+                $offset += $batchSize;
+
+                // 如果返回的数量少于批量大小，说明没有更多数据了
+                if (count($attachments) < $batchSize) {
+                    $hasMore = false;
                 }
             }
 
@@ -354,43 +443,65 @@ class MediaLibrary_CacheManager
      *
      * @param object $db 数据库对象
      * @param object $options 选项对象
+     * @param int $batchSize 每批处理数量
      * @return bool 是否成功
      */
-    public static function refreshExifPrivacy($db, $options)
+    public static function refreshExifPrivacy($db, $options, $batchSize = 50)
     {
         try {
             $exifData = self::get('exif-privacy') ?: [];
 
-            // 获取所有图片附件
-            $attachments = $db->fetchAll($db->select()
-                ->from('table.contents')
-                ->where('type = ?', 'attachment')
-                ->where('text LIKE ?', '%image%'));
+            // 分批获取图片附件，避免内存溢出
+            $offset = 0;
+            $hasMore = true;
 
-            foreach ($attachments as $attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+            while ($hasMore) {
+                // 使用 LIMIT 分批查询
+                $query = $db->select()
+                    ->from('table.contents')
+                    ->where('type = ?', 'attachment')
+                    ->where('text LIKE ?', '%image%')
+                    ->limit($batchSize)
+                    ->offset($offset);
 
-                    if (file_exists($filePath)) {
-                        $mtime = filemtime($filePath);
-                        $cid = $attachment['cid'];
+                $attachments = $db->fetchAll($query);
 
-                        // 只有文件修改时间变化时才重新检测
-                        if (!isset($exifData[$cid]) || $exifData[$cid]['mtime'] !== $mtime) {
-                            $result = MediaLibrary_ExifPrivacy::checkImagePrivacy($cid, $db, $options);
+                if (empty($attachments)) {
+                    $hasMore = false;
+                    break;
+                }
 
-                            if ($result['success']) {
-                                $exifData[$cid] = [
-                                    'has_privacy' => $result['has_privacy'],
-                                    'privacy_info' => $result['privacy_info'],
-                                    'gps_coords' => $result['gps_coords'],
-                                    'mtime' => $mtime,
-                                    'cached_at' => time()
-                                ];
+                foreach ($attachments as $attachment) {
+                    $attachmentData = @unserialize($attachment['text']);
+                    if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+                        if (file_exists($filePath)) {
+                            $mtime = filemtime($filePath);
+                            $cid = $attachment['cid'];
+
+                            // 只有文件修改时间变化时才重新检测
+                            if (!isset($exifData[$cid]) || $exifData[$cid]['mtime'] !== $mtime) {
+                                $result = MediaLibrary_ExifPrivacy::checkImagePrivacy($cid, $db, $options);
+
+                                if ($result['success']) {
+                                    $exifData[$cid] = [
+                                        'has_privacy' => $result['has_privacy'],
+                                        'privacy_info' => $result['privacy_info'],
+                                        'gps_coords' => $result['gps_coords'],
+                                        'mtime' => $mtime,
+                                        'cached_at' => time()
+                                    ];
+                                }
                             }
                         }
                     }
+                }
+
+                $offset += $batchSize;
+
+                if (count($attachments) < $batchSize) {
+                    $hasMore = false;
                 }
             }
 
@@ -478,42 +589,64 @@ class MediaLibrary_CacheManager
      * 刷新智能压缩建议缓存
      *
      * @param object $db 数据库对象
+     * @param int $batchSize 每批处理数量
      * @return bool 是否成功
      */
-    public static function refreshSmartSuggestions($db)
+    public static function refreshSmartSuggestions($db, $batchSize = 100)
     {
         try {
             $suggestions = self::get('smart-suggestions') ?: [];
 
-            // 获取所有图片附件
-            $attachments = $db->fetchAll($db->select()
-                ->from('table.contents')
-                ->where('type = ?', 'attachment')
-                ->where('text LIKE ?', '%image%'));
+            // 分批获取图片附件，避免内存溢出
+            $offset = 0;
+            $hasMore = true;
 
-            foreach ($attachments as $attachment) {
-                $attachmentData = @unserialize($attachment['text']);
-                if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+            while ($hasMore) {
+                // 使用 LIMIT 分批查询
+                $query = $db->select()
+                    ->from('table.contents')
+                    ->where('type = ?', 'attachment')
+                    ->where('text LIKE ?', '%image%')
+                    ->limit($batchSize)
+                    ->offset($offset);
 
-                    if (file_exists($filePath)) {
-                        $fileSize = filesize($filePath);
-                        $cid = $attachment['cid'];
+                $attachments = $db->fetchAll($query);
 
-                        // 只有文件大小变化时才重新生成建议
-                        if (!isset($suggestions[$cid]) || $suggestions[$cid]['file_size'] !== $fileSize) {
-                            $suggestion = MediaLibrary_ImageProcessing::getSmartCompressionSuggestion(
-                                $filePath,
-                                $attachmentData['mime'],
-                                $fileSize
-                            );
+                if (empty($attachments)) {
+                    $hasMore = false;
+                    break;
+                }
 
-                            $suggestions[$cid] = array_merge($suggestion, [
-                                'file_size' => $fileSize,
-                                'cached_at' => time()
-                            ]);
+                foreach ($attachments as $attachment) {
+                    $attachmentData = @unserialize($attachment['text']);
+                    if (is_array($attachmentData) && isset($attachmentData['path'])) {
+                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+
+                        if (file_exists($filePath)) {
+                            $fileSize = filesize($filePath);
+                            $cid = $attachment['cid'];
+
+                            // 只有文件大小变化时才重新生成建议
+                            if (!isset($suggestions[$cid]) || $suggestions[$cid]['file_size'] !== $fileSize) {
+                                $suggestion = MediaLibrary_ImageProcessing::getSmartCompressionSuggestion(
+                                    $filePath,
+                                    $attachmentData['mime'],
+                                    $fileSize
+                                );
+
+                                $suggestions[$cid] = array_merge($suggestion, [
+                                    'file_size' => $fileSize,
+                                    'cached_at' => time()
+                                ]);
+                            }
                         }
                     }
+                }
+
+                $offset += $batchSize;
+
+                if (count($attachments) < $batchSize) {
+                    $hasMore = false;
                 }
             }
 
