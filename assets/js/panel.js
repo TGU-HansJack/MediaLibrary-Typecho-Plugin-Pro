@@ -526,7 +526,11 @@ updateToolbarButtons: function() {
         xhr.open('GET', currentUrl + '&action=get_info&cid=' + cid, true);
         
         xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4 && xhr.status === 200) {
+            if (xhr.readyState !== 4) {
+                return;
+            }
+
+            if (xhr.status === 200) {
                 try {
                     var response = JSON.parse(xhr.responseText);
                     if (response.success) {
@@ -579,9 +583,16 @@ updateToolbarButtons: function() {
                         alert('获取文件信息失败：' + response.message);
                     }
                 } catch (e) {
+                    console.error('parse file info error', e, xhr.responseText);
                     alert('获取文件信息失败，请重试');
                 }
+            } else {
+                alert('获取文件信息失败 (HTTP ' + xhr.status + ')');
             }
+        };
+
+        xhr.onerror = function() {
+            alert('获取文件信息失败，请检查网络连接');
         };
         
         xhr.send();
@@ -1264,7 +1275,7 @@ checkPrivacy: function() {
 
 // 缓存刷新方法
 refreshCache: function() {
-    var self = this;
+    var self = (this && typeof this.showFeedback === 'function') ? this : MediaLibrary;
     var btn = document.getElementById('cache-refresh-btn');
 
     if (!confirm('确定要刷新所有缓存吗？\n\n这将重新生成类型统计、文件详情、EXIF隐私检测和智能压缩建议等缓存数据。\n\n首次刷新可能需要较长时间，具体取决于媒体库文件数量。')) {

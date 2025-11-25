@@ -6,7 +6,7 @@ include 'menu.php';
 
 // 在文件开头添加错误处理
 error_reporting(E_ALL);
-ini_set('display_errors', 1); // 临时开启错误显示以诊断问题
+ini_set('display_errors', 0); // 保持后台输出整洁，避免干扰 AJAX JSON
 ini_set('log_errors', 1);
 
 // 引入必要的组件

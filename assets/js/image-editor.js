@@ -5,6 +5,7 @@
     'use strict';
 
     // 全局变量
+    var mediaLibraryActionBase = window.mediaLibraryCurrentUrl || window.location.href;
     var currentImageCid = null;
     var originalImageWidth = 0;
     var originalImageHeight = 0;
@@ -466,7 +467,7 @@
             
             // 发送裁剪请求
             $.ajax({
-                url: window.mediaLibraryCurrentUrl + '&action=crop_image',
+                url: buildActionUrl('action=crop_image'),
                 type: 'POST',
                 data: {
                     cid: currentImageCid,
@@ -806,7 +807,7 @@
             
             // 发送水印请求
             $.ajax({
-                url: window.mediaLibraryCurrentUrl + '&action=add_watermark',
+                url: buildActionUrl('action=add_watermark'),
                 type: 'POST',
                 data: requestData,
                 dataType: 'json',
@@ -1014,4 +1015,13 @@
         initWatermarkFeature();
     });
     
+    /**
+     * 构建操作 URL
+     */
+    function buildActionUrl(query) {
+        var base = mediaLibraryActionBase || window.location.href;
+        var separator = base.indexOf('?') === -1 ? '?' : '&';
+        return base + separator + query;
+    }
+
 })(jQuery);
