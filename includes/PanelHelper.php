@@ -71,6 +71,8 @@ class MediaLibrary_PanelHelper
             $webdavSyncMode = isset($config->webdavSyncMode) ? (string)$config->webdavSyncMode : 'manual';
             $webdavConflictStrategy = isset($config->webdavConflictStrategy) ? (string)$config->webdavConflictStrategy : 'newest';
             $webdavDeleteStrategy = isset($config->webdavDeleteStrategy) ? (string)$config->webdavDeleteStrategy : 'auto';
+            $webdavExternalDomain = isset($config->webdavExternalDomain) ? trim($config->webdavExternalDomain) : '';
+            $webdavUploadMode = isset($config->webdavUploadMode) ? (string)$config->webdavUploadMode : 'local-cache';
 
             // 兼容旧配置
             $webdavBasePath = isset($config->webdavBasePath) ? trim($config->webdavBasePath) : '/';
@@ -101,6 +103,8 @@ class MediaLibrary_PanelHelper
             $webdavConflictStrategy = 'newest';
             $webdavDeleteStrategy = 'auto';
             $webdavSyncDelete = false;
+            $webdavExternalDomain = '';
+            $webdavUploadMode = 'local-cache';
         }
 
         return [
@@ -128,7 +132,9 @@ class MediaLibrary_PanelHelper
             'webdavSyncMode' => $webdavSyncMode,
             'webdavConflictStrategy' => $webdavConflictStrategy,
             'webdavDeleteStrategy' => $webdavDeleteStrategy,
-            'webdavSyncDelete' => $webdavSyncDelete
+            'webdavSyncDelete' => $webdavSyncDelete,
+            'webdavExternalDomain' => $webdavExternalDomain,
+            'webdavUploadMode' => $webdavUploadMode
         ];
     }
     
@@ -145,6 +151,8 @@ class MediaLibrary_PanelHelper
      */
     public static function getMediaList($db, $page, $pageSize, $keywords, $type, $storage = 'all')
     {
+        $configOptions = self::getPluginConfig();
+
         // WebDAV 存储：直接读取本地 WebDAV 文件夹，不查询数据库
         if ($storage === 'webdav') {
             return self::getWebDAVFolderList($page, $pageSize, $keywords, $type);
@@ -268,8 +276,23 @@ class MediaLibrary_PanelHelper
             $attachment['size'] = MediaLibrary_FileOperations::formatFileSize(isset($attachmentData['size']) ? intval($attachmentData['size']) : 0);
             
             if (isset($attachmentData['path']) && !empty($attachmentData['path'])) {
-                $attachment['url'] = Typecho_Common::url($attachmentData['path'], Typecho_Widget::widget('Widget_Options')->siteUrl);
-                $attachment['hasValidUrl'] = true;
+                $shouldPreferExternal = isset($attachmentData['storage']) &&
+                    $attachmentData['storage'] === 'webdav' &&
+                    !empty($configOptions['webdavExternalDomain']);
+
+                if ($shouldPreferExternal) {
+                    $externalUrl = self::buildWebDAVFileUrl(ltrim($attachmentData['path'], '/'), $configOptions);
+                } else {
+                    $externalUrl = '';
+                }
+
+                if ($shouldPreferExternal && $externalUrl !== '') {
+                    $attachment['url'] = $externalUrl;
+                    $attachment['hasValidUrl'] = true;
+                } else {
+                    $attachment['url'] = Typecho_Common::url($attachmentData['path'], Typecho_Widget::widget('Widget_Options')->siteUrl);
+                    $attachment['hasValidUrl'] = true;
+                }
             } else {
                 $attachment['url'] = '';
                 $attachment['hasValidUrl'] = false;
@@ -393,7 +416,9 @@ class MediaLibrary_PanelHelper
 
                 // 构建 URL（从本地路径生成可访问的 URL）
                 $relativePath = ltrim($file['path'], '/');
-                $url = self::buildWebDAVFileUrl($relativePath, $configOptions);
+                $url = !empty($file['public_url'])
+                    ? $file['public_url']
+                    : self::buildWebDAVFileUrl($relativePath, $configOptions);
 
                 $attachments[] = [
                     'cid' => 0, // WebDAV 文件没有数据库 ID
@@ -515,6 +540,17 @@ class MediaLibrary_PanelHelper
             $webPath = str_replace('\\', '/', $webPath);
             $webPath = ltrim($webPath, '/');
             return Typecho_Common::url($webPath . '/' . $relativePath, Helper::options()->siteUrl);
+        }
+
+        // 如果配置了外链域名，优先返回
+        if (!empty($configOptions['webdavExternalDomain'])) {
+            $external = trim($configOptions['webdavExternalDomain']);
+            if ($external !== '') {
+                if (!preg_match('/^https?:\\/\\//i', $external)) {
+                    $external = 'https://' . ltrim($external, '/');
+                }
+                return rtrim($external, '/') . '/' . ltrim($relativePath, '/');
+            }
         }
 
         // 如果无法生成 URL，返回空字符串

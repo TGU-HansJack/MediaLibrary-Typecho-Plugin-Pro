@@ -721,6 +721,9 @@ jQuery(function($) {
         $defaultSyncMode = isset($optionConfig->webdavSyncMode) ? $optionConfig->webdavSyncMode : 'onupload';
         $defaultConflictStrategy = isset($optionConfig->webdavConflictStrategy) ? $optionConfig->webdavConflictStrategy : 'newest';
         $defaultDeleteStrategy = isset($optionConfig->webdavDeleteStrategy) ? $optionConfig->webdavDeleteStrategy : 'auto';
+        $defaultSyncDelete = isset($optionConfig->webdavSyncDelete) && $optionConfig->webdavSyncDelete;
+        $defaultUploadMode = isset($optionConfig->webdavUploadMode) ? $optionConfig->webdavUploadMode : 'local-cache';
+        $defaultExternalDomain = isset($optionConfig->webdavExternalDomain) ? trim($optionConfig->webdavExternalDomain) : '';
         $presets = MediaLibrary_WebDAVPresets::getPresets();
         $defaultPresetKey = isset($optionConfig->webdavPreset) ? (string)$optionConfig->webdavPreset : 'custom';
         if (!isset($presets[$defaultPresetKey])) {
@@ -815,6 +818,12 @@ jQuery(function($) {
             $passwordHelp);
         $form->addInput($webdavPassword);
 
+        $externalDomainDesc = '如果填写，将使用该域名生成 WebDAV 文件外链（用于复制/预览）。示例：<code>https://cdn.example.com/webdav</code>';
+        $webdavExternalDomain = new Typecho_Widget_Helper_Form_Element_Text('webdavExternalDomain', null, $defaultExternalDomain,
+            'WebDAV 外链域名',
+            $externalDomainDesc);
+        $form->addInput($webdavExternalDomain);
+
         $webdavVerifySSL = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavVerifySSL',
             array('1' => '验证 SSL 证书'),
             $defaultVerify ? array('1') : array(),
@@ -866,6 +875,23 @@ jQuery(function($) {
             '删除同步策略',
             '删除本地 WebDAV 文件夹中的文件时如何处理远程文件');
         $form->addInput($deleteStrategy);
+
+        $webdavSyncDelete = new Typecho_Widget_Helper_Form_Element_Checkbox('webdavSyncDelete',
+            array('1' => '自动同步删除远程缺失的文件'),
+            $defaultSyncDelete ? array('1') : array(),
+            '同步删除选项',
+            '启用后，在同步过程中如果检测到本地已移除的文件会尝试删除 WebDAV 上的同名文件。');
+        $form->addInput($webdavSyncDelete);
+
+        $webdavUploadMode = new Typecho_Widget_Helper_Form_Element_Radio('webdavUploadMode',
+            array(
+                'local-cache' => '先保存到本地缓存再同步（默认）',
+                'remote-only' => '直接上传至 WebDAV（仅保留元数据 JSON）'
+            ),
+            $defaultUploadMode,
+            '上传模式',
+            '直接上传模式下不再在本地 WebDAV 缓存目录保留文件，只记录元数据。适合磁盘空间敏感的站点。');
+        $form->addInput($webdavUploadMode);
 
         // 定时同步配置
         $syncInterval = new Typecho_Widget_Helper_Form_Element_Text('webdavSyncInterval',

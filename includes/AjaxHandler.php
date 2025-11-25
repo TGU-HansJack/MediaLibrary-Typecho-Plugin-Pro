@@ -200,11 +200,13 @@ class MediaLibrary_AjaxHandler
             $fileDeleted = false;
             $dbDeleted = false;
 
+            $attachmentFilePath = null;
             // 删除物理文件
             if (isset($attachment['text'])) {
                 $attachmentData = @unserialize($attachment['text']);
                 if (is_array($attachmentData) && isset($attachmentData['path'])) {
                     $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                    $attachmentFilePath = $filePath;
 
                     // 首先尝试删除本地文件
                     if (file_exists($filePath)) {
@@ -252,7 +254,7 @@ class MediaLibrary_AjaxHandler
                 $deleteCount++;
 
                 // 清除相关缓存
-                MediaLibrary_CacheManager::deleteAttachmentCache($cid, $db);
+                MediaLibrary_CacheManager::deleteAttachmentCache($cid, $db, $attachmentFilePath);
             } catch (Exception $e) {
                 MediaLibrary_Logger::log('delete', '数据库记录删除失败: ' . $e->getMessage(), [
                     'cid' => $cid
@@ -1211,6 +1213,7 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
                     'modified' => $item['modified'],
                     'modified_format' => $item['modified_format'],
                     'mime' => $item['type'] === 'directory' ? 'directory' : 'application/octet-stream',
+                    'public_url' => isset($item['public_url']) ? $item['public_url'] : ''
                 ];
             }
 
@@ -1344,40 +1347,52 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         try {
             $sync = new MediaLibrary_WebDAVSync($configOptions);
             $subPath = trim($path, '/');
+            $isRemoteOnly = isset($configOptions['webdavUploadMode']) && $configOptions['webdavUploadMode'] === 'remote-only';
 
             foreach ($files as $file) {
                 // 保存到本地 WebDAV 文件夹
-                $result = $sync->saveUploadedFile($file, $subPath);
-
-                // 根据同步模式处理
-                $syncMode = isset($configOptions['webdavSyncMode']) ? $configOptions['webdavSyncMode'] : 'manual';
-                $syncEnabled = isset($configOptions['webdavSyncEnabled']) && $configOptions['webdavSyncEnabled'];
-
-                if ($syncEnabled && $syncMode === 'onupload' && !empty($configOptions['webdavEndpoint'])) {
-                    // 立即同步到远程
-                    try {
-                        $relativePath = ltrim($result['path'], '/');
-                        $sync->syncFileToRemote($relativePath);
-                        MediaLibrary_Logger::log('webdav_upload', '上传文件并同步到远程成功', [
-                            'file' => $result['name'],
-                            'path' => $result['path']
-                        ]);
-                    } catch (Exception $e) {
-                        MediaLibrary_Logger::log('webdav_upload', '文件已保存到本地，但同步失败: ' . $e->getMessage(), [
-                            'file' => $result['name']
-                        ], 'warning');
-                    }
-                } else {
-                    MediaLibrary_Logger::log('webdav_upload', '上传文件到本地成功（未同步远程）', [
+                if ($isRemoteOnly) {
+                    $result = $sync->uploadFileDirectly($file, $subPath);
+                    MediaLibrary_Logger::log('webdav_upload', '直接上传文件到远程成功', [
                         'file' => $result['name'],
                         'path' => $result['path']
                     ]);
+                } else {
+                    $result = $sync->saveUploadedFile($file, $subPath);
+
+                    // 根据同步模式处理
+                    $syncMode = isset($configOptions['webdavSyncMode']) ? $configOptions['webdavSyncMode'] : 'manual';
+                    $syncEnabled = isset($configOptions['webdavSyncEnabled']) && $configOptions['webdavSyncEnabled'];
+
+                    if ($syncEnabled && $syncMode === 'onupload' && !empty($configOptions['webdavEndpoint'])) {
+                        // 立即同步到远程
+                        try {
+                            $relativePath = ltrim($result['path'], '/');
+                            $sync->syncFileToRemote($relativePath);
+                            MediaLibrary_Logger::log('webdav_upload', '上传文件并同步到远程成功', [
+                                'file' => $result['name'],
+                                'path' => $result['path']
+                            ]);
+                        } catch (Exception $e) {
+                            MediaLibrary_Logger::log('webdav_upload', '文件已保存到本地，但同步失败: ' . $e->getMessage(), [
+                                'file' => $result['name']
+                            ], 'warning');
+                        }
+                    } else {
+                        MediaLibrary_Logger::log('webdav_upload', '上传文件到本地成功（未同步远程）', [
+                            'file' => $result['name'],
+                            'path' => $result['path']
+                        ]);
+                    }
                 }
 
                 $uploaded[] = [
                     'name' => $result['name'],
                     'path' => $result['path']
                 ];
+                if (isset($result['public_url'])) {
+                    $uploaded[count($uploaded) - 1]['public_url'] = $result['public_url'];
+                }
             }
 
             echo json_encode(['success' => true, 'message' => '上传完成', 'files' => $uploaded], JSON_UNESCAPED_UNICODE);
@@ -1910,7 +1925,8 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
                 'synced' => $result['synced'],
                 'failed' => $result['failed'],
                 'skipped' => $result['skipped'],
-                'renamed' => $result['renamed']
+                'renamed' => $result['renamed'],
+                'deleted' => isset($result['deleted']) ? $result['deleted'] : 0
             ]);
 
             $message = sprintf(
@@ -1919,6 +1935,9 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
                 $result['skipped'],
                 $result['failed']
             );
+            if (!empty($result['deleted'])) {
+                $message .= sprintf('，删除 %d 个', $result['deleted']);
+            }
 
             echo json_encode([
                 'success' => true,
@@ -1928,7 +1947,8 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
                     'synced' => $result['synced'],
                     'failed' => $result['failed'],
                     'skipped' => $result['skipped'],
-                    'renamed' => $result['renamed']
+                    'renamed' => $result['renamed'],
+                    'deleted' => isset($result['deleted']) ? $result['deleted'] : 0
                 ],
                 'errors' => $result['errors']
             ], JSON_UNESCAPED_UNICODE);

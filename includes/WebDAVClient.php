@@ -15,6 +15,7 @@ class MediaLibrary_WebDAVClient
     private $timeout;
     private $rootPrefix;
     private $authHeader = null;
+    private $externalDomain = '';
 
     public function __construct(array $config)
     {
@@ -35,6 +36,16 @@ class MediaLibrary_WebDAVClient
         $this->password = isset($config['webdavPassword']) ? (string)$config['webdavPassword'] : '';
         $this->verifySSL = empty($config['webdavVerifySSL']) ? false : true;
         $this->timeout = isset($config['webdavTimeout']) ? max(3, intval($config['webdavTimeout'])) : 30;
+
+        if (!empty($config['webdavExternalDomain'])) {
+            $domain = trim($config['webdavExternalDomain']);
+            if ($domain !== '') {
+                if (!preg_match('/^https?:\\/\\//i', $domain)) {
+                    $domain = 'https://' . ltrim($domain, '/');
+                }
+                $this->externalDomain = rtrim($domain, '/');
+            }
+        }
 
         $endpointPath = parse_url($this->endpoint, PHP_URL_PATH);
         $endpointPath = $endpointPath ? rtrim($endpointPath, '/') : '';
@@ -364,6 +375,10 @@ class MediaLibrary_WebDAVClient
     {
         $normalized = $this->normalizeRelativePath($path);
         $base = rtrim($this->baseUri, '/');
+
+        if ($this->externalDomain !== '') {
+            return $this->externalDomain . $this->encodeRelativePath($normalized);
+        }
 
         if ($normalized === '/') {
             return $base . '/';

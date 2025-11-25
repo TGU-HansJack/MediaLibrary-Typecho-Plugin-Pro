@@ -384,7 +384,7 @@ class MediaLibrary_CacheManager
     public static function refreshFileDetails($db, $enableGetID3 = false, $batchSize = 100)
     {
         try {
-            $fileDetails = self::get('file-details') ?: [];
+            $fileDetails = [];
 
             // 分批获取附件，避免内存溢出
             $offset = 0;
@@ -487,7 +487,7 @@ class MediaLibrary_CacheManager
     public static function refreshExifPrivacy($db, $options, $batchSize = 50)
     {
         try {
-            $exifData = self::get('exif-privacy') ?: [];
+            $exifData = [];
 
             // 分批获取图片附件，避免内存溢出
             $offset = 0;
@@ -633,7 +633,7 @@ class MediaLibrary_CacheManager
     public static function refreshSmartSuggestions($db, $batchSize = 100)
     {
         try {
-            $suggestions = self::get('smart-suggestions') ?: [];
+            $suggestions = [];
 
             // 分批获取图片附件，避免内存溢出
             $offset = 0;
@@ -751,14 +751,16 @@ class MediaLibrary_CacheManager
      *
      * @param int $cid 附件 ID
      * @param object $db 数据库对象
+     * @param string|null $filePath 附件绝对路径
      * @return array 删除结果
      */
-    public static function deleteAttachmentCache($cid, $db = null)
+    public static function deleteAttachmentCache($cid, $db = null, $filePath = null)
     {
         $result = [
             'post-info' => false,
             'exif-privacy' => false,
-            'smart-suggestions' => false
+            'smart-suggestions' => false,
+            'file-details' => false
         ];
 
         // 删除文章信息缓存
@@ -780,6 +782,24 @@ class MediaLibrary_CacheManager
             $result['smart-suggestions'] = self::set('smart-suggestions', $suggestions);
         } else {
             $result['smart-suggestions'] = true;
+        }
+
+        if ($filePath !== null) {
+            $fileDetails = self::get('file-details') ?: [];
+            $updated = false;
+            foreach ($fileDetails as $hash => $info) {
+                if (isset($info['path']) && $info['path'] === $filePath) {
+                    unset($fileDetails[$hash]);
+                    $updated = true;
+                }
+            }
+            if ($updated) {
+                $result['file-details'] = self::set('file-details', $fileDetails);
+            } else {
+                $result['file-details'] = true;
+            }
+        } else {
+            $result['file-details'] = true;
         }
 
         return $result;

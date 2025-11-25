@@ -15,6 +15,8 @@ class MediaLibrary_WebDAVSync
     private $remotePath;
     private $webdavClient;
     private $metadataFile;
+    private $uploadMode = 'local-cache';
+    private $externalDomain = '';
 
     /**
      * 构造函数
@@ -47,10 +49,33 @@ class MediaLibrary_WebDAVSync
         // 元数据文件路径
         $this->metadataFile = $this->localPath . DIRECTORY_SEPARATOR . '.webdav-sync-metadata.json';
 
+        $this->uploadMode = isset($config['webdavUploadMode']) ? (string)$config['webdavUploadMode'] : 'local-cache';
+        $this->externalDomain = isset($config['webdavExternalDomain']) ? trim($config['webdavExternalDomain']) : '';
+
         // 初始化 WebDAV 客户端
         if (!empty($config['webdavEndpoint'])) {
             $this->webdavClient = new MediaLibrary_WebDAVClient($config);
         }
+    }
+
+    /**
+     * 是否处于仅远程上传模式
+     *
+     * @return bool
+     */
+    public function isRemoteOnlyMode()
+    {
+        return $this->uploadMode === 'remote-only';
+    }
+
+    /**
+     * 是否应执行同步删除
+     *
+     * @return bool
+     */
+    private function shouldSyncDelete()
+    {
+        return !$this->isRemoteOnlyMode() && !empty($this->config['webdavSyncDelete']);
     }
 
     /**
@@ -61,6 +86,10 @@ class MediaLibrary_WebDAVSync
      */
     public function listLocalFiles($subPath = '')
     {
+        if ($this->isRemoteOnlyMode()) {
+            return $this->listRemoteFiles($subPath);
+        }
+
         $fullPath = $this->localPath;
         if (!empty($subPath)) {
             $fullPath .= DIRECTORY_SEPARATOR . trim($subPath, '/\\');
@@ -91,11 +120,11 @@ class MediaLibrary_WebDAVSync
                 'type' => $isDir ? 'directory' : 'file',
                 'size' => $size,
                 'modified' => $mtime,
-                'modified_format' => date('Y-m-d H:i:s', $mtime)
+                'modified_format' => date('Y-m-d H:i:s', $mtime),
+                'public_url' => $isDir ? '' : $this->buildPublicUrlForRelativePath($relativePath)
             ];
         }
 
-        // 按类型和名称排序
         usort($items, function($a, $b) {
             if ($a['type'] !== $b['type']) {
                 return $a['type'] === 'directory' ? -1 : 1;
@@ -104,6 +133,89 @@ class MediaLibrary_WebDAVSync
         });
 
         return $items;
+    }
+
+    /**
+     * 远程列目录（远程模式）
+     *
+     * @param string $subPath
+     * @return array
+     * @throws Exception
+     */
+    private function listRemoteFiles($subPath = '')
+    {
+        if (!$this->webdavClient) {
+            throw new Exception('WebDAV 客户端未初始化');
+        }
+
+        $remotePath = $this->buildRemoteEntryPath($subPath);
+        $listing = $this->webdavClient->listDirectory($remotePath);
+        $items = [];
+        $currentPrefix = trim($subPath, '/');
+
+        foreach ($listing['items'] as $entry) {
+            $relativePath = $currentPrefix === ''
+                ? $entry['name']
+                : $currentPrefix . '/' . $entry['name'];
+
+            $items[] = [
+                'name' => $entry['name'],
+                'path' => '/' . ltrim($relativePath, '/'),
+                'type' => $entry['is_dir'] ? 'directory' : 'file',
+                'size' => $entry['is_dir'] ? 0 : (int)$entry['size'],
+                'modified' => $entry['modified_timestamp'] ?? 0,
+                'modified_format' => !empty($entry['modified']) ? $entry['modified'] : '',
+                'public_url' => $entry['is_dir'] ? '' : $entry['public_url']
+            ];
+        }
+
+        usort($items, function($a, $b) {
+            if ($a['type'] !== $b['type']) {
+                return $a['type'] === 'directory' ? -1 : 1;
+            }
+            return strcmp($a['name'], $b['name']);
+        });
+
+        return $items;
+    }
+
+    /**
+     * 根据相对路径构建文件可访问地址
+     *
+     * @param string $relativePath
+     * @return string
+     */
+    private function buildPublicUrlForRelativePath($relativePath)
+    {
+        $relativePath = ltrim((string)$relativePath, '/');
+        if ($relativePath === '') {
+            return '';
+        }
+
+        if (!empty($this->externalDomain)) {
+            $domain = $this->externalDomain;
+            if (!preg_match('/^https?:\\/\\//i', $domain)) {
+                $domain = 'https://' . ltrim($domain, '/');
+            }
+            return rtrim($domain, '/') . '/' . $relativePath;
+        }
+
+        if ($this->webdavClient) {
+            try {
+                return $this->webdavClient->buildPublicUrl($this->buildRemoteEntryPath($relativePath));
+            } catch (Exception $e) {
+                // ignore and fallback
+            }
+        }
+
+        $absolute = $this->localPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+        if (defined('__TYPECHO_ROOT_DIR__') && strpos($absolute, __TYPECHO_ROOT_DIR__) === 0) {
+            $webPath = substr($absolute, strlen(__TYPECHO_ROOT_DIR__));
+            $webPath = str_replace('\\', '/', $webPath);
+            return Typecho_Common::url(ltrim($webPath, '/'), Helper::options()->siteUrl);
+        }
+
+        return '';
     }
 
     /**
@@ -291,21 +403,8 @@ class MediaLibrary_WebDAVSync
             throw $e;
         }
 
-        // 更新元数据
-        $metadata = $this->loadMetadata();
         $hash = $this->calculateFileHash($localFile);
-        $mtime = filemtime($localFile);
-
-        $metadata['files'][$relativePath] = [
-            'hash' => $hash,
-            'size' => $fileSize,
-            'mtime' => $mtime,
-            'syncTime' => time(),
-            'remoteMtime' => $mtime, // 远程文件的修改时间（预期与本地相同）
-            'remoteEtag' => '' // ETag 将在下次列表/同步时更新
-        ];
-
-        $this->saveMetadata($metadata);
+        $this->updateMetadataFromFile($relativePath, $localFile, $hash, filemtime($localFile));
 
         MediaLibrary_Logger::log('webdav_sync', '文件已同步到远程', [
             'file' => $relativePath,
@@ -512,6 +611,7 @@ class MediaLibrary_WebDAVSync
             'skipped' => 0,
             'failed' => 0,
             'renamed' => 0,
+            'deleted' => 0,
             'errors' => []
         ];
 
@@ -556,6 +656,36 @@ class MediaLibrary_WebDAVSync
 
                 // MOVE 失败时，标记为需要重新上传
                 // 不增加失败计数，因为会在后续上传阶段处理
+            }
+        }
+
+        // 自动同步删除缺失的文件
+        if ($this->shouldSyncDelete()) {
+            $deletedPaths = [];
+            foreach ($metadata['files'] as $path => $info) {
+                if (!isset($localIndex[$path])) {
+                    $deletedPaths[] = $path;
+                }
+            }
+
+            foreach ($deletedPaths as $relativePath) {
+                try {
+                    $this->deleteRemoteFile($relativePath);
+                    unset($metadata['files'][$relativePath]);
+                    $result['deleted']++;
+                    MediaLibrary_Logger::log('webdav_sync', '同步删除远程文件', [
+                        'file' => $relativePath
+                    ]);
+                } catch (Exception $e) {
+                    $result['errors'][] = [
+                        'file' => $relativePath,
+                        'error' => '删除失败: ' . $e->getMessage(),
+                        'action' => 'delete'
+                    ];
+                    MediaLibrary_Logger::log('webdav_sync', '同步删除远程文件失败: ' . $e->getMessage(), [
+                        'file' => $relativePath
+                    ], 'warning');
+                }
             }
         }
 
@@ -760,52 +890,69 @@ class MediaLibrary_WebDAVSync
             throw new Exception('无效的上传文件');
         }
 
-        // 目标目录
-        $targetDir = $this->localPath;
-        if (!empty($subPath)) {
-            $targetDir .= DIRECTORY_SEPARATOR . trim($subPath, '/\\');
-        }
+        $targetInfo = $this->prepareTargetLocation(isset($file['name']) ? $file['name'] : 'unnamed', $subPath);
+        $targetDir = $targetInfo['target_dir'];
 
-        // 确保目录存在
         if (!is_dir($targetDir)) {
             if (!mkdir($targetDir, 0755, true)) {
                 throw new Exception('无法创建目录: ' . $targetDir);
             }
         }
 
-        // 生成唯一文件名
-        $originalName = isset($file['name']) ? $file['name'] : 'unnamed';
-        $extension = pathinfo($originalName, PATHINFO_EXTENSION);
-        $basename = pathinfo($originalName, PATHINFO_FILENAME);
-
-        // 清理文件名
-        $basename = preg_replace('/[^a-zA-Z0-9_-]/', '_', $basename);
-
-        // 生成唯一文件名
-        $targetName = $basename . '.' . $extension;
-        $targetPath = $targetDir . DIRECTORY_SEPARATOR . $targetName;
-
-        $counter = 1;
-        while (file_exists($targetPath)) {
-            $targetName = $basename . '_' . $counter . '.' . $extension;
-            $targetPath = $targetDir . DIRECTORY_SEPARATOR . $targetName;
-            $counter++;
-        }
-
         // 移动文件
-        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+        if (!move_uploaded_file($file['tmp_name'], $targetInfo['target_path'])) {
             throw new Exception('文件保存失败');
         }
 
-        // 相对路径
-        $relativePath = empty($subPath) ? $targetName : $subPath . '/' . $targetName;
+        $relativePath = $targetInfo['relative_path'];
 
         return [
-            'name' => $targetName,
+            'name' => $targetInfo['filename'],
             'path' => '/' . str_replace('\\', '/', $relativePath),
-            'full_path' => $targetPath,
-            'size' => filesize($targetPath),
-            'mime' => $this->getMimeType($targetPath)
+            'full_path' => $targetInfo['target_path'],
+            'size' => filesize($targetInfo['target_path']),
+            'mime' => $this->getMimeType($targetInfo['target_path'])
+        ];
+    }
+
+    /**
+     * 直接上传文件至远程 WebDAV（不保留本地副本）
+     *
+     * @param array $file
+     * @param string $subPath
+     * @return array
+     * @throws Exception
+     */
+    public function uploadFileDirectly($file, $subPath = '')
+    {
+        if (!$this->webdavClient) {
+            throw new Exception('WebDAV 客户端未初始化');
+        }
+        if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+            throw new Exception('无效的上传文件');
+        }
+
+        $targetInfo = $this->prepareTargetLocation(isset($file['name']) ? $file['name'] : 'unnamed', $subPath);
+        $relativePath = $targetInfo['relative_path'];
+        $remotePath = $this->buildRemoteEntryPath($relativePath);
+
+        $remoteDir = dirname($remotePath);
+        if ($remoteDir !== '/' && $remoteDir !== '.') {
+            $this->ensureRemoteDirectory($remoteDir);
+        }
+
+        $mime = $this->getMimeType($file['tmp_name']);
+        $this->webdavClient->uploadFile($remotePath, $file['tmp_name'], $mime);
+
+        $this->updateMetadataFromFile($relativePath, $file['tmp_name']);
+
+        return [
+            'name' => $targetInfo['filename'],
+            'path' => '/' . str_replace('\\', '/', $relativePath),
+            'full_path' => $file['tmp_name'],
+            'size' => filesize($file['tmp_name']),
+            'mime' => $mime,
+            'public_url' => $this->buildPublicUrlForRelativePath($relativePath)
         ];
     }
 
@@ -898,6 +1045,96 @@ class MediaLibrary_WebDAVSync
         } else {
             return $bytes . ' B';
         }
+    }
+
+    /**
+     * 分配可用的目标路径
+     *
+     * @param string $originalName
+     * @param string $subPath
+     * @return array
+     */
+    private function prepareTargetLocation($originalName, $subPath = '')
+    {
+        $metadata = $this->loadMetadata();
+        $subPath = trim((string)$subPath, '/');
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        $basename = pathinfo($originalName, PATHINFO_FILENAME);
+        $basename = preg_replace('/[^a-zA-Z0-9_-]/', '_', $basename);
+        if ($basename === '') {
+            $basename = 'file';
+        }
+
+        $suffix = '';
+        $counter = 1;
+        do {
+            $filename = $extension === '' ? $basename . $suffix : $basename . $suffix . '.' . $extension;
+            $relativePath = $subPath === '' ? $filename : $subPath . '/' . $filename;
+            if (!$this->isRelativePathOccupied($relativePath, $metadata)) {
+                break;
+            }
+            $suffix = '_' . $counter;
+            $counter++;
+        } while (true);
+
+        $targetDir = $this->localPath;
+        if ($subPath !== '') {
+            $targetDir .= DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $subPath);
+        }
+
+        return [
+            'target_dir' => $targetDir,
+            'target_path' => $targetDir . DIRECTORY_SEPARATOR . $filename,
+            'relative_path' => $relativePath,
+            'filename' => $filename
+        ];
+    }
+
+    /**
+     * 检查相对路径是否已被占用
+     *
+     * @param string $relativePath
+     * @param array|null $metadata
+     * @return bool
+     */
+    private function isRelativePathOccupied($relativePath, $metadata = null)
+    {
+        $relativePath = ltrim($relativePath, '/');
+        if ($metadata === null) {
+            $metadata = $this->loadMetadata();
+        }
+
+        if (isset($metadata['files'][$relativePath])) {
+            return true;
+        }
+
+        $localFile = $this->localPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+        return file_exists($localFile);
+    }
+
+    /**
+     * 根据文件更新元数据
+     *
+     * @param string $relativePath
+     * @param string $filePath
+     */
+    private function updateMetadataFromFile($relativePath, $filePath, $precomputedHash = null, $precomputedMtime = null)
+    {
+        $metadata = $this->loadMetadata();
+        $relativePath = ltrim($relativePath, '/');
+        $hash = $precomputedHash !== null ? $precomputedHash : $this->calculateFileHash($filePath);
+        $mtime = $precomputedMtime !== null ? $precomputedMtime : filemtime($filePath);
+
+        $metadata['files'][$relativePath] = [
+            'hash' => $hash,
+            'size' => filesize($filePath),
+            'mtime' => $mtime,
+            'syncTime' => time(),
+            'remoteMtime' => $mtime,
+            'remoteEtag' => ''
+        ];
+
+        $this->saveMetadata($metadata);
     }
 
     /**

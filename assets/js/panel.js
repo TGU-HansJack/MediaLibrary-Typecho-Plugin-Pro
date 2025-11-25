@@ -2660,7 +2660,8 @@ var WebDAVManager = {
             synced: toNumber(rawStats.synced, toNumber(rawStats.success, 0)),
             failed: toNumber(rawStats.failed, 0),
             skipped: toNumber(rawStats.skipped, toNumber(rawStats.skip, toNumber(rawStats.skippedCount, 0))),
-            renamed: toNumber(rawStats.renamed, toNumber(rawStats.rename, 0))
+            renamed: toNumber(rawStats.renamed, toNumber(rawStats.rename, 0)),
+            deleted: toNumber(rawStats.deleted, toNumber(rawStats.remove, 0))
         };
 
         var total = toNumber(rawStats.total, stats.synced + stats.failed + stats.skipped);
@@ -2757,7 +2758,7 @@ var WebDAVManager = {
                     // 更新侧边栏进度
                     if (sidebarProgress.length) {
                         sidebarProgressBar.css('width', '100%');
-                        var completedTotal = stats.synced + stats.failed + stats.skipped;
+                        var completedTotal = stats.synced + stats.failed + stats.skipped + stats.deleted;
                         var totalCount = stats.total > 0 ? stats.total : completedTotal;
                         var displayValue = totalCount || completedTotal || 0;
                         sidebarProgressCount.text(displayValue + '/' + displayValue);
@@ -2774,6 +2775,9 @@ var WebDAVManager = {
                                                 '跳过: ' + stats.skipped;
                             if (stats.renamed) {
                                 sidebarDetails += ' | 重命名 ' + stats.renamed;
+                            }
+                            if (stats.deleted) {
+                                sidebarDetails += ' | 删除 ' + stats.deleted;
                             }
                             if (stats.failed) {
                                 sidebarDetails += ' | 失败: ' + stats.failed;

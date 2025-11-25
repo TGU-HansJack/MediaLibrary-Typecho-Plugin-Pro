@@ -145,6 +145,7 @@ try {
     cronLog('已同步: ' . $result['synced']);
     cronLog('已跳过: ' . $result['skipped']);
     cronLog('失败: ' . $result['failed']);
+    cronLog('删除: ' . ($result['deleted'] ?? 0));
     cronLog('耗时: ' . $duration . ' 秒');
 
     // 记录错误
