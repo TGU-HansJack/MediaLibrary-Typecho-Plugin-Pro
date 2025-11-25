@@ -220,23 +220,42 @@ class MediaLibrary_PanelHelper
             }
             
             $attachment['attachment'] = $attachmentData;
-            $attachment['mime'] = isset($attachmentData['mime']) ? $attachmentData['mime'] : 'application/octet-stream';
-            $attachment['isImage'] = isset($attachmentData['mime']) && (
-                strpos($attachmentData['mime'], 'image/') === 0 || 
-                in_array(strtolower(pathinfo($attachmentData['name'] ?? '', PATHINFO_EXTENSION)), ['avif'])
-            );
+            $attachmentFileName = isset($attachmentData['name']) && $attachmentData['name'] !== ''
+                ? $attachmentData['name']
+                : (isset($attachmentData['path']) ? basename($attachmentData['path']) : ($attachment['title'] ?? ''));
+            $extension = strtolower(pathinfo($attachmentFileName, PATHINFO_EXTENSION));
+            $mime = isset($attachmentData['mime']) ? trim((string)$attachmentData['mime']) : '';
+
+            if ($mime === '' || $mime === 'application/octet-stream') {
+                $guessedMime = self::guessMimeType($attachmentFileName);
+                if ($guessedMime && $guessedMime !== 'application/octet-stream') {
+                    $mime = $guessedMime;
+                }
+            }
+
+            $isAvif = ($extension === 'avif');
+            if ($isAvif && strpos($mime, 'image/') !== 0) {
+                $mime = 'image/avif';
+            }
+
+            if ($mime === '') {
+                $mime = 'application/octet-stream';
+            }
+
+            $attachment['mime'] = $mime;
+            $attachment['isImage'] = (strpos($mime, 'image/') === 0) || $isAvif;
             
-            $attachment['isDocument'] = isset($attachmentData['mime']) && (
-                strpos($attachmentData['mime'], 'application/pdf') === 0 ||
-                strpos($attachmentData['mime'], 'application/msword') === 0 ||
-                strpos($attachmentData['mime'], 'application/vnd.openxmlformats-officedocument.wordprocessingml') === 0 ||
-                strpos($attachmentData['mime'], 'application/vnd.ms-powerpoint') === 0 ||
-                strpos($attachmentData['mime'], 'application/vnd.openxmlformats-officedocument.presentationml') === 0 ||
-                strpos($attachmentData['mime'], 'application/vnd.ms-excel') === 0 ||
-                strpos($attachmentData['mime'], 'application/vnd.openxmlformats-officedocument.spreadsheetml') === 0
+            $attachment['isDocument'] = (
+                strpos($mime, 'application/pdf') === 0 ||
+                strpos($mime, 'application/msword') === 0 ||
+                strpos($mime, 'application/vnd.openxmlformats-officedocument.wordprocessingml') === 0 ||
+                strpos($mime, 'application/vnd.ms-powerpoint') === 0 ||
+                strpos($mime, 'application/vnd.openxmlformats-officedocument.presentationml') === 0 ||
+                strpos($mime, 'application/vnd.ms-excel') === 0 ||
+                strpos($mime, 'application/vnd.openxmlformats-officedocument.spreadsheetml') === 0
             );
 
-            $attachment['isVideo'] = isset($attachmentData['mime']) && strpos($attachmentData['mime'], 'video/') === 0;
+            $attachment['isVideo'] = strpos($mime, 'video/') === 0;
             $attachment['size'] = MediaLibrary_FileOperations::formatFileSize(isset($attachmentData['size']) ? intval($attachmentData['size']) : 0);
             
             if (isset($attachmentData['path']) && !empty($attachmentData['path'])) {

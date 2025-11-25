@@ -202,9 +202,10 @@ var MediaLibrary = {
                     var type = element.getAttribute('data-type');
                     var title = element.getAttribute('data-title');
                     var hasUrl = element.getAttribute('data-has-url');
+                    var isImage = element.getAttribute('data-is-image') === '1';
                     
                     if (url && url.trim() !== '' && hasUrl === '1') {
-                        self.showPreview(url, type, title);
+                        self.showPreview(url, type, title, isImage);
                     }
                 }
             }
@@ -613,7 +614,7 @@ updateToolbarButtons: function() {
     },
     
     // 智能尺寸适配预览功能 - 优化版本
-    showPreview: function(url, type, title) {
+    showPreview: function(url, type, title, isImage) {
         var self = this;
         var modal = document.getElementById('preview-modal');
         var modalDialog = modal.querySelector('.modal-dialog');
@@ -634,8 +635,11 @@ updateToolbarButtons: function() {
         modalDialog.className = 'modal-dialog';
         modalBody.style = '';
         
+        var mimeType = type || '';
+        var treatAsImage = (mimeType.indexOf('image/') === 0) || !!isImage;
+
         // 根据类型设置预览内容
-        if (type.indexOf('image/') === 0) {
+        if (treatAsImage) {
             // 图片预览 - 自适应尺寸
             modalDialog.classList.add('image-preview');
             
@@ -651,7 +655,7 @@ updateToolbarButtons: function() {
             img.src = url;
             img.alt = title || '';
             
-        } else if (type.indexOf('video/') === 0) {
+        } else if (mimeType.indexOf('video/') === 0) {
             // 视频预览
             modalDialog.classList.add('video-preview');
             
@@ -663,7 +667,7 @@ updateToolbarButtons: function() {
             modalBody.appendChild(video);
             modal.style.display = 'flex';
             
-        } else if (type.indexOf('audio/') === 0) {
+        } else if (mimeType.indexOf('audio/') === 0) {
             // 音频预览
             modalDialog.classList.add('audio-preview');
             
@@ -680,7 +684,7 @@ updateToolbarButtons: function() {
             modalBody.appendChild(audio);
             modal.style.display = 'flex';
             
-        } else if (type === 'application/pdf') {
+        } else if (mimeType === 'application/pdf') {
             // PDF预览
             modalDialog.classList.add('document-preview');
             
@@ -693,10 +697,10 @@ updateToolbarButtons: function() {
             modalBody.appendChild(iframe);
             modal.style.display = 'flex';
             
-        } else if (type.indexOf('text/') === 0 || 
-                   type === 'application/json' || 
-                   type === 'application/xml' ||
-                   type === 'application/javascript') {
+        } else if (mimeType.indexOf('text/') === 0 ||
+                   mimeType === 'application/json' ||
+                   mimeType === 'application/xml' ||
+                   mimeType === 'application/javascript') {
             // 文本文件预览
             modalDialog.classList.add('document-preview');
             
