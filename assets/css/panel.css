@@ -2145,6 +2145,34 @@
     color: #2c9c6a;
 }
 
+.media-feedback {
+    position: fixed;
+    top: 80px;
+    right: 32px;
+    z-index: 9999;
+    padding: 10px 16px;
+    border-radius: 4px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.75);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    font-size: 13px;
+    display: none;
+    max-width: 280px;
+    line-height: 1.5;
+}
+
+.media-feedback.media-feedback-success {
+    background: #43a047;
+}
+
+.media-feedback.media-feedback-error {
+    background: #e53935;
+}
+
+.media-feedback.media-feedback-info {
+    background: #1e88e5;
+}
+
 .webdav-dir-link {
     color: #0073aa;
     text-decoration: none;

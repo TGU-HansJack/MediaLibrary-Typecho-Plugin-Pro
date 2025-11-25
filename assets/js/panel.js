@@ -1417,6 +1417,49 @@ refreshCache: function() {
 
 // 在 checkPrivacy 方法后添加以下方法：
 
+showFeedback: function(message, type) {
+    var feedbackEl = document.getElementById('media-feedback');
+
+    if (!message) {
+        if (feedbackEl) {
+            feedbackEl.textContent = '';
+            feedbackEl.className = 'media-feedback';
+            feedbackEl.style.display = 'none';
+            if (feedbackEl._hideTimer) {
+                clearTimeout(feedbackEl._hideTimer);
+                feedbackEl._hideTimer = null;
+            }
+        }
+        return;
+    }
+
+    if (!feedbackEl) {
+        feedbackEl = document.createElement('div');
+        feedbackEl.id = 'media-feedback';
+        feedbackEl.className = 'media-feedback';
+        document.body.appendChild(feedbackEl);
+    }
+
+    if (feedbackEl._hideTimer) {
+        clearTimeout(feedbackEl._hideTimer);
+        feedbackEl._hideTimer = null;
+    }
+
+    var typeClass = 'media-feedback-' + (type || 'info');
+    feedbackEl.className = 'media-feedback ' + typeClass;
+    feedbackEl.textContent = message;
+    feedbackEl.style.display = 'block';
+
+    if (type !== 'error') {
+        feedbackEl._hideTimer = setTimeout(function() {
+            feedbackEl.style.display = 'none';
+            feedbackEl.textContent = '';
+            feedbackEl.className = 'media-feedback';
+            feedbackEl._hideTimer = null;
+        }, 3500);
+    }
+},
+
 displayPrivacyResults: function(results) {
     var resultsDiv = document.getElementById('privacy-results');
     if (!resultsDiv) return;
