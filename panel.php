@@ -109,7 +109,7 @@ $totalPages = $total > 0 ? ceil($total / $pageSize) : 1;
 $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
 
 // 版本号控制 - 用于强制刷新缓存
-$cssVersion = '3.4.2'; // 优化底部分页样式为 Github 风格
+$cssVersion = '3.4.3'; // 优化左侧边栏样式为 Github 风格 + 优化底部分页样式
 ?>
 
 <link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/panel.css?v=<?php echo $cssVersion; ?>">

@@ -93,11 +93,11 @@
     height: calc(100vh - 60px - var(--pagination-height));
 }
 
-/* 左侧侧栏 */
+/* 左侧侧栏 - Github 风格 */
 .media-sidebar {
     width: var(--sidebar-width);
-    background: var(--ml-card);
-    border-right: 1px solid var(--ml-border);
+    background: #f6f8fa;
+    border-right: 1px solid #d0d7de;
     overflow-y: auto;
     overflow-x: hidden;
     flex-shrink: 0;
@@ -105,12 +105,12 @@
     max-height: 100%;
     /* 优化滚动体验 */
     scrollbar-width: thin;
-    scrollbar-color: var(--ml-border) transparent;
+    scrollbar-color: #d0d7de transparent;
 }
 
 /* WebKit 浏览器滚动条样式 */
 .media-sidebar::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
 }
 
 .media-sidebar::-webkit-scrollbar-track {
@@ -118,32 +118,31 @@
 }
 
 .media-sidebar::-webkit-scrollbar-thumb {
-    background: var(--ml-border);
-    border-radius: 4px;
+    background: #d0d7de;
+    border-radius: 3px;
 }
 
 .media-sidebar::-webkit-scrollbar-thumb:hover {
-    background: var(--ml-border-dark);
+    background: #afb8c1;
 }
 
 .sidebar-section {
-    border-bottom: 1px solid var(--ml-border);
-    padding: var(--space-lg);
+    border-bottom: 1px solid #d0d7de;
+    padding: 16px;
 }
 
 .sidebar-section:last-child {
     border-bottom: none;
-    /* 为最后一个部分添加额外的底部内边距，防止被分页遮挡 */
-    padding-bottom: var(--space-xl);
+    padding-bottom: 24px;
 }
 
 .sidebar-title {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    color: var(--ml-text);
-    margin: 0 0 var(--space-md) 0;
+    color: #24292f;
+    margin: 0 0 12px 0;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -151,8 +150,8 @@
 
 .sidebar-title .toggle-icon {
     font-size: 10px;
-    transition: transform var(--transition);
-    opacity: 0.6;
+    transition: transform 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+    opacity: 0.5;
 }
 
 .sidebar-title.collapsed .toggle-icon {
@@ -160,7 +159,7 @@
 }
 
 .sidebar-content {
-    font-size: 13px;
+    font-size: 14px;
 }
 
 /* 功能列表 */
@@ -199,212 +198,233 @@
     font-size: 13px;
 }
 
-/* 存储列表 */
+/* 存储列表 - Github 风格 */
 .storage-item {
     padding: 0;
-    border-radius: var(--radius);
-    margin-bottom: var(--space-sm);
-    background: var(--ml-surface);
-    border: 1px solid var(--ml-border);
-    transition: all var(--transition);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: #ffffff;
+    border: 1px solid #d0d7de;
+    transition: background-color 0.2s cubic-bezier(0.3, 0, 0.5, 1),
+                border-color 0.2s cubic-bezier(0.3, 0, 0.5, 1),
+                box-shadow 0.2s cubic-bezier(0.3, 0, 0.5, 1);
 }
 
 .storage-link {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-md);
+    gap: 10px;
+    padding: 10px 12px;
     text-decoration: none;
-    color: inherit;
+    color: #24292f;
     width: 100%;
 }
 
 .storage-item:hover {
-    background: var(--ml-border);
+    background: #f6f8fa;
+    border-color: #afb8c1;
     cursor: pointer;
 }
 
 .storage-item.storage-active {
-    background: var(--ml-primary-light);
-    border-color: var(--ml-primary);
+    background: #ddf4ff;
+    border-color: #0969da;
+    box-shadow: 0 0 0 1px #0969da inset;
 }
 
 .storage-item.storage-active .storage-name {
-    color: var(--ml-primary);
+    color: #0969da;
     font-weight: 600;
 }
 
 .storage-item.disabled {
-    opacity: 0.6;
+    opacity: 0.5;
 }
 
 .storage-item.error {
-    border-color: #dc4a4a;
-    background: rgba(220, 74, 74, 0.08);
+    border-color: #d1242f;
+    background: #fff1f0;
 }
 
 .storage-item.error .storage-name {
-    color: #c0392b;
+    color: #d1242f;
 }
 
 .storage-icon {
     font-size: 16px;
+    flex-shrink: 0;
 }
 
 .storage-name {
     font-weight: 500;
+    font-size: 14px;
 }
 
 .storage-text {
     flex: 1;
+    min-width: 0;
 }
 
 .storage-empty {
-    font-size: 12px;
-    color: var(--ml-muted);
+    font-size: 13px;
+    color: #656d76;
+    text-align: center;
+    padding: 12px;
 }
 
-/* 状态光点 */
+/* 状态光点 - Github 风格 */
 .storage-status-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
-    box-shadow: 0 0 0 2px var(--ml-card), 0 0 4px rgba(0, 0, 0, 0.1);
-    transition: all var(--transition);
+    box-shadow: 0 0 0 2px #ffffff;
+    transition: all 0.2s cubic-bezier(0.3, 0, 0.5, 1);
 }
 
 /* 活跃状态 - 绿色光点 */
 .storage-item.active .storage-status-dot {
-    background: #107c10;
-    box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(16, 124, 16, 0.4);
+    background: #1a7f37;
 }
 
 /* 未启用状态 - 黄色光点 */
 .storage-item.disabled .storage-status-dot {
-    background: #ffc83d;
-    box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(255, 200, 61, 0.4);
+    background: #bf8700;
 }
 
 /* 错误状态 - 红色光点 */
 .storage-item.error .storage-status-dot {
-    background: #d13438;
-    box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(209, 52, 56, 0.4);
+    background: #d1242f;
 }
 
 /* 光点动画效果 - 活跃状态呼吸效果 */
 .storage-item.active .storage-status-dot {
-    animation: pulse-green 2s ease-in-out infinite;
+    animation: pulse-green-github 2s ease-in-out infinite;
 }
 
-@keyframes pulse-green {
+@keyframes pulse-green-github {
     0%, 100% {
-        box-shadow: 0 0 0 2px var(--ml-card), 0 0 6px rgba(16, 124, 16, 0.4);
+        opacity: 1;
     }
     50% {
-        box-shadow: 0 0 0 2px var(--ml-card), 0 0 12px rgba(16, 124, 16, 0.6);
+        opacity: 0.5;
     }
 }
 
-/* 筛选列表 */
+/* 筛选列表 - Github 风格 */
 .filter-item {
-    margin-bottom: var(--space-xs);
+    margin-bottom: 4px;
 }
 
 .filter-link {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-md);
-    border-radius: var(--radius);
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
     text-decoration: none;
-    color: var(--ml-text);
-    transition: background var(--transition);
+    color: #24292f;
+    transition: background-color 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+    font-size: 14px;
 }
 
 .filter-link:hover {
-    background: var(--ml-surface);
+    background: #ffffff;
 }
 
 .filter-item.active .filter-link {
-    background: var(--ml-primary-light);
-    color: var(--ml-primary);
-    font-weight: 500;
+    background: #ffffff;
+    color: #0969da;
+    font-weight: 600;
 }
 
 .filter-icon {
     font-size: 16px;
+    flex-shrink: 0;
 }
 
 .filter-name {
     flex: 1;
+    min-width: 0;
 }
 
 .filter-count {
     font-size: 12px;
-    color: var(--ml-text-secondary);
-    background: var(--ml-surface);
+    font-weight: 600;
+    color: #656d76;
+    background: #f6f8fa;
     padding: 2px 8px;
-    border-radius: var(--radius);
-    min-width: 30px;
+    border-radius: 12px;
+    min-width: 24px;
     text-align: center;
+    border: 1px solid #d0d7de;
 }
 
 .filter-item.active .filter-count {
-    background: var(--ml-primary);
-    color: #fff;
+    background: #0969da;
+    color: #ffffff;
+    border-color: #0969da;
 }
 
-/* 统计网格 */
+/* 统计网格 - Github 风格 */
 .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-md);
-    margin-bottom: var(--space-lg);
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
 .stat-item {
     display: flex;
     flex-direction: column;
-    gap: var(--space-xs);
-    padding: var(--space-md);
-    background: var(--ml-surface);
-    border-radius: var(--radius);
-    border: 1px solid var(--ml-border);
+    gap: 4px;
+    padding: 12px;
+    background: #ffffff;
+    border-radius: 6px;
+    border: 1px solid #d0d7de;
+    transition: border-color 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+.stat-item:hover {
+    border-color: #afb8c1;
 }
 
 .stat-label {
     font-size: 11px;
-    color: var(--ml-text-secondary);
+    color: #656d76;
+    font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .stat-value {
     font-size: 20px;
     font-weight: 600;
-    color: var(--ml-text);
+    color: #24292f;
+    line-height: 1;
 }
 
 .storage-info {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-md);
-    background: var(--ml-primary-light);
-    border-radius: var(--radius);
-    border: 1px solid var(--ml-primary);
+    padding: 12px;
+    background: #ddf4ff;
+    border-radius: 6px;
+    border: 1px solid #54aeff;
+    margin-top: 8px;
 }
 
 .storage-label {
     font-size: 12px;
-    color: var(--ml-primary);
-    font-weight: 500;
+    color: #0969da;
+    font-weight: 600;
 }
 
 .storage-value {
     font-size: 16px;
-    font-weight: 600;
-    color: var(--ml-primary);
+    font-weight: 700;
+    color: #0969da;
 }
 
 /* 右侧主内容区 */
@@ -2293,11 +2313,9 @@
    WebDAV 侧边栏管理面板样式
    ======================================== */
 
-/* WebDAV 管理器区域 */
+/* WebDAV 管理器区域 - Github 风格 */
 .webdav-manager-section {
-    background: var(--ml-card);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
+    background: transparent;
 }
 
 .webdav-manager-section .sidebar-title {
@@ -2307,7 +2325,7 @@
     gap: 8px;
 }
 
-/* WebDAV 状态指示器 */
+/* WebDAV 状态指示器 - Github 风格 */
 .webdav-status-indicator {
     display: inline-block;
     width: 8px;
@@ -2317,26 +2335,34 @@
 }
 
 .webdav-status-indicator.status-ok {
-    background: var(--ml-success);
-    box-shadow: 0 0 0 2px rgba(16, 124, 16, 0.2);
+    background: #1a7f37;
+    animation: pulse-indicator 2s ease-in-out infinite;
 }
 
 .webdav-status-indicator.status-error {
-    background: var(--ml-danger);
-    box-shadow: 0 0 0 2px rgba(209, 52, 56, 0.2);
+    background: #d1242f;
 }
 
 .webdav-status-indicator.status-warn {
-    background: var(--ml-warning);
-    box-shadow: 0 0 0 2px rgba(255, 200, 61, 0.2);
+    background: #bf8700;
 }
 
-/* 同步状态信息 */
+@keyframes pulse-indicator {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* 同步状态信息 - Github 风格 */
 .webdav-sync-status {
-    margin-bottom: var(--space-md);
-    padding: var(--space-sm);
-    background: var(--ml-surface);
-    border-radius: var(--radius);
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border-radius: 6px;
+    border: 1px solid #d0d7de;
 }
 
 .webdav-sync-status .status-item {
@@ -2344,28 +2370,29 @@
     justify-content: space-between;
     align-items: center;
     padding: 4px 0;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .webdav-sync-status .status-label {
-    color: var(--ml-text-secondary);
-}
-
-.webdav-sync-status .status-value {
-    color: var(--ml-text);
+    color: #656d76;
     font-weight: 500;
 }
 
-.webdav-sync-status .status-enabled {
-    color: var(--ml-success);
+.webdav-sync-status .status-value {
+    color: #24292f;
+    font-weight: 600;
 }
 
-/* 同步操作按钮 */
+.webdav-sync-status .status-enabled {
+    color: #1a7f37;
+}
+
+/* 同步操作按钮 - Github 风格 */
 .webdav-actions {
     display: flex;
     flex-direction: column;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-md);
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
 .webdav-action-btn {
@@ -2375,12 +2402,13 @@
     gap: 6px;
     width: 100%;
     padding: 8px 12px;
-    border: none;
-    border-radius: var(--radius);
-    font-size: 13px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all var(--transition);
+    transition: background-color 0.2s cubic-bezier(0.3, 0, 0.5, 1),
+                border-color 0.2s cubic-bezier(0.3, 0, 0.5, 1);
     white-space: nowrap;
 }
 
@@ -2389,81 +2417,82 @@
 }
 
 .webdav-action-btn.primary-btn {
-    background: var(--ml-primary);
-    color: white;
+    background: #1f883d;
+    color: #ffffff;
+    border-color: rgba(31, 35, 40, 0.15);
 }
 
 .webdav-action-btn.primary-btn:hover {
-    background: var(--ml-primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    background: #1a7f37;
 }
 
 .webdav-action-btn.primary-btn:active {
-    transform: translateY(0);
+    background: #196c2e;
 }
 
 .webdav-action-btn.primary-btn:disabled {
-    background: var(--ml-border);
-    color: var(--ml-muted);
+    background: #94d3a2;
+    color: rgba(255, 255, 255, 0.8);
     cursor: not-allowed;
-    transform: none;
 }
 
 .webdav-action-btn.secondary-btn {
-    background: var(--ml-surface);
-    color: var(--ml-text);
-    border: 1px solid var(--ml-border);
+    background: #ffffff;
+    color: #24292f;
+    border: 1px solid #d0d7de;
 }
 
 .webdav-action-btn.secondary-btn:hover {
-    background: var(--ml-border);
+    background: #f6f8fa;
+    border-color: #afb8c1;
 }
 
-/* 同步进度 */
+/* 同步进度 - Github 风格 */
 .webdav-sync-progress {
-    padding: var(--space-md);
-    background: var(--ml-surface);
-    border-radius: var(--radius);
-    margin-bottom: var(--space-md);
+    padding: 12px;
+    background: #ffffff;
+    border-radius: 6px;
+    border: 1px solid #d0d7de;
+    margin-bottom: 12px;
 }
 
 .webdav-sync-progress .progress-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-sm);
+    margin-bottom: 8px;
 }
 
 .webdav-sync-progress .progress-title {
     font-size: 13px;
-    font-weight: 500;
-    color: var(--ml-text);
+    font-weight: 600;
+    color: #24292f;
 }
 
 .webdav-sync-progress .progress-count {
     font-size: 12px;
-    color: var(--ml-text-secondary);
+    font-weight: 600;
+    color: #656d76;
 }
 
 .webdav-sync-progress .progress-bar-container {
-    height: 6px;
-    background: var(--ml-border);
-    border-radius: 3px;
+    height: 8px;
+    background: #eaeef2;
+    border-radius: 4px;
     overflow: hidden;
-    margin-bottom: var(--space-sm);
+    margin-bottom: 8px;
 }
 
 .webdav-sync-progress .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--ml-primary), #00a0d2);
-    transition: width 0.3s ease;
-    border-radius: 3px;
+    background: linear-gradient(90deg, #0969da, #54aeff);
+    transition: width 0.3s cubic-bezier(0.3, 0, 0.5, 1);
+    border-radius: 4px;
 }
 
 .webdav-sync-progress .progress-details {
-    font-size: 11px;
-    color: var(--ml-text-secondary);
+    font-size: 12px;
+    color: #656d76;
 }
 
 .webdav-sync-progress .progress-detail {
@@ -2473,28 +2502,28 @@
     text-overflow: ellipsis;
 }
 
-/* 同步结果 */
+/* 同步结果 - Github 风格 */
 .webdav-sync-result {
-    padding: var(--space-md);
-    border-radius: var(--radius);
-    margin-bottom: var(--space-md);
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
 }
 
 .webdav-sync-result.success {
-    background: rgba(16, 124, 16, 0.1);
-    border: 1px solid rgba(16, 124, 16, 0.3);
+    background: #dafbe1;
+    border: 1px solid #4ac26b;
 }
 
 .webdav-sync-result.error {
-    background: rgba(209, 52, 56, 0.1);
-    border: 1px solid rgba(209, 52, 56, 0.3);
+    background: #ffebe9;
+    border: 1px solid #ff8182;
 }
 
 .webdav-sync-result .result-header {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: var(--space-sm);
+    margin-bottom: 8px;
 }
 
 .webdav-sync-result .result-icon {
@@ -2503,27 +2532,27 @@
 
 .webdav-sync-result .result-title {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .webdav-sync-result.success .result-title {
-    color: var(--ml-success);
+    color: #1a7f37;
 }
 
 .webdav-sync-result.error .result-title {
-    color: var(--ml-danger);
+    color: #d1242f;
 }
 
 .webdav-sync-result .result-details {
-    font-size: 11px;
-    color: var(--ml-text-secondary);
+    font-size: 12px;
+    color: #656d76;
     line-height: 1.5;
 }
 
-/* WebDAV 路径信息 */
+/* WebDAV 路径信息 - Github 风格 */
 .webdav-info {
-    padding-top: var(--space-md);
-    border-top: 1px solid var(--ml-border);
+    padding-top: 12px;
+    border-top: 1px solid #d0d7de;
 }
 
 .webdav-info .info-item {
@@ -2531,32 +2560,196 @@
     justify-content: space-between;
     align-items: center;
     padding: 4px 0;
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .webdav-info .info-label {
-    color: var(--ml-text-secondary);
+    color: #656d76;
+    font-weight: 500;
 }
 
 .webdav-info .info-value {
-    color: var(--ml-text);
-    font-family: monospace;
+    color: #24292f;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 11px;
     max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* 深色模式适配 */
+/* 深色模式适配 - Github 风格 */
 @media (prefers-color-scheme: dark) {
-    .webdav-sync-result.success {
-        background: rgba(16, 124, 16, 0.2);
-        border-color: rgba(16, 124, 16, 0.4);
+    .media-sidebar {
+        background: #161b22;
+        border-right-color: #30363d;
     }
-    
+
+    .sidebar-section {
+        border-bottom-color: #30363d;
+    }
+
+    .sidebar-title {
+        color: #c9d1d9;
+    }
+
+    .storage-item {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .storage-item:hover {
+        background: #161b22;
+        border-color: #8b949e;
+    }
+
+    .storage-item.storage-active {
+        background: #1c2d41;
+        border-color: #1f6feb;
+    }
+
+    .storage-item.storage-active .storage-name {
+        color: #58a6ff;
+    }
+
+    .storage-link {
+        color: #c9d1d9;
+    }
+
+    .filter-link {
+        color: #c9d1d9;
+    }
+
+    .filter-link:hover {
+        background: #0d1117;
+    }
+
+    .filter-item.active .filter-link {
+        background: #0d1117;
+        color: #58a6ff;
+    }
+
+    .filter-count {
+        color: #7d8590;
+        background: #161b22;
+        border-color: #30363d;
+    }
+
+    .filter-item.active .filter-count {
+        background: #1f6feb;
+        color: #ffffff;
+        border-color: #1f6feb;
+    }
+
+    .stat-item {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .stat-item:hover {
+        border-color: #8b949e;
+    }
+
+    .stat-label {
+        color: #7d8590;
+    }
+
+    .stat-value {
+        color: #c9d1d9;
+    }
+
+    .storage-info {
+        background: #1c2d41;
+        border-color: #1f6feb;
+    }
+
+    .storage-label,
+    .storage-value {
+        color: #58a6ff;
+    }
+
+    .webdav-sync-status {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .webdav-sync-status .status-label {
+        color: #7d8590;
+    }
+
+    .webdav-sync-status .status-value {
+        color: #c9d1d9;
+    }
+
+    .webdav-action-btn.primary-btn {
+        background: #238636;
+        border-color: rgba(240, 246, 252, 0.1);
+    }
+
+    .webdav-action-btn.primary-btn:hover {
+        background: #2ea043;
+    }
+
+    .webdav-action-btn.secondary-btn {
+        background: #21262d;
+        color: #c9d1d9;
+        border-color: #30363d;
+    }
+
+    .webdav-action-btn.secondary-btn:hover {
+        background: #30363d;
+        border-color: #8b949e;
+    }
+
+    .webdav-sync-progress {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .webdav-sync-progress .progress-title {
+        color: #c9d1d9;
+    }
+
+    .webdav-sync-progress .progress-count {
+        color: #7d8590;
+    }
+
+    .webdav-sync-progress .progress-bar-container {
+        background: #30363d;
+    }
+
+    .webdav-sync-progress .progress-bar {
+        background: linear-gradient(90deg, #1f6feb, #58a6ff);
+    }
+
+    .webdav-sync-result.success {
+        background: #0d3c1e;
+        border-color: #2ea043;
+    }
+
     .webdav-sync-result.error {
-        background: rgba(209, 52, 56, 0.2);
-        border-color: rgba(209, 52, 56, 0.4);
+        background: #4c1e1e;
+        border-color: #f85149;
+    }
+
+    .webdav-sync-result.success .result-title {
+        color: #3fb950;
+    }
+
+    .webdav-sync-result.error .result-title {
+        color: #f85149;
+    }
+
+    .webdav-info {
+        border-top-color: #30363d;
+    }
+
+    .webdav-info .info-label {
+        color: #7d8590;
+    }
+
+    .webdav-info .info-value {
+        color: #c9d1d9;
     }
 }
 
