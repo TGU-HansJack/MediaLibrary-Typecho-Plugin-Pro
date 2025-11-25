@@ -492,9 +492,11 @@
                     replaceOriginal: replaceOriginal ? 'true' : 'false'
                 };
             } else {
+                var numericCid = parseInt(currentImageCid, 10);
+                var hasValidCid = !isNaN(numericCid) && numericCid > 0;
                 requestData = {
                     action: 'crop_image',
-                    cid: currentImageCid,
+                    cid: hasValidCid ? numericCid : '',
                     x: cropX,
                     y: cropY,
                     width: cropWidth,
@@ -503,6 +505,10 @@
                     replace_original: replaceOriginal ? '1' : '0',
                     custom_name: customName
                 };
+
+                if (!hasValidCid && currentImageFilePath) {
+                    requestData.file = currentImageFilePath;
+                }
             }
 
             // 发送裁剪请求

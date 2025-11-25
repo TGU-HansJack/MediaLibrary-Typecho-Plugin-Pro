@@ -1233,7 +1233,10 @@ class MediaLibrary_AjaxHandler
             $sync = new MediaLibrary_WebDAVSync($configOptions);
 
             // 删除本地文件
-            $sync->deleteLocalFile($target);
+            $deleted = $sync->deleteLocalFile($target);
+            if (!$deleted) {
+                throw new Exception('本地文件删除失败');
+            }
 
             // 根据删除策略处理远程文件
             $deleteStrategy = isset($configOptions['webdavDeleteStrategy']) ? $configOptions['webdavDeleteStrategy'] : 'auto';
