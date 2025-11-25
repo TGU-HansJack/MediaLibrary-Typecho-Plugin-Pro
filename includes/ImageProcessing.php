@@ -118,35 +118,24 @@ class MediaLibrary_ImageProcessing
             if (!$result['success']) {
                 return array_merge($result, ['cid' => $cid]);
             }
-
-            $newAbsolutePath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '.' . $newExt;
-
-            if (file_exists($newAbsolutePath)) {
-                @unlink($newAbsolutePath);
-            }
-
-            if (!rename($tempPath, $newAbsolutePath)) {
-                @unlink($tempPath);
+            
+            $tempSize = filesize($tempPath);
+            
+            // 删除原文件并重命名临时文件
+            @unlink($originalPath);
+            if (!rename($tempPath, $originalPath)) {
                 return ['success' => false, 'message' => '文件替换失败', 'cid' => $cid];
             }
-
-            if ($originalPath !== $newAbsolutePath && file_exists($originalPath)) {
-                @unlink($originalPath);
-            }
             
-            $compressedSize = filesize($newAbsolutePath);
+            $compressedSize = filesize($originalPath);
             
-            // 更新数据库中的MIME类型、路径和文件名
-            $relativeNewPath = str_replace('\\', '/', str_replace(__TYPECHO_ROOT_DIR__, '', $newAbsolutePath));
-            if (strpos($relativeNewPath, '/') !== 0) {
-                $relativeNewPath = '/' . ltrim($relativeNewPath, '/');
-            }
-
+            // 更新数据库中的MIME类型和文件名
             $attachmentData['size'] = $compressedSize;
             $attachmentData['mime'] = 'image/' . $outputFormat;
+            
+            // 更新文件名扩展名但保持路径不变
             $newFileName = $pathInfo['filename'] . '.' . $newExt;
             $attachmentData['name'] = $newFileName;
-            $attachmentData['path'] = $relativeNewPath;
             
             $db->query($db->update('table.contents')
                 ->rows([
@@ -166,8 +155,7 @@ class MediaLibrary_ImageProcessing
                 'savings' => $savings . '%',
                 'method' => $compressMethod,
                 'format' => $outputFormat,
-                'format_changed' => true,
-                'new_path' => $relativeNewPath
+                'format_changed' => true
             ];
         }
         

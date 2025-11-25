@@ -143,7 +143,7 @@
                             <option value="webp">WebP</option>
                             <option value="avif">AVIF</option>
                         </select>
-                            <small style="color: #666;">注意：格式转换时会生成新的文件扩展名，链接将随之更新</small>
+                        <small style="color: #666;">注意：格式转换时，替换原文件会保持相同链接</small>
                     </div>
                     
                     <div style="margin-bottom: 15px;">
@@ -158,8 +158,8 @@
                     
                     <div style="margin-bottom: 15px;">
                         <label>
-                                <input type="radio" name="image-replace-mode" value="replace" checked> 
-                                替换原文件
+                            <input type="radio" name="image-replace-mode" value="replace" checked> 
+                            替换原文件（保持链接不变）
                         </label>
                         <br>
                         <label>
@@ -337,7 +337,7 @@
                         <div style="margin-bottom: 15px;">
                             <label>
                                 <input type="radio" name="crop-replace-mode" value="replace" checked> 
-                                替换原文件
+                                替换原文件（保持链接不变）
                             </label>
                             <br>
                             <label>
@@ -487,7 +487,7 @@
                         <div style="margin-bottom: 15px;">
                             <label>
                                 <input type="radio" name="watermark-replace-mode" value="replace" checked> 
-                                替换原文件
+                                替换原文件（保持链接不变）
                             </label>
                             <br>
                             <label>

@@ -471,8 +471,6 @@
             var requestUrl = window.mediaLibraryCurrentUrl;
             var requestData;
 
-            var normalizedStorage = currentImageStorage === 'webdav' ? 'webdav' : 'local';
-
             if (currentImageStorage === 'webdav') {
                 requestData = {
                     action: 'webdav_crop_image',
@@ -483,16 +481,15 @@
                     height: cropHeight,
                     replace_original: replaceOriginal ? 'true' : 'false'
                 };
-            } else if (currentImageFilePath) {
+            } else if ((currentImageStorage === 'local_direct' || !currentImageCid) && currentImageFilePath) {
                 requestData = {
                     action: 'local_crop_image',
                     file: currentImageFilePath,
-                    storage: normalizedStorage,
                     x: cropX,
                     y: cropY,
                     width: cropWidth,
                     height: cropHeight,
-                    replace_original: replaceOriginal ? 'true' : 'false'
+                    replaceOriginal: replaceOriginal ? 'true' : 'false'
                 };
             } else {
                 var numericCid = parseInt(currentImageCid, 10);
@@ -509,10 +506,8 @@
                     custom_name: customName
                 };
 
-                if (!hasValidCid) {
-                    alert('裁剪失败：请选择有效的图片或提供文件路径');
-                    applyBtn.prop('disabled', false).text('应用裁剪');
-                    return;
+                if (!hasValidCid && currentImageFilePath) {
+                    requestData.file = currentImageFilePath;
                 }
             }
 
@@ -827,7 +822,6 @@
             
             // 构建请求数据
             var requestData;
-            var normalizedStorage = currentImageStorage === 'webdav' ? 'webdav' : 'local';
             if (currentImageStorage === 'webdav') {
                 requestData = {
                     action: 'webdav_add_watermark',
@@ -841,11 +835,11 @@
                     replace_original: replaceOriginal ? 'true' : 'false',
                     custom_name: customName
                 };
-            } else if (currentImageFilePath) {
+            } else if ((currentImageStorage === 'local_direct' || !currentImageCid) && currentImageFilePath) {
                 requestData = {
                     action: 'local_add_watermark',
                     file: currentImageFilePath,
-                    storage: normalizedStorage,
+                    storage: currentImageStorage,
                     watermark_type: watermarkType,
                     watermark_position: watermarkPosition,
                     watermark_x: watermarkX,
@@ -868,10 +862,6 @@
                     replace_original: replaceOriginal ? '1' : '0',
                     custom_name: customName
                 };
-                if (!currentImageCid) {
-                    alert('添加水印失败：无法获取文件路径或ID');
-                    return;
-                }
             }
 
             // 根据水印类型添加特定参数
