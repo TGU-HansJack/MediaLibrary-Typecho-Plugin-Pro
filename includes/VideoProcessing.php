@@ -1,5 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/FileOperations.php';
 
 /**
  * 视频处理工具类
@@ -33,8 +34,8 @@ class MediaLibrary_VideoProcessing
             return ['success' => false, 'message' => '文件数据错误', 'cid' => $cid];
         }
         
-        $originalPath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-        if (!file_exists($originalPath)) {
+        $originalPath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+        if (!$originalPath || !file_exists($originalPath)) {
             return ['success' => false, 'message' => '原文件不存在', 'cid' => $cid];
         }
         

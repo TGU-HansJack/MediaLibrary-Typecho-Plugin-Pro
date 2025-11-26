@@ -24,10 +24,10 @@ class MediaLibrary_FileOperations
                 
             if ($attachment) {
                 $attachmentData = unserialize($attachment['text']);
-                $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path'] ?? '');
                 
                 // 删除文件
-                if (file_exists($filePath)) {
+                if ($filePath && file_exists($filePath)) {
                     @unlink($filePath);
                 }
                 
@@ -97,5 +97,31 @@ class MediaLibrary_FileOperations
         $bytes /= pow(1024, $pow);
         
         return round($bytes, 2) . ' ' . $units[$pow];
+    }
+
+    /**
+     * 将附件记录中的路径解析为本地绝对路径
+     *
+     * @param string $path 附件中保存的路径
+     * @return string|null 绝对路径，无法解析时返回 null
+     */
+    public static function resolveAttachmentPath($path)
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        // 已经是绝对路径（Unix/Windows）
+        if (strpos($path, __TYPECHO_ROOT_DIR__) === 0 || preg_match('/^[a-zA-Z]:[\\\\\\/]/', $path)) {
+            return $path;
+        }
+
+        // 远程路径不在本地
+        if (preg_match('#^https?://#i', $path)) {
+            return null;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $path), '/');
+        return rtrim(__TYPECHO_ROOT_DIR__, '/\\') . '/' . $normalized;
     }
 }

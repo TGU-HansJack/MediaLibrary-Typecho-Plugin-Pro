@@ -1,5 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/FileOperations.php';
 
 /**
  * 缓存管理类
@@ -408,9 +409,9 @@ class MediaLibrary_CacheManager
                 foreach ($attachments as $attachment) {
                     $attachmentData = @unserialize($attachment['text']);
                     if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                        $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
 
-                        if (file_exists($filePath)) {
+                        if ($filePath && file_exists($filePath)) {
                             $mtime = filemtime($filePath);
                             $hash = md5($filePath);
 
@@ -512,9 +513,9 @@ class MediaLibrary_CacheManager
                 foreach ($attachments as $attachment) {
                     $attachmentData = @unserialize($attachment['text']);
                     if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                        $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
 
-                        if (file_exists($filePath)) {
+                        if ($filePath && file_exists($filePath)) {
                             $mtime = filemtime($filePath);
                             $cid = $attachment['cid'];
 
@@ -573,8 +574,8 @@ class MediaLibrary_CacheManager
             return null;
         }
 
-        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-        if (!file_exists($filePath)) {
+        $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+        if (!$filePath || !file_exists($filePath)) {
             return null;
         }
 
@@ -658,9 +659,9 @@ class MediaLibrary_CacheManager
                 foreach ($attachments as $attachment) {
                     $attachmentData = @unserialize($attachment['text']);
                     if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                        $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
 
-                        if (file_exists($filePath)) {
+                        if ($filePath && file_exists($filePath)) {
                             $fileSize = filesize($filePath);
                             $cid = $attachment['cid'];
 
@@ -717,8 +718,8 @@ class MediaLibrary_CacheManager
             return null;
         }
 
-        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-        if (!file_exists($filePath)) {
+        $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+        if (!$filePath || !file_exists($filePath)) {
             return null;
         }
 

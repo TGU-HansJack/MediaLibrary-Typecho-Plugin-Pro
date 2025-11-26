@@ -207,11 +207,11 @@ class MediaLibrary_AjaxHandler
             if (isset($attachment['text'])) {
                 $attachmentData = @unserialize($attachment['text']);
                 if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
+                    $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
                     $attachmentFilePath = $filePath;
 
                     // 首先尝试删除本地文件
-                    if (file_exists($filePath)) {
+                    if ($filePath && file_exists($filePath)) {
                         if (@unlink($filePath)) {
                             $fileDeleted = true;
                         } else {
@@ -221,7 +221,7 @@ class MediaLibrary_AjaxHandler
                             ], 'warning');
                         }
                     } else {
-                        // 文件不存在，视为已删除
+                        // 文件不存在或无法解析，视为已删除
                         $fileDeleted = true;
                     }
 
@@ -899,8 +899,10 @@ class MediaLibrary_AjaxHandler
         
         $detailedInfo = [];
         if (isset($attachmentData['path'])) {
-            $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-            $detailedInfo = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3);
+            $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+            if ($filePath && file_exists($filePath)) {
+                $detailedInfo = MediaLibrary_PanelHelper::getDetailedFileInfo($filePath, $enableGetID3);
+            }
         }
         
         $info = [
@@ -974,9 +976,11 @@ class MediaLibrary_AjaxHandler
             if ($attachment) {
                 $attachmentData = @unserialize($attachment['text']);
                 if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                    MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
-                    MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+                    $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+                    if ($filePath && file_exists($filePath)) {
+                        MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                        MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+                    }
                 }
             }
         }
@@ -1032,8 +1036,10 @@ class MediaLibrary_AjaxHandler
             if ($attachment) {
                 $attachmentData = @unserialize($attachment['text']);
                 if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                    $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                    MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                    $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+                    if ($filePath && file_exists($filePath)) {
+                        MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                    }
                 }
             }
         }
@@ -1091,9 +1097,11 @@ private static function handleCropImageAction($request, $db, $options, $user)
         if ($attachment) {
             $attachmentData = @unserialize($attachment['text']);
             if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
-                MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+                $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+                if ($filePath && file_exists($filePath)) {
+                    MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                    MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+                }
             }
         }
     }
@@ -1185,9 +1193,11 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
         if ($attachment) {
             $attachmentData = @unserialize($attachment['text']);
             if (is_array($attachmentData) && isset($attachmentData['path'])) {
-                $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-                MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
-                MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+                $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+                if ($filePath && file_exists($filePath)) {
+                    MediaLibrary_CacheManager::getOrUpdateFileDetails($filePath, false);
+                    MediaLibrary_CacheManager::getOrUpdateSmartSuggestion($cid, $db);
+                }
             }
         }
     }
@@ -1371,8 +1381,8 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             return;
         }
         
-        $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-        if (!file_exists($filePath)) {
+        $filePath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+        if (!$filePath || !file_exists($filePath)) {
             MediaLibrary_Logger::log('remove_exif', '清除EXIF失败：文件不存在于磁盘', [
                 'cid' => $cid,
                 'path' => $attachmentData['path']
@@ -2110,8 +2120,8 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
                 throw new Exception('文件数据错误');
             }
 
-            $localPath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-            if (!file_exists($localPath)) {
+            $localPath = MediaLibrary_FileOperations::resolveAttachmentPath($attachmentData['path']);
+            if (!$localPath || !file_exists($localPath)) {
                 throw new Exception('本地文件不存在');
             }
 
