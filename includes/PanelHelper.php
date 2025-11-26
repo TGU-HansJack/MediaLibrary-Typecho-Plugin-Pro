@@ -281,10 +281,35 @@ class MediaLibrary_PanelHelper
                 $hasExternalDomain = !empty($configOptions['webdavExternalDomain']);
                 $isWebDAVStorage = isset($attachmentData['storage']) && $attachmentData['storage'] === 'webdav';
                 $hasWebDAVPath = !empty($attachmentData['webdav_path']);
-                $shouldPreferExternal = $hasExternalDomain && ($isWebDAVStorage || $hasWebDAVPath);
+
+                // 检查文件路径是否在 WebDAV 本地文件夹下
+                $isInWebDAVFolder = false;
+                if (!empty($configOptions['webdavLocalPath'])) {
+                    $webdavLocalPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+                    $rootDir = __TYPECHO_ROOT_DIR__;
+                    // 将本地路径转换为相对于网站根目录的路径
+                    if (strpos($webdavLocalPath, $rootDir) === 0) {
+                        $webdavWebPath = substr($webdavLocalPath, strlen($rootDir));
+                        $webdavWebPath = str_replace('\\', '/', trim($webdavWebPath, '/\\'));
+                        $filePath = ltrim($attachmentData['path'], '/');
+                        $isInWebDAVFolder = strpos($filePath, $webdavWebPath) === 0;
+                    }
+                }
+
+                $shouldPreferExternal = $hasExternalDomain && ($isWebDAVStorage || $hasWebDAVPath || $isInWebDAVFolder);
 
                 if ($shouldPreferExternal) {
                     $relative = $hasWebDAVPath ? ltrim($attachmentData['webdav_path'], '/') : ltrim($attachmentData['path'], '/');
+                    // 如果文件在 WebDAV 文件夹下，需要移除文件夹前缀
+                    if ($isInWebDAVFolder && !$hasWebDAVPath && !empty($configOptions['webdavLocalPath'])) {
+                        $rootDir = __TYPECHO_ROOT_DIR__;
+                        $webdavLocalPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+                        if (strpos($webdavLocalPath, $rootDir) === 0) {
+                            $webdavWebPath = substr($webdavLocalPath, strlen($rootDir));
+                            $webdavWebPath = str_replace('\\', '/', trim($webdavWebPath, '/\\')) . '/';
+                            $relative = ltrim(substr($relative, strlen($webdavWebPath)), '/');
+                        }
+                    }
                     $externalUrl = self::buildWebDAVFileUrl($relative, $configOptions);
                 } else {
                     $externalUrl = '';
@@ -352,6 +377,10 @@ class MediaLibrary_PanelHelper
         }
 
         $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+
+        // 检查是否使用元数据列表（remote-only 模式）
+        $uploadMode = isset($configOptions['webdavUploadMode']) ? $configOptions['webdavUploadMode'] : 'local-cache';
+        $useMetadataListing = $uploadMode === 'remote-only';
 
         // 检查本地文件夹是否存在（仅在需要本地缓存时）
         if (!is_dir($localPath) && !$useMetadataListing) {
