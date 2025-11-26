@@ -241,6 +241,34 @@ class MediaLibrary_AjaxHandler
                             ], 'warning');
                         }
                     }
+
+                    // 如果启用了对象存储，也尝试从对象存储删除
+                    if (isset($attachmentData['storage']) && $attachmentData['storage'] === 'object_storage') {
+                        require_once __DIR__ . '/ObjectStorageManager.php';
+                        try {
+                            $storageManager = new MediaLibrary_ObjectStorageManager($db, $configOptions);
+                            if ($storageManager->isEnabled() && $storageManager->shouldSyncDelete()) {
+                                if (isset($attachmentData['object_storage_path'])) {
+                                    $deleteResult = $storageManager->delete($attachmentData['object_storage_path']);
+                                    if ($deleteResult['success']) {
+                                        MediaLibrary_Logger::log('delete', '对象存储文件删除成功', [
+                                            'cid' => $cid,
+                                            'path' => $attachmentData['object_storage_path']
+                                        ]);
+                                    } else {
+                                        MediaLibrary_Logger::log('delete', '对象存储文件删除失败: ' . $deleteResult['error'], [
+                                            'cid' => $cid,
+                                            'path' => $attachmentData['object_storage_path']
+                                        ], 'warning');
+                                    }
+                                }
+                            }
+                        } catch (Exception $e) {
+                            MediaLibrary_Logger::log('delete', '对象存储删除失败: ' . $e->getMessage(), [
+                                'cid' => $cid
+                            ], 'warning');
+                        }
+                    }
                 } else {
                     // 如果无法解析附件数据，也继续删除数据库记录
                     $fileDeleted = true;
@@ -435,6 +463,25 @@ class MediaLibrary_AjaxHandler
                     }
                 } else {
                     MediaLibrary_Logger::log('upload', 'WebDAV 上传失败: ' . $result['message'], [
+                        'files' => self::summarizeUploadedFiles()
+                    ], 'error');
+                    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+                }
+                return;
+            }
+
+            // 如果是对象存储，使用对象存储上传
+            if ($storage === 'object_storage') {
+                $result = self::uploadToObjectStorage($_FILES, $configOptions);
+
+                if ($result['success']) {
+                    MediaLibrary_Logger::log('upload', '对象存储上传成功', [
+                        'files' => self::summarizeUploadedFiles(),
+                        'result' => $result
+                    ]);
+                    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+                } else {
+                    MediaLibrary_Logger::log('upload', '对象存储上传失败: ' . $result['message'], [
                         'files' => self::summarizeUploadedFiles()
                     ], 'error');
                     echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -641,7 +688,169 @@ class MediaLibrary_AjaxHandler
             return ['success' => false, 'message' => 'WebDAV 上传错误: ' . $e->getMessage()];
         }
     }
-    
+
+    /**
+     * 上传文件到对象存储
+     */
+    private static function uploadToObjectStorage($files, $configOptions)
+    {
+        require_once __DIR__ . '/ObjectStorageManager.php';
+
+        try {
+            // 检查对象存储是否启用
+            $storageManager = new MediaLibrary_ObjectStorageManager(\Typecho\Db::get(), $configOptions);
+
+            if (!$storageManager->isEnabled()) {
+                return ['success' => false, 'message' => '对象存储未启用'];
+            }
+
+            $db = \Typecho\Db::get();
+            $options = \Widget\Options::alloc();
+            $user = \Widget\User::alloc();
+
+            $uploadedFiles = [];
+            $uploadCount = 0;
+            $errors = [];
+
+            foreach ($files as $file) {
+                if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+                    $errors[] = $file['name'] . ': 无效的上传文件';
+                    continue;
+                }
+
+                // 检查文件类型
+                $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                if (!self::isAllowedFileType($ext)) {
+                    $errors[] = $file['name'] . ': 不允许的文件类型';
+                    continue;
+                }
+
+                // 生成文件名和路径
+                $date = new \Typecho\Date($options->gmtTime);
+                $year = $date->year;
+                $month = $date->month;
+
+                $fileName = sprintf('%u', crc32(uniqid())) . '.' . $ext;
+                $remotePath = $year . '/' . $month . '/' . $fileName;
+
+                // 创建临时本地目录（如果需要本地备份）
+                $localDir = __TYPECHO_ROOT_DIR__ . __TYPECHO_UPLOADS_DIR__ . '/' . $year . '/' . $month;
+                $localPath = $localDir . '/' . $fileName;
+
+                if ($storageManager->shouldSaveLocal()) {
+                    if (!is_dir($localDir)) {
+                        if (!@mkdir($localDir, 0755, true)) {
+                            $errors[] = $file['name'] . ': 无法创建本地目录';
+                            continue;
+                        }
+                    }
+
+                    if (!@move_uploaded_file($file['tmp_name'], $localPath)) {
+                        $errors[] = $file['name'] . ': 无法保存到本地';
+                        continue;
+                    }
+
+                    $uploadFilePath = $localPath;
+                } else {
+                    $uploadFilePath = $file['tmp_name'];
+                }
+
+                // 上传到对象存储
+                $result = $storageManager->upload($uploadFilePath, $remotePath);
+
+                if (!$result['success']) {
+                    $errors[] = $file['name'] . ': ' . $result['error'];
+                    // 如果上传失败且已保存本地副本，删除本地副本
+                    if ($storageManager->shouldSaveLocal() && file_exists($localPath)) {
+                        @unlink($localPath);
+                    }
+                    continue;
+                }
+
+                // 获取文件URL
+                $fileUrl = $result['url'];
+
+                // 保存到数据库
+                $attachmentData = [
+                    'name' => $file['name'],
+                    'path' => $storageManager->shouldSaveLocal() ?
+                        str_replace(__TYPECHO_ROOT_DIR__, '', $localPath) : $remotePath,
+                    'size' => $file['size'],
+                    'type' => $file['type'],
+                    'mime' => $file['type'],
+                    'storage' => 'object_storage',
+                    'object_storage_path' => $remotePath,
+                    'object_storage_url' => $fileUrl,
+                    'object_storage_type' => $configOptions['storageType'] ?? 'unknown'
+                ];
+
+                $insertData = [
+                    'title' => $file['name'],
+                    'slug' => $fileName,
+                    'created' => time(),
+                    'modified' => time(),
+                    'text' => serialize($attachmentData),
+                    'order' => 0,
+                    'authorId' => $user->uid,
+                    'template' => '',
+                    'type' => 'attachment',
+                    'status' => 'publish',
+                    'password' => '',
+                    'commentsNum' => 0,
+                    'allowComment' => 0,
+                    'allowPing' => 0,
+                    'allowFeed' => 0,
+                    'parent' => 0
+                ];
+
+                $insertId = $db->query($db->insert('table.contents')->rows($insertData));
+
+                if ($insertId) {
+                    $uploadedFiles[] = [
+                        'cid' => $insertId,
+                        'name' => $file['name'],
+                        'url' => $fileUrl,
+                        'size' => $file['size'],
+                        'type' => $file['type']
+                    ];
+                    $uploadCount++;
+                }
+            }
+
+            if ($uploadCount > 0) {
+                return [
+                    'success' => true,
+                    'count' => $uploadCount,
+                    'files' => $uploadedFiles,
+                    'message' => "成功上传 {$uploadCount} 个文件" .
+                        (!empty($errors) ? "，{count($errors)} 个文件失败" : '')
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'message' => '上传失败: ' . implode('; ', $errors)
+                ];
+            }
+
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('upload', '对象存储上传错误: ' . $e->getMessage(), [], 'error');
+            return ['success' => false, 'message' => '对象存储上传错误: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * 检查文件类型是否允许
+     */
+    private static function isAllowedFileType($ext)
+    {
+        $allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+            'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm',
+            'mp3', 'wav', 'ogg', 'flac', 'aac',
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+            'txt', 'zip', 'rar', '7z', 'tar', 'gz'];
+        return in_array(strtolower($ext), $allowedTypes);
+    }
+
     /**
      * 处理获取信息请求
      */
