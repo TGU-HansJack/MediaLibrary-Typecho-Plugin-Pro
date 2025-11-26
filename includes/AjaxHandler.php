@@ -706,18 +706,6 @@ class MediaLibrary_AjaxHandler
                 return ['success' => false, 'message' => '对象存储未启用'];
             }
 
-            // 检查存储管理器是否正确初始化
-            $testResult = $storageManager->testConnection();
-            if (!$testResult['success']) {
-                MediaLibrary_Logger::log('object_storage_upload', '对象存储连接测试失败', [
-                    'error' => $testResult['message']
-                ], 'error');
-                return [
-                    'success' => false,
-                    'message' => '对象存储配置错误: ' . $testResult['message']
-                ];
-            }
-
             $options = Typecho_Widget::widget('Widget_Options');
             $user = Typecho_Widget::widget('Widget_User');
 

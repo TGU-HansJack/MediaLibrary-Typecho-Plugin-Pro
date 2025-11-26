@@ -21,6 +21,7 @@ class MediaLibrary_ObjectStorageManager
     private $db;
     private $configOptions;
     private $storage;
+    private $initError = '';
 
     public function __construct($db, $configOptions)
     {
@@ -44,12 +45,21 @@ class MediaLibrary_ObjectStorageManager
         try {
             $this->storage = StorageFactory::create($storageType, $config);
         } catch (\Exception $e) {
+            $this->initError = $e->getMessage();
             MediaLibrary_Logger::log('object_storage_init', '对象存储初始化失败: ' . $e->getMessage(), [
                 'storage_type' => $storageType,
                 'error' => $e->getMessage()
             ], 'error');
             $this->storage = null;
         }
+    }
+
+    /**
+     * 获取初始化错误信息
+     */
+    public function getInitError()
+    {
+        return $this->initError;
     }
 
     /**
@@ -173,9 +183,13 @@ class MediaLibrary_ObjectStorageManager
     public function upload($localPath, $remotePath)
     {
         if (!$this->storage) {
+            $errorMsg = '对象存储未初始化';
+            if ($this->initError) {
+                $errorMsg .= ': ' . $this->initError;
+            }
             return [
                 'success' => false,
-                'error' => '对象存储未初始化'
+                'error' => $errorMsg
             ];
         }
 
@@ -186,7 +200,19 @@ class MediaLibrary_ObjectStorageManager
             ];
         }
 
-        return $this->storage->upload($localPath, $remotePath);
+        try {
+            return $this->storage->upload($localPath, $remotePath);
+        } catch (\Exception $e) {
+            MediaLibrary_Logger::log('object_storage_upload', '上传失败: ' . $e->getMessage(), [
+                'local_path' => $localPath,
+                'remote_path' => $remotePath,
+                'error' => $e->getMessage()
+            ], 'error');
+            return [
+                'success' => false,
+                'error' => '上传失败: ' . $e->getMessage()
+            ];
+        }
     }
 
     /**
@@ -215,11 +241,18 @@ class MediaLibrary_ObjectStorageManager
         if (!$this->storage) {
             return [
                 'success' => false,
-                'message' => '对象存储未初始化'
+                'message' => '对象存储未初始化，请检查配置和 SDK 是否正确安装'
             ];
         }
 
-        return $this->storage->testConnection();
+        try {
+            return $this->storage->testConnection();
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => '连接测试失败: ' . $e->getMessage()
+            ];
+        }
     }
 
     /**
