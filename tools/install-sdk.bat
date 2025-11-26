@@ -19,6 +19,9 @@ if %ERRORLEVEL% NEQ 0 (
 echo 检测到Composer，开始安装SDK...
 echo.
 
+REM 切换到项目根目录
+cd ..
+
 REM 创建vendor目录
 if not exist "includes\vendor" mkdir includes\vendor
 

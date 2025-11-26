@@ -18,6 +18,9 @@ fi
 echo "检测到Composer，开始安装SDK..."
 echo ""
 
+# 切换到项目根目录
+cd ..
+
 # 创建vendor目录
 mkdir -p includes/vendor
 
