@@ -351,8 +351,8 @@ class MediaLibrary_PanelHelper
 
         $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
 
-        // 检查本地文件夹是否存在
-        if (!is_dir($localPath)) {
+        // 检查本地文件夹是否存在（仅在需要本地缓存时）
+        if (!is_dir($localPath) && !$useMetadataListing) {
             return [
                 'attachments' => [],
                 'total' => 0,
