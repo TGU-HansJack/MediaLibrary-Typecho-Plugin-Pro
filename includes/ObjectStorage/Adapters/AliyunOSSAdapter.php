@@ -17,7 +17,14 @@ class AliyunOSSAdapter extends AbstractAdapter
         $bucket = $this->getConfig('bucket');
 
         if (!$accessKeyId || !$accessKeySecret || !$endpoint || !$bucket) {
-            throw new \Exception('阿里云OSS配置不完整');
+            $error = '阿里云OSS配置不完整';
+            $this->log('object_storage_init', $error, [
+                'endpoint' => $endpoint,
+                'bucket' => $bucket,
+                'has_access_key_id' => !empty($accessKeyId),
+                'has_access_key_secret' => !empty($accessKeySecret)
+            ], 'error');
+            throw new \Exception($error);
         }
 
         // 检查SDK是否已加载
@@ -25,15 +32,32 @@ class AliyunOSSAdapter extends AbstractAdapter
             $sdkPath = __DIR__ . '/../../vendor/aliyun-oss/aliyun-oss-php-sdk-2.6.0.phar';
             if (file_exists($sdkPath)) {
                 require_once $sdkPath;
+                $this->log('object_storage_init', '阿里云OSS SDK加载成功', [
+                    'sdk_path' => $sdkPath
+                ], 'info');
             } else {
-                throw new \Exception('阿里云OSS SDK未安装，SDK路径: ' . $sdkPath);
+                $error = '阿里云OSS SDK未安装，SDK路径: ' . $sdkPath;
+                $this->log('object_storage_init', $error, [
+                    'sdk_path' => $sdkPath
+                ], 'error');
+                throw new \Exception($error);
             }
         }
 
         try {
             $this->client = new \OSS\OssClient($accessKeyId, $accessKeySecret, $endpoint);
+            $this->log('object_storage_init', '阿里云OSS客户端初始化成功', [
+                'endpoint' => $endpoint,
+                'bucket' => $bucket
+            ], 'info');
         } catch (\Exception $e) {
-            throw new \Exception('阿里云OSS初始化失败: ' . $e->getMessage());
+            $error = '阿里云OSS初始化失败: ' . $e->getMessage();
+            $this->log('object_storage_init', $error, [
+                'endpoint' => $endpoint,
+                'bucket' => $bucket,
+                'error' => $e->getMessage()
+            ], 'error');
+            throw new \Exception($error);
         }
     }
 
@@ -45,13 +69,17 @@ class AliyunOSSAdapter extends AbstractAdapter
 
             $this->client->uploadFile($bucket, $remotePath, $localPath);
 
+            $url = $this->getUrl($remotePath);
+            $this->logUpload($localPath, $remotePath, true, '', ['url' => $url]);
+
             return [
                 'success' => true,
-                'url' => $this->getUrl($remotePath),
+                'url' => $url,
                 'error' => ''
             ];
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logUpload($localPath, $remotePath, false, $e->getMessage());
             return [
                 'success' => false,
                 'url' => '',
@@ -68,9 +96,11 @@ class AliyunOSSAdapter extends AbstractAdapter
 
             $this->client->deleteObject($bucket, $remotePath);
 
+            $this->logDelete($remotePath, true);
             return ['success' => true, 'error' => ''];
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logDelete($remotePath, false, $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -108,11 +138,17 @@ class AliyunOSSAdapter extends AbstractAdapter
             $bucket = $this->getConfig('bucket');
             $this->client->getBucketInfo($bucket);
 
+            $this->logConnectionTest(true, '连接测试成功', ['bucket' => $bucket]);
             return [
                 'success' => true,
                 'message' => '连接成功'
             ];
         } catch (\Exception $e) {
+            $bucket = $this->getConfig('bucket');
+            $this->logConnectionTest(false, '连接测试失败: ' . $e->getMessage(), [
+                'bucket' => $bucket,
+                'error' => $e->getMessage()
+            ]);
             return [
                 'success' => false,
                 'message' => '连接失败: ' . $e->getMessage()

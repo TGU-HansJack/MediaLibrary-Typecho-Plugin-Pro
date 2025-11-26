@@ -91,4 +91,83 @@ abstract class AbstractAdapter implements StorageInterface
         $path = ltrim($path, '/');
         return $path;
     }
+
+    /**
+     * 记录日志
+     * @param string $action 操作名称
+     * @param string $message 消息内容
+     * @param array $context 上下文信息
+     * @param string $level 日志级别 info/warning/error
+     */
+    protected function log($action, $message, array $context = [], $level = 'info')
+    {
+        // 获取存储类型名称
+        $storageName = method_exists($this, 'getName') ? $this->getName() : get_class($this);
+
+        // 添加存储类型到上下文
+        $context['storage_type'] = $storageName;
+
+        // 调用全局日志记录器
+        if (class_exists('MediaLibrary_Logger')) {
+            \MediaLibrary_Logger::log($action, $message, $context, $level);
+        }
+    }
+
+    /**
+     * 记录上传操作日志
+     * @param string $localPath 本地路径
+     * @param string $remotePath 远程路径
+     * @param bool $success 是否成功
+     * @param string $error 错误信息
+     * @param array $additionalContext 额外上下文信息
+     */
+    protected function logUpload($localPath, $remotePath, $success, $error = '', $additionalContext = [])
+    {
+        $context = array_merge([
+            'local_path' => $localPath,
+            'remote_path' => $remotePath,
+            'file_size' => file_exists($localPath) ? filesize($localPath) : 0,
+            'file_name' => basename($localPath)
+        ], $additionalContext);
+
+        if ($success) {
+            $this->log('object_storage_upload', '文件上传成功', $context, 'info');
+        } else {
+            $context['error'] = $error;
+            $this->log('object_storage_upload', '文件上传失败: ' . $error, $context, 'error');
+        }
+    }
+
+    /**
+     * 记录删除操作日志
+     * @param string $remotePath 远程路径
+     * @param bool $success 是否成功
+     * @param string $error 错误信息
+     * @param array $additionalContext 额外上下文信息
+     */
+    protected function logDelete($remotePath, $success, $error = '', $additionalContext = [])
+    {
+        $context = array_merge([
+            'remote_path' => $remotePath
+        ], $additionalContext);
+
+        if ($success) {
+            $this->log('object_storage_delete', '文件删除成功', $context, 'info');
+        } else {
+            $context['error'] = $error;
+            $this->log('object_storage_delete', '文件删除失败: ' . $error, $context, 'error');
+        }
+    }
+
+    /**
+     * 记录连接测试日志
+     * @param bool $success 是否成功
+     * @param string $message 消息内容
+     * @param array $additionalContext 额外上下文信息
+     */
+    protected function logConnectionTest($success, $message, $additionalContext = [])
+    {
+        $level = $success ? 'info' : 'error';
+        $this->log('object_storage_connection_test', $message, $additionalContext, $level);
+    }
 }

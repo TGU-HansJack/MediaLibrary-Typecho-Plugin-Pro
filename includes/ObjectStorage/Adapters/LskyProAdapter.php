@@ -17,8 +17,19 @@ class LskyProAdapter extends AbstractAdapter
         $strategyId = $this->getConfig('strategy_id');
 
         if (!$this->apiUrl || !$this->token) {
-            throw new \Exception('LskyPro配置不完整');
+            $error = 'LskyPro配置不完整';
+            $this->log('object_storage_init', $error, [
+                'api_url' => $this->apiUrl,
+                'has_token' => !empty($this->token),
+                'strategy_id' => $strategyId
+            ], 'error');
+            throw new \Exception($error);
         }
+
+        $this->log('object_storage_init', 'LskyPro客户端初始化成功', [
+            'api_url' => $this->apiUrl,
+            'strategy_id' => $strategyId
+        ], 'info');
     }
 
     public function upload($localPath, $remotePath)
@@ -62,15 +73,22 @@ class LskyProAdapter extends AbstractAdapter
             }
 
             $url = $result['data']['links']['url'] ?? '';
+            $key = $result['data']['key'] ?? '';
+
+            $this->logUpload($localPath, $remotePath, true, '', [
+                'url' => $url,
+                'key' => $key
+            ]);
 
             return [
                 'success' => true,
                 'url' => $url,
                 'error' => '',
-                'key' => $result['data']['key'] ?? ''
+                'key' => $key
             ];
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logUpload($localPath, $remotePath, false, $e->getMessage());
             return [
                 'success' => false,
                 'url' => '',
@@ -110,9 +128,11 @@ class LskyProAdapter extends AbstractAdapter
                 throw new \Exception('删除失败: ' . ($result['message'] ?? '未知错误'));
             }
 
+            $this->logDelete($remotePath, true);
             return ['success' => true, 'error' => ''];
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logDelete($remotePath, false, $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -168,6 +188,7 @@ class LskyProAdapter extends AbstractAdapter
             curl_close($ch);
 
             if ($httpCode === 200) {
+                $this->logConnectionTest(true, '连接测试成功', ['api_url' => $this->apiUrl]);
                 return [
                     'success' => true,
                     'message' => '连接成功'
@@ -176,6 +197,10 @@ class LskyProAdapter extends AbstractAdapter
                 throw new \Exception('HTTP状态码: ' . $httpCode);
             }
         } catch (\Exception $e) {
+            $this->logConnectionTest(false, '连接测试失败: ' . $e->getMessage(), [
+                'api_url' => $this->apiUrl,
+                'error' => $e->getMessage()
+            ]);
             return [
                 'success' => false,
                 'message' => '连接失败: ' . $e->getMessage()

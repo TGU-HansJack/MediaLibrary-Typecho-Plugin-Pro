@@ -17,7 +17,14 @@ class HuaweiOBSAdapter extends AbstractAdapter
         $bucket = $this->getConfig('bucket');
 
         if (!$accessKey || !$secretKey || !$endpoint || !$bucket) {
-            throw new \Exception('华为云OBS配置不完整');
+            $error = '华为云OBS配置不完整';
+            $this->log('object_storage_init', $error, [
+                'endpoint' => $endpoint,
+                'bucket' => $bucket,
+                'has_access_key' => !empty($accessKey),
+                'has_secret_key' => !empty($secretKey)
+            ], 'error');
+            throw new \Exception($error);
         }
 
         // 检查SDK是否已加载
@@ -31,8 +38,15 @@ class HuaweiOBSAdapter extends AbstractAdapter
             $sdkPath = __DIR__ . '/../../vendor/huawei-obs/obs-autoloader.php';
             if (file_exists($sdkPath)) {
                 require_once $sdkPath;
+                $this->log('object_storage_init', '华为云OBS SDK加载成功', [
+                    'sdk_path' => $sdkPath
+                ], 'info');
             } else {
-                throw new \Exception('华为云OBS SDK未安装，SDK路径: ' . $sdkPath);
+                $error = '华为云OBS SDK未安装，SDK路径: ' . $sdkPath;
+                $this->log('object_storage_init', $error, [
+                    'sdk_path' => $sdkPath
+                ], 'error');
+                throw new \Exception($error);
             }
         }
 
@@ -42,8 +56,18 @@ class HuaweiOBSAdapter extends AbstractAdapter
                 'secret' => $secretKey,
                 'endpoint' => $endpoint,
             ]);
+            $this->log('object_storage_init', '华为云OBS客户端初始化成功', [
+                'endpoint' => $endpoint,
+                'bucket' => $bucket
+            ], 'info');
         } catch (\Exception $e) {
-            throw new \Exception('华为云OBS初始化失败: ' . $e->getMessage());
+            $error = '华为云OBS初始化失败: ' . $e->getMessage();
+            $this->log('object_storage_init', $error, [
+                'endpoint' => $endpoint,
+                'bucket' => $bucket,
+                'error' => $e->getMessage()
+            ], 'error');
+            throw new \Exception($error);
         }
     }
 
@@ -60,9 +84,11 @@ class HuaweiOBSAdapter extends AbstractAdapter
             ]);
 
             if ($resp['HttpStatusCode'] === 200) {
+                $url = $this->getUrl($remotePath);
+                $this->logUpload($localPath, $remotePath, true, '', ['url' => $url]);
                 return [
                     'success' => true,
-                    'url' => $this->getUrl($remotePath),
+                    'url' => $url,
                     'error' => ''
                 ];
             } else {
@@ -70,6 +96,7 @@ class HuaweiOBSAdapter extends AbstractAdapter
             }
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logUpload($localPath, $remotePath, false, $e->getMessage());
             return [
                 'success' => false,
                 'url' => '',
@@ -90,12 +117,14 @@ class HuaweiOBSAdapter extends AbstractAdapter
             ]);
 
             if ($resp['HttpStatusCode'] === 204 || $resp['HttpStatusCode'] === 200) {
+                $this->logDelete($remotePath, true);
                 return ['success' => true, 'error' => ''];
             } else {
                 throw new \Exception('删除失败: ' . ($resp['Reason'] ?? '未知错误'));
             }
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logDelete($remotePath, false, $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -139,6 +168,7 @@ class HuaweiOBSAdapter extends AbstractAdapter
             $resp = $this->client->headBucket(['Bucket' => $bucket]);
 
             if ($resp['HttpStatusCode'] === 200) {
+                $this->logConnectionTest(true, '连接测试成功', ['bucket' => $bucket]);
                 return [
                     'success' => true,
                     'message' => '连接成功'
@@ -147,6 +177,11 @@ class HuaweiOBSAdapter extends AbstractAdapter
                 throw new \Exception($resp['Reason'] ?? '连接失败');
             }
         } catch (\Exception $e) {
+            $bucket = $this->getConfig('bucket');
+            $this->logConnectionTest(false, '连接测试失败: ' . $e->getMessage(), [
+                'bucket' => $bucket,
+                'error' => $e->getMessage()
+            ]);
             return [
                 'success' => false,
                 'message' => '连接失败: ' . $e->getMessage()

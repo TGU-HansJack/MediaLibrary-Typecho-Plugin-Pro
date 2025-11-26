@@ -27,6 +27,18 @@ class MediaLibrary_ObjectStorageManager
     {
         $this->db = $db;
         $this->configOptions = $configOptions;
+
+        // 记录对象存储管理器初始化
+        if ($this->isEnabled()) {
+            $storageType = $this->getOption('storageType', 'tencent_cos');
+            MediaLibrary_Logger::log('object_storage_manager', '对象存储管理器初始化', [
+                'storage_type' => $storageType,
+                'enabled' => true,
+                'local_save' => $this->shouldSaveLocal(),
+                'sync_delete' => $this->shouldSyncDelete()
+            ], 'info');
+        }
+
         $this->initStorage();
     }
 
@@ -187,6 +199,11 @@ class MediaLibrary_ObjectStorageManager
             if ($this->initError) {
                 $errorMsg .= ': ' . $this->initError;
             }
+            MediaLibrary_Logger::log('object_storage_manager_upload', $errorMsg, [
+                'local_path' => $localPath,
+                'remote_path' => $remotePath,
+                'init_error' => $this->initError
+            ], 'error');
             return [
                 'success' => false,
                 'error' => $errorMsg
@@ -194,16 +211,38 @@ class MediaLibrary_ObjectStorageManager
         }
 
         if (!file_exists($localPath)) {
+            MediaLibrary_Logger::log('object_storage_manager_upload', '本地文件不存在', [
+                'local_path' => $localPath,
+                'remote_path' => $remotePath
+            ], 'error');
             return [
                 'success' => false,
                 'error' => '本地文件不存在'
             ];
         }
 
+        MediaLibrary_Logger::log('object_storage_manager_upload', '开始上传文件', [
+            'local_path' => $localPath,
+            'remote_path' => $remotePath,
+            'file_size' => filesize($localPath),
+            'storage_type' => $this->getOption('storageType', 'unknown')
+        ], 'info');
+
         try {
-            return $this->storage->upload($localPath, $remotePath);
+            $result = $this->storage->upload($localPath, $remotePath);
+
+            if ($result['success']) {
+                MediaLibrary_Logger::log('object_storage_manager_upload', '文件上传成功', [
+                    'local_path' => $localPath,
+                    'remote_path' => $remotePath,
+                    'url' => isset($result['url']) ? $result['url'] : '',
+                    'storage_type' => $this->getOption('storageType', 'unknown')
+                ], 'info');
+            }
+
+            return $result;
         } catch (\Exception $e) {
-            MediaLibrary_Logger::log('object_storage_upload', '上传失败: ' . $e->getMessage(), [
+            MediaLibrary_Logger::log('object_storage_manager_upload', '上传失败: ' . $e->getMessage(), [
                 'local_path' => $localPath,
                 'remote_path' => $remotePath,
                 'error' => $e->getMessage()
@@ -223,13 +262,47 @@ class MediaLibrary_ObjectStorageManager
     public function delete($remotePath)
     {
         if (!$this->storage) {
+            MediaLibrary_Logger::log('object_storage_manager_delete', '对象存储未初始化', [
+                'remote_path' => $remotePath
+            ], 'error');
             return [
                 'success' => false,
                 'error' => '对象存储未初始化'
             ];
         }
 
-        return $this->storage->delete($remotePath);
+        MediaLibrary_Logger::log('object_storage_manager_delete', '开始删除文件', [
+            'remote_path' => $remotePath,
+            'storage_type' => $this->getOption('storageType', 'unknown')
+        ], 'info');
+
+        try {
+            $result = $this->storage->delete($remotePath);
+
+            if ($result['success']) {
+                MediaLibrary_Logger::log('object_storage_manager_delete', '文件删除成功', [
+                    'remote_path' => $remotePath,
+                    'storage_type' => $this->getOption('storageType', 'unknown')
+                ], 'info');
+            } else {
+                MediaLibrary_Logger::log('object_storage_manager_delete', '文件删除失败', [
+                    'remote_path' => $remotePath,
+                    'error' => isset($result['error']) ? $result['error'] : '未知错误',
+                    'storage_type' => $this->getOption('storageType', 'unknown')
+                ], 'error');
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            MediaLibrary_Logger::log('object_storage_manager_delete', '删除失败: ' . $e->getMessage(), [
+                'remote_path' => $remotePath,
+                'error' => $e->getMessage()
+            ], 'error');
+            return [
+                'success' => false,
+                'error' => '删除失败: ' . $e->getMessage()
+            ];
+        }
     }
 
     /**
@@ -239,18 +312,46 @@ class MediaLibrary_ObjectStorageManager
     public function testConnection()
     {
         if (!$this->storage) {
+            $message = '对象存储未初始化，请检查配置和 SDK 是否正确安装';
+            MediaLibrary_Logger::log('object_storage_manager_test', $message, [
+                'storage_type' => $this->getOption('storageType', 'unknown'),
+                'init_error' => $this->initError
+            ], 'error');
             return [
                 'success' => false,
-                'message' => '对象存储未初始化，请检查配置和 SDK 是否正确安装'
+                'message' => $message
             ];
         }
 
+        MediaLibrary_Logger::log('object_storage_manager_test', '开始测试连接', [
+            'storage_type' => $this->getOption('storageType', 'unknown')
+        ], 'info');
+
         try {
-            return $this->storage->testConnection();
+            $result = $this->storage->testConnection();
+
+            if ($result['success']) {
+                MediaLibrary_Logger::log('object_storage_manager_test', '连接测试成功', [
+                    'storage_type' => $this->getOption('storageType', 'unknown'),
+                    'message' => isset($result['message']) ? $result['message'] : ''
+                ], 'info');
+            } else {
+                MediaLibrary_Logger::log('object_storage_manager_test', '连接测试失败', [
+                    'storage_type' => $this->getOption('storageType', 'unknown'),
+                    'message' => isset($result['message']) ? $result['message'] : ''
+                ], 'error');
+            }
+
+            return $result;
         } catch (\Exception $e) {
+            $message = '连接测试失败: ' . $e->getMessage();
+            MediaLibrary_Logger::log('object_storage_manager_test', $message, [
+                'storage_type' => $this->getOption('storageType', 'unknown'),
+                'error' => $e->getMessage()
+            ], 'error');
             return [
                 'success' => false,
-                'message' => '连接测试失败: ' . $e->getMessage()
+                'message' => $message
             ];
         }
     }

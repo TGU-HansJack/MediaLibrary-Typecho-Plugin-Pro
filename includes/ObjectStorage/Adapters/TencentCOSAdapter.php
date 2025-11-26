@@ -17,7 +17,14 @@ class TencentCOSAdapter extends AbstractAdapter
         $bucket = $this->getConfig('bucket');
 
         if (!$secretId || !$secretKey || !$region || !$bucket) {
-            throw new \Exception('腾讯云COS配置不完整');
+            $error = '腾讯云COS配置不完整';
+            $this->log('object_storage_init', $error, [
+                'region' => $region,
+                'bucket' => $bucket,
+                'has_secret_id' => !empty($secretId),
+                'has_secret_key' => !empty($secretKey)
+            ], 'error');
+            throw new \Exception($error);
         }
 
         // 检查SDK是否已加载
@@ -26,8 +33,15 @@ class TencentCOSAdapter extends AbstractAdapter
             $sdkPath = __DIR__ . '/../../vendor/tencent-cos/cos-sdk-v5-7.phar';
             if (file_exists($sdkPath)) {
                 require_once $sdkPath;
+                $this->log('object_storage_init', '腾讯云COS SDK加载成功', [
+                    'sdk_path' => $sdkPath
+                ], 'info');
             } else {
-                throw new \Exception('腾讯云COS SDK未安装，SDK路径: ' . $sdkPath);
+                $error = '腾讯云COS SDK未安装，SDK路径: ' . $sdkPath;
+                $this->log('object_storage_init', $error, [
+                    'sdk_path' => $sdkPath
+                ], 'error');
+                throw new \Exception($error);
             }
         }
 
@@ -39,8 +53,18 @@ class TencentCOSAdapter extends AbstractAdapter
                     'secretKey' => $secretKey
                 ]
             ]);
+            $this->log('object_storage_init', '腾讯云COS客户端初始化成功', [
+                'region' => $region,
+                'bucket' => $bucket
+            ], 'info');
         } catch (\Exception $e) {
-            throw new \Exception('腾讯云COS初始化失败: ' . $e->getMessage());
+            $error = '腾讯云COS初始化失败: ' . $e->getMessage();
+            $this->log('object_storage_init', $error, [
+                'region' => $region,
+                'bucket' => $bucket,
+                'error' => $e->getMessage()
+            ], 'error');
+            throw new \Exception($error);
         }
     }
 
@@ -56,13 +80,17 @@ class TencentCOSAdapter extends AbstractAdapter
                 fopen($localPath, 'rb')
             );
 
+            $url = $this->getUrl($remotePath);
+            $this->logUpload($localPath, $remotePath, true, '', ['url' => $url]);
+
             return [
                 'success' => true,
-                'url' => $this->getUrl($remotePath),
+                'url' => $url,
                 'error' => ''
             ];
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logUpload($localPath, $remotePath, false, $e->getMessage());
             return [
                 'success' => false,
                 'url' => '',
@@ -82,9 +110,11 @@ class TencentCOSAdapter extends AbstractAdapter
                 'Key' => $remotePath
             ]);
 
+            $this->logDelete($remotePath, true);
             return ['success' => true, 'error' => ''];
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
+            $this->logDelete($remotePath, false, $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -129,11 +159,17 @@ class TencentCOSAdapter extends AbstractAdapter
             $bucket = $this->getConfig('bucket');
             $this->client->headBucket(['Bucket' => $bucket]);
 
+            $this->logConnectionTest(true, '连接测试成功', ['bucket' => $bucket]);
             return [
                 'success' => true,
                 'message' => '连接成功'
             ];
         } catch (\Exception $e) {
+            $bucket = $this->getConfig('bucket');
+            $this->logConnectionTest(false, '连接测试失败: ' . $e->getMessage(), [
+                'bucket' => $bucket,
+                'error' => $e->getMessage()
+            ]);
             return [
                 'success' => false,
                 'message' => '连接失败: ' . $e->getMessage()
