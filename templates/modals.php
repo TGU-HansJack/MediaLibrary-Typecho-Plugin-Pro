@@ -18,6 +18,8 @@
                         'available' => true
                     )
                 );
+
+                // 添加 WebDAV 存储选项
                 if (!empty($webdavStatus['enabled'])) {
                     $uploadStorageOptions[] = array(
                         'value' => 'webdav',
@@ -26,6 +28,18 @@
                         'available' => !empty($webdavStatus['configured']) && !empty($webdavStatus['connected'])
                     );
                 }
+
+                // 添加对象存储选项
+                $objectStorageStatus = MediaLibrary_PanelHelper::getObjectStorageStatus();
+                if (!empty($objectStorageStatus) && $objectStorageStatus['class'] !== 'disabled') {
+                    $uploadStorageOptions[] = array(
+                        'value' => 'object_storage',
+                        'label' => $objectStorageStatus['name'],
+                        'description' => $objectStorageStatus['description'],
+                        'available' => $objectStorageStatus['class'] === 'active'
+                    );
+                }
+
                 $hasDefaultUploadStorage = false;
                 foreach ($uploadStorageOptions as $storageOption) {
                     if ($storageOption['value'] === $defaultUploadStorage && !empty($storageOption['available'])) {

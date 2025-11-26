@@ -770,6 +770,15 @@ class MediaLibrary_AjaxHandler
                 // 获取文件URL
                 $fileUrl = $result['url'];
 
+                // 获取存储类型
+                $storageType = $configOptions['storageType'] ?? 'unknown';
+
+                // 构建存储标识（如果是腾讯云COS，添加额外的cos标识）
+                $storageTags = ['object_storage'];
+                if ($storageType === 'tencent_cos') {
+                    $storageTags[] = 'cos';
+                }
+
                 // 保存到数据库
                 $attachmentData = [
                     'name' => $file['name'],
@@ -779,9 +788,11 @@ class MediaLibrary_AjaxHandler
                     'type' => $file['type'],
                     'mime' => $file['type'],
                     'storage' => 'object_storage',
+                    'storage_type' => $storageType,
+                    'storage_tags' => $storageTags,
                     'object_storage_path' => $remotePath,
                     'object_storage_url' => $fileUrl,
-                    'object_storage_type' => $configOptions['storageType'] ?? 'unknown'
+                    'has_local_backup' => $storageManager->shouldSaveLocal()
                 ];
 
                 $insertData = [

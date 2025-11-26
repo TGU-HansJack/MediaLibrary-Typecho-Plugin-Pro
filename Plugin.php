@@ -389,27 +389,54 @@ jQuery(function($) {
     // 对象存储配置动态显示/隐藏
     function toggleStorageOptions() {
         var selectedType = $("select[name=\\"storageType\\"]").val();
+        console.log("选中的存储类型:", selectedType);
+
+        // 查找所有带有 data-storage-type 属性的输入框
+        var $inputs = $("input[data-storage-type]");
+        console.log("找到的输入框数量:", $inputs.length);
 
         // 隐藏所有存储配置项
-        $("input[data-storage-type]").each(function() {
-            $(this).closest("li.typecho-option").hide();
+        $inputs.each(function() {
+            var $input = $(this);
+            var storageType = $input.attr("data-storage-type");
+            // 尝试多种选择器找到父级 li 元素
+            var $parent = $input.closest("li");
+            if (!$parent.length) {
+                $parent = $input.parent().closest("li");
+            }
+            if ($parent.length) {
+                $parent.hide();
+                console.log("隐藏配置项:", storageType, $parent[0]);
+            }
         });
 
         // 显示选中的存储配置项
         if (selectedType) {
             $("input[data-storage-type=\\"" + selectedType + "\\"]").each(function() {
-                $(this).closest("li.typecho-option").show();
+                var $input = $(this);
+                var $parent = $input.closest("li");
+                if (!$parent.length) {
+                    $parent = $input.parent().closest("li");
+                }
+                if ($parent.length) {
+                    $parent.show();
+                    console.log("显示配置项:", selectedType, $parent[0]);
+                }
             });
         }
     }
 
     // 监听存储类型下拉框变化
     $("select[name=\\"storageType\\"]").on("change", function() {
+        console.log("存储类型改变");
         toggleStorageOptions();
     });
 
-    // 页面加载时执行一次
-    toggleStorageOptions();
+    // 页面加载时稍微延迟执行，确保DOM完全加载
+    setTimeout(function() {
+        console.log("初始化对象存储配置显示");
+        toggleStorageOptions();
+    }, 100);
 
     var $copyBtn = $("#ml-copy-log-btn");
     if ($copyBtn.length) {

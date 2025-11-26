@@ -171,22 +171,28 @@ class MediaLibrary_PanelHelper
         }
 
         // 存储类型筛选
-        // WebDAV 文件在上传时会在 text 字段中添加 'storage' => 'webdav' 标记
+        // WebDAV 和对象存储文件在上传时会在 text 字段中添加相应的 storage 标记
         $adapterName = method_exists($db, 'getAdapterName') ? strtolower($db->getAdapterName()) : 'unknown';
         $supportsBinaryLike = strpos($adapterName, 'mysql') !== false;
         $likeOperator = $supportsBinaryLike ? 'LIKE BINARY' : 'LIKE';
         $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
+        $objectStorageMarker = '%s:7:"storage";s:14:"object_storage"%';
 
         if ($storage !== 'all') {
             if ($storage === 'webdav') {
                 // 筛选 WebDAV 文件：查找 text 字段包含 webdav 存储标记的文件
                 $select->where("table.contents.text {$likeOperator} ?", $webdavMarker);
+            } elseif ($storage === 'object_storage') {
+                // 筛选对象存储文件：查找 text 字段包含 object_storage 存储标记的文件
+                $select->where("table.contents.text {$likeOperator} ?", $objectStorageMarker);
             } elseif ($storage === 'local') {
-                // 筛选本地文件：排除带有 webdav 标记的文件，同时允许 text 为空
-                $likeExpression = "table.contents.text {$likeOperator} ?";
+                // 筛选本地文件：排除带有 webdav 和 object_storage 标记的文件，同时允许 text 为空
+                $likeExpressionWebdav = "table.contents.text {$likeOperator} ?";
+                $likeExpressionObjectStorage = "table.contents.text {$likeOperator} ?";
                 $select->where(
-                    "(table.contents.text IS NULL OR table.contents.text = '' OR ({$likeExpression}) = 0)",
-                    $webdavMarker
+                    "(table.contents.text IS NULL OR table.contents.text = '' OR (({$likeExpressionWebdav}) = 0 AND ({$likeExpressionObjectStorage}) = 0))",
+                    $webdavMarker,
+                    $objectStorageMarker
                 );
             }
         }
@@ -280,47 +286,67 @@ class MediaLibrary_PanelHelper
             if (isset($attachmentData['path']) && !empty($attachmentData['path'])) {
                 $hasExternalDomain = !empty($configOptions['webdavExternalDomain']);
                 $isWebDAVStorage = isset($attachmentData['storage']) && $attachmentData['storage'] === 'webdav';
+                $isObjectStorage = isset($attachmentData['storage']) && $attachmentData['storage'] === 'object_storage';
                 $hasWebDAVPath = !empty($attachmentData['webdav_path']);
 
-                // 检查文件路径是否在 WebDAV 本地文件夹下
-                $isInWebDAVFolder = false;
-                if (!empty($configOptions['webdavLocalPath'])) {
-                    $webdavLocalPath = rtrim($configOptions['webdavLocalPath'], '/\\');
-                    $rootDir = __TYPECHO_ROOT_DIR__;
-                    // 将本地路径转换为相对于网站根目录的路径
-                    if (strpos($webdavLocalPath, $rootDir) === 0) {
-                        $webdavWebPath = substr($webdavLocalPath, strlen($rootDir));
-                        $webdavWebPath = str_replace('\\', '/', trim($webdavWebPath, '/\\'));
-                        $filePath = ltrim($attachmentData['path'], '/');
-                        $isInWebDAVFolder = strpos($filePath, $webdavWebPath) === 0;
+                // 处理对象存储文件的 URL
+                if ($isObjectStorage) {
+                    // 如果有对象存储 URL，优先使用
+                    if (!empty($attachmentData['object_storage_url'])) {
+                        $attachment['url'] = $attachmentData['object_storage_url'];
+                        $attachment['hasValidUrl'] = true;
+                    }
+                    // 如果没有对象存储 URL 但有本地备份，使用本地路径
+                    elseif (!empty($attachmentData['has_local_backup']) && !empty($attachmentData['path'])) {
+                        $attachment['url'] = Typecho_Common::url($attachmentData['path'], Typecho_Widget::widget('Widget_Options')->siteUrl);
+                        $attachment['hasValidUrl'] = true;
+                    } else {
+                        $attachment['url'] = '';
+                        $attachment['hasValidUrl'] = false;
                     }
                 }
-
-                $shouldPreferExternal = $hasExternalDomain && ($isWebDAVStorage || $hasWebDAVPath || $isInWebDAVFolder);
-
-                if ($shouldPreferExternal) {
-                    $relative = $hasWebDAVPath ? ltrim($attachmentData['webdav_path'], '/') : ltrim($attachmentData['path'], '/');
-                    // 如果文件在 WebDAV 文件夹下，需要移除文件夹前缀
-                    if ($isInWebDAVFolder && !$hasWebDAVPath && !empty($configOptions['webdavLocalPath'])) {
-                        $rootDir = __TYPECHO_ROOT_DIR__;
+                // 处理 WebDAV 文件的 URL
+                else {
+                    // 检查文件路径是否在 WebDAV 本地文件夹下
+                    $isInWebDAVFolder = false;
+                    if (!empty($configOptions['webdavLocalPath'])) {
                         $webdavLocalPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+                        $rootDir = __TYPECHO_ROOT_DIR__;
+                        // 将本地路径转换为相对于网站根目录的路径
                         if (strpos($webdavLocalPath, $rootDir) === 0) {
                             $webdavWebPath = substr($webdavLocalPath, strlen($rootDir));
-                            $webdavWebPath = str_replace('\\', '/', trim($webdavWebPath, '/\\')) . '/';
-                            $relative = ltrim(substr($relative, strlen($webdavWebPath)), '/');
+                            $webdavWebPath = str_replace('\\', '/', trim($webdavWebPath, '/\\'));
+                            $filePath = ltrim($attachmentData['path'], '/');
+                            $isInWebDAVFolder = strpos($filePath, $webdavWebPath) === 0;
                         }
                     }
-                    $externalUrl = self::buildWebDAVFileUrl($relative, $configOptions);
-                } else {
-                    $externalUrl = '';
-                }
 
-                if ($shouldPreferExternal && $externalUrl !== '') {
-                    $attachment['url'] = $externalUrl;
-                    $attachment['hasValidUrl'] = true;
-                } else {
-                    $attachment['url'] = Typecho_Common::url($attachmentData['path'], Typecho_Widget::widget('Widget_Options')->siteUrl);
-                    $attachment['hasValidUrl'] = true;
+                    $shouldPreferExternal = $hasExternalDomain && ($isWebDAVStorage || $hasWebDAVPath || $isInWebDAVFolder);
+
+                    if ($shouldPreferExternal) {
+                        $relative = $hasWebDAVPath ? ltrim($attachmentData['webdav_path'], '/') : ltrim($attachmentData['path'], '/');
+                        // 如果文件在 WebDAV 文件夹下，需要移除文件夹前缀
+                        if ($isInWebDAVFolder && !$hasWebDAVPath && !empty($configOptions['webdavLocalPath'])) {
+                            $rootDir = __TYPECHO_ROOT_DIR__;
+                            $webdavLocalPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+                            if (strpos($webdavLocalPath, $rootDir) === 0) {
+                                $webdavWebPath = substr($webdavLocalPath, strlen($rootDir));
+                                $webdavWebPath = str_replace('\\', '/', trim($webdavWebPath, '/\\')) . '/';
+                                $relative = ltrim(substr($relative, strlen($webdavWebPath)), '/');
+                            }
+                        }
+                        $externalUrl = self::buildWebDAVFileUrl($relative, $configOptions);
+                    } else {
+                        $externalUrl = '';
+                    }
+
+                    if ($shouldPreferExternal && $externalUrl !== '') {
+                        $attachment['url'] = $externalUrl;
+                        $attachment['hasValidUrl'] = true;
+                    } else {
+                        $attachment['url'] = Typecho_Common::url($attachmentData['path'], Typecho_Widget::widget('Widget_Options')->siteUrl);
+                        $attachment['hasValidUrl'] = true;
+                    }
                 }
             } else {
                 $attachment['url'] = '';
@@ -876,16 +902,165 @@ class MediaLibrary_PanelHelper
             'description' => $webdavDesc
         ];
 
+        // 对象存储状态检测
+        $objectStorageStatus = self::getObjectStorageStatus();
         $list[] = [
-            'key' => 'object',
-            'name' => '对象存储',
-            'icon' => '🌐',
-            'class' => 'disabled',
-            'badge' => '开发中',
-            'description' => '后续版本将提供常见对象存储适配'
+            'key' => 'object_storage',
+            'name' => $objectStorageStatus['name'],
+            'icon' => $objectStorageStatus['icon'],
+            'class' => $objectStorageStatus['class'],
+            'badge' => $objectStorageStatus['badge'],
+            'description' => $objectStorageStatus['description']
         ];
 
         return $list;
+    }
+
+    /**
+     * 获取对象存储状态
+     */
+    public static function getObjectStorageStatus()
+    {
+        $configOptions = self::getPluginConfig();
+
+        // 检查是否启用对象存储
+        $enabled = isset($configOptions['enableObjectStorage'])
+            && is_array($configOptions['enableObjectStorage'])
+            && in_array('1', $configOptions['enableObjectStorage']);
+
+        if (!$enabled) {
+            return [
+                'name' => '对象存储',
+                'icon' => '🌐',
+                'class' => 'disabled',
+                'badge' => '未启用',
+                'description' => '未启用对象存储功能'
+            ];
+        }
+
+        // 获取存储类型
+        $storageType = isset($configOptions['storageType']) ? $configOptions['storageType'] : 'tencent_cos';
+
+        // 存储类型映射
+        $typeMap = [
+            'tencent_cos' => ['name' => '腾讯云COS', 'icon' => '☁️'],
+            'aliyun_oss' => ['name' => '阿里云OSS', 'icon' => '☁️'],
+            'qiniu_kodo' => ['name' => '七牛云Kodo', 'icon' => '☁️'],
+            'upyun_uss' => ['name' => '又拍云USS', 'icon' => '☁️'],
+            'baidu_bos' => ['name' => '百度云BOS', 'icon' => '☁️'],
+            'huawei_obs' => ['name' => '华为云OBS', 'icon' => '☁️'],
+            'lskypro' => ['name' => 'LskyPro', 'icon' => '🌐']
+        ];
+
+        $typeInfo = isset($typeMap[$storageType]) ? $typeMap[$storageType] : ['name' => '对象存储', 'icon' => '🌐'];
+
+        // 检查配置是否完整
+        $configured = self::checkObjectStorageConfigured($storageType, $configOptions);
+
+        if (!$configured) {
+            return [
+                'name' => $typeInfo['name'],
+                'icon' => $typeInfo['icon'],
+                'class' => 'disabled',
+                'badge' => '未配置',
+                'description' => $typeInfo['name'] . ' 配置不完整，请检查配置'
+            ];
+        }
+
+        // 尝试测试连接
+        try {
+            require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ObjectStorageManager.php';
+            $db = Typecho_Db::get();
+            $storageManager = new MediaLibrary_ObjectStorageManager($db, $configOptions);
+
+            if ($storageManager->isEnabled()) {
+                $testResult = $storageManager->testConnection();
+
+                if ($testResult['success']) {
+                    return [
+                        'name' => $typeInfo['name'],
+                        'icon' => $typeInfo['icon'],
+                        'class' => 'active',
+                        'badge' => '已连接',
+                        'description' => $typeInfo['name'] . ' 连接正常'
+                    ];
+                } else {
+                    return [
+                        'name' => $typeInfo['name'],
+                        'icon' => $typeInfo['icon'],
+                        'class' => 'error',
+                        'badge' => '连接失败',
+                        'description' => $typeInfo['name'] . ' 连接失败: ' . ($testResult['message'] ?? '未知错误')
+                    ];
+                }
+            }
+        } catch (Exception $e) {
+            return [
+                'name' => $typeInfo['name'],
+                'icon' => $typeInfo['icon'],
+                'class' => 'error',
+                'badge' => '配置错误',
+                'description' => $typeInfo['name'] . ' 初始化失败: ' . $e->getMessage()
+            ];
+        }
+
+        return [
+            'name' => $typeInfo['name'],
+            'icon' => $typeInfo['icon'],
+            'class' => 'active',
+            'badge' => '已配置',
+            'description' => $typeInfo['name'] . ' 已配置'
+        ];
+    }
+
+    /**
+     * 检查对象存储配置是否完整
+     */
+    private static function checkObjectStorageConfigured($storageType, $configOptions)
+    {
+        switch ($storageType) {
+            case 'tencent_cos':
+                return !empty($configOptions['cosSecretId'])
+                    && !empty($configOptions['cosSecretKey'])
+                    && !empty($configOptions['cosRegion'])
+                    && !empty($configOptions['cosBucket']);
+
+            case 'aliyun_oss':
+                return !empty($configOptions['ossAccessKeyId'])
+                    && !empty($configOptions['ossAccessKeySecret'])
+                    && !empty($configOptions['ossEndpoint'])
+                    && !empty($configOptions['ossBucket']);
+
+            case 'qiniu_kodo':
+                return !empty($configOptions['qiniuAccessKey'])
+                    && !empty($configOptions['qiniuSecretKey'])
+                    && !empty($configOptions['qiniuBucket'])
+                    && !empty($configOptions['qiniuDomain']);
+
+            case 'upyun_uss':
+                return !empty($configOptions['upyunBucketName'])
+                    && !empty($configOptions['upyunOperatorName'])
+                    && !empty($configOptions['upyunOperatorPassword']);
+
+            case 'baidu_bos':
+                return !empty($configOptions['bosAccessKeyId'])
+                    && !empty($configOptions['bosSecretAccessKey'])
+                    && !empty($configOptions['bosEndpoint'])
+                    && !empty($configOptions['bosBucket']);
+
+            case 'huawei_obs':
+                return !empty($configOptions['obsAccessKey'])
+                    && !empty($configOptions['obsSecretKey'])
+                    && !empty($configOptions['obsEndpoint'])
+                    && !empty($configOptions['obsBucket']);
+
+            case 'lskypro':
+                return !empty($configOptions['lskyproApiUrl'])
+                    && !empty($configOptions['lskyproToken']);
+
+            default:
+                return false;
+        }
     }
 
     /**
@@ -928,15 +1103,20 @@ class MediaLibrary_PanelHelper
         $supportsBinaryLike = strpos($adapterName, 'mysql') !== false;
         $likeOperator = $supportsBinaryLike ? 'LIKE BINARY' : 'LIKE';
         $webdavMarker = '%s:7:"storage";s:6:"webdav"%';
+        $objectStorageMarker = '%s:7:"storage";s:14:"object_storage"%';
 
         if ($storage !== 'all') {
             if ($storage === 'webdav') {
                 $baseQuery->where("table.contents.text {$likeOperator} ?", $webdavMarker);
+            } elseif ($storage === 'object_storage') {
+                $baseQuery->where("table.contents.text {$likeOperator} ?", $objectStorageMarker);
             } elseif ($storage === 'local') {
-                $likeExpression = "table.contents.text {$likeOperator} ?";
+                $likeExpressionWebdav = "table.contents.text {$likeOperator} ?";
+                $likeExpressionObjectStorage = "table.contents.text {$likeOperator} ?";
                 $baseQuery->where(
-                    "(table.contents.text IS NULL OR table.contents.text = '' OR ({$likeExpression}) = 0)",
-                    $webdavMarker
+                    "(table.contents.text IS NULL OR table.contents.text = '' OR (({$likeExpressionWebdav}) = 0 AND ({$likeExpressionObjectStorage}) = 0))",
+                    $webdavMarker,
+                    $objectStorageMarker
                 );
             }
         }

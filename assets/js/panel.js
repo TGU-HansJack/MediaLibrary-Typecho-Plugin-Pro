@@ -1684,7 +1684,12 @@ escapeHtml: function(text) {
                 }
             }
             var value = fallbackValue || (input ? input.value : '');
-            return value === 'webdav' ? 'WebDAV' : '本地存储';
+            if (value === 'webdav') {
+                return 'WebDAV';
+            } else if (value === 'object_storage') {
+                return '对象存储';
+            }
+            return '本地存储';
         };
 
         var initialCheckedInput = document.querySelector('input[name="upload-storage"]:checked:not(:disabled)');
