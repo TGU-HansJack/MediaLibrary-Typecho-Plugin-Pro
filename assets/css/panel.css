@@ -3041,3 +3041,463 @@
         border-color: #30363d;
     }
 }
+
+/* ========================================
+   完整暗色模式适配 - 模态框与表单组件
+   ======================================== */
+@media (prefers-color-scheme: dark) {
+    /* 模态框 */
+    .modal-dialog {
+        background: #161b22;
+        border-color: #30363d;
+    }
+
+    .modal-header {
+        background: #0d1117;
+        border-bottom-color: #30363d;
+    }
+
+    .modal-header h3 {
+        color: #c9d1d9;
+    }
+
+    .modal-close {
+        color: #7d8590;
+    }
+
+    .modal-close:hover {
+        background: #21262d;
+        color: #c9d1d9;
+    }
+
+    .modal-body {
+        background: #161b22;
+        color: #c9d1d9;
+    }
+
+    .modal-footer {
+        background: #0d1117;
+        border-top-color: #30363d;
+    }
+
+    /* 图片预览模态框 */
+    .preview-modal .modal-dialog.image-preview {
+        background: #0d1117 !important;
+    }
+
+    .preview-modal .modal-dialog.image-preview .modal-body {
+        background: #0d1117 !important;
+    }
+
+    /* 文件信息表格 */
+    .file-info-table td {
+        border-bottom-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .file-info-table td:first-child {
+        color: #7d8590;
+    }
+
+    .file-info-table input[type="text"] {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .file-info-table input[type="text"]:focus {
+        border-color: #58a6ff;
+    }
+
+    .detailed-info {
+        border-top-color: #30363d;
+    }
+
+    .detailed-info h4 {
+        color: #c9d1d9;
+    }
+
+    .detailed-info td {
+        border-bottom-color: #21262d;
+        color: #c9d1d9;
+    }
+
+    .detailed-info td:first-child {
+        color: #7d8590;
+    }
+
+    /* 上传存储选择 */
+    .upload-storage-control {
+        border-color: #30363d;
+        background: #161b22;
+    }
+
+    .upload-storage-label {
+        color: #c9d1d9;
+    }
+
+    .storage-pill {
+        border-color: #30363d;
+        background: #0d1117;
+    }
+
+    .storage-pill:not(.disabled):hover {
+        border-color: #58a6ff;
+        box-shadow: 0 2px 6px rgba(88, 166, 255, 0.15);
+    }
+
+    .storage-pill.active {
+        border-color: #58a6ff;
+        box-shadow: 0 2px 6px rgba(88, 166, 255, 0.2);
+        background: #161b22;
+    }
+
+    .storage-pill-name {
+        color: #c9d1d9;
+    }
+
+    .storage-pill.active .storage-pill-name {
+        color: #58a6ff;
+    }
+
+    .storage-pill-desc {
+        color: #7d8590;
+    }
+
+    .storage-pill input:checked {
+        accent-color: #58a6ff;
+    }
+
+    .upload-storage-hint {
+        color: #7d8590;
+    }
+
+    /* 上传区域 */
+    .upload-area {
+        border-color: #30363d;
+        background: #0d1117;
+    }
+
+    .upload-area:hover {
+        border-color: #58a6ff;
+        background: #161b22;
+    }
+
+    .upload-area.dragover {
+        border-color: #58a6ff;
+        background: #1c2d41;
+    }
+
+    .upload-icon {
+        color: #7d8590;
+    }
+
+    .upload-text {
+        color: #c9d1d9;
+    }
+
+    .upload-hint {
+        color: #7d8590;
+    }
+
+    .progress-bar {
+        background: #30363d;
+    }
+
+    .progress-fill {
+        background: #58a6ff;
+    }
+
+    /* 压缩设置 */
+    .compress-settings {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .compress-settings h4 {
+        color: #c9d1d9;
+    }
+
+    .form-group label {
+        color: #c9d1d9;
+    }
+
+    .form-group select {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .form-group select:focus {
+        border-color: #58a6ff;
+    }
+
+    .quality-value {
+        color: #58a6ff;
+    }
+
+    .radio-group label {
+        color: #c9d1d9;
+    }
+
+    /* 智能建议 */
+    .smart-suggestion {
+        background: linear-gradient(135deg, #1c2d41 0%, #0d1117 100%);
+        border-color: #30363d;
+    }
+
+    .smart-suggestion h5 {
+        color: #58a6ff;
+    }
+
+    .suggestion-content {
+        color: #c9d1d9;
+    }
+
+    .suggestion-actions button {
+        border-color: #58a6ff;
+        background: #0d1117;
+        color: #58a6ff;
+    }
+
+    .suggestion-actions button:hover {
+        background: #58a6ff;
+        color: #ffffff;
+    }
+
+    /* 隐私检测结果 */
+    .privacy-item {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .privacy-item.has-privacy {
+        border-color: #d29922;
+        background: #2d2006;
+    }
+
+    .privacy-item h5 {
+        color: #c9d1d9;
+    }
+
+    .privacy-info {
+        color: #7d8590;
+    }
+
+    .privacy-info strong {
+        color: #c9d1d9;
+    }
+
+    .privacy-actions button {
+        border-color: #30363d;
+        background: #21262d;
+        color: #c9d1d9;
+    }
+
+    .privacy-actions button:hover {
+        background: #30363d;
+        border-color: #8b949e;
+    }
+
+    .privacy-actions button.btn-warning {
+        background: #d29922;
+        border-color: #d29922;
+        color: #ffffff;
+    }
+
+    .privacy-actions button.btn-warning:hover {
+        background: #bb8009;
+        border-color: #bb8009;
+    }
+
+    /* 按钮样式 */
+    .btn-warning {
+        background-color: #d29922;
+        border-color: #bb8009;
+    }
+
+    .btn-warning:hover {
+        background-color: #bb8009;
+        border-color: #9e6a00;
+    }
+
+    /* 选择框下拉箭头 */
+    .media-toolbar select.form-control {
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8590' stroke-width='2'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    }
+
+    /* WebDAV 面板额外样式 */
+    .webdav-panel {
+        background: #161b22;
+        border-color: #30363d;
+    }
+
+    .webdav-title h3 {
+        color: #c9d1d9;
+    }
+
+    .webdav-list {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .webdav-table th,
+    .webdav-table td {
+        border-bottom-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .webdav-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .webdav-entry-name {
+        color: #c9d1d9;
+    }
+
+    .webdav-dir-link {
+        color: #58a6ff;
+    }
+
+    .webdav-dir-link:hover {
+        color: #79c0ff;
+    }
+
+    .webdav-empty {
+        color: #7d8590;
+    }
+
+    .webdav-btn-delete,
+    .webdav-btn-copy-url,
+    .webdav-btn-sync {
+        border-color: #30363d;
+        background: #21262d;
+        color: #c9d1d9;
+    }
+
+    .webdav-btn-delete:hover {
+        background: #f85149;
+        color: #ffffff;
+        border-color: #f85149;
+    }
+
+    .webdav-btn-copy-url:hover {
+        background: #58a6ff;
+        color: #ffffff;
+        border-color: #58a6ff;
+    }
+
+    .webdav-btn-sync:hover {
+        background: #3fb950;
+        color: #ffffff;
+        border-color: #3fb950;
+    }
+
+    #webdav-current-path {
+        color: #58a6ff;
+    }
+
+    .sidebar-section .webdav-panel {
+        border-top-color: #30363d;
+    }
+
+    /* WebDAV 同步面板 */
+    .webdav-sync-panel {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .webdav-sync-header {
+        border-bottom-color: #30363d;
+    }
+
+    .webdav-sync-title {
+        color: #c9d1d9;
+    }
+
+    .webdav-sync-mode {
+        color: #7d8590;
+        background: #21262d;
+        border-color: #30363d;
+    }
+
+    .webdav-sync-tip {
+        color: #7d8590;
+    }
+
+    /* 空状态 */
+    .empty-state {
+        color: #7d8590;
+    }
+
+    .empty-state h3 {
+        color: #c9d1d9;
+    }
+
+    .empty-state p {
+        color: #7d8590;
+    }
+
+    /* 存储错误状态 */
+    .storage-item.error {
+        border-color: #f85149;
+        background: #2d1b1b;
+    }
+
+    .storage-item.error .storage-name {
+        color: #f85149;
+    }
+
+    /* 状态光点阴影 */
+    .storage-status-dot {
+        box-shadow: 0 0 0 2px #161b22;
+    }
+
+    /* 反馈提示 */
+    .media-feedback {
+        background: rgba(13, 17, 23, 0.9);
+    }
+
+    /* 侧边栏滚动条 */
+    .media-sidebar {
+        scrollbar-color: #30363d transparent;
+    }
+
+    .media-sidebar::-webkit-scrollbar-thumb {
+        background: #30363d;
+    }
+
+    .media-sidebar::-webkit-scrollbar-thumb:hover {
+        background: #484f58;
+    }
+
+    /* 媒体项复选框 */
+    .media-checkbox {
+        background: rgba(13, 17, 23, 0.9);
+    }
+
+    /* 媒体项操作按钮 */
+    .media-actions .btn {
+        background: rgba(13, 17, 23, 0.95);
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .media-actions .btn:hover {
+        background: #21262d;
+    }
+
+    /* 筛选图标 */
+    .filter-icon {
+        color: #7d8590;
+    }
+
+    .filter-item.active .filter-icon {
+        color: #58a6ff;
+    }
+
+    /* 存储空状态 */
+    .storage-empty {
+        color: #7d8590;
+    }
+}

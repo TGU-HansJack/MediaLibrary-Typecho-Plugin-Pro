@@ -747,3 +747,313 @@
         display: none;
     }
 }
+
+/* ========================================
+   浏览器暗色模式适配 - 文章编辑页媒体库
+   ======================================== */
+@media (prefers-color-scheme: dark) {
+    /* 主容器 */
+    .media-library-widget {
+        background: #161b22;
+        border-color: #30363d;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 头部 */
+    .media-library-header {
+        background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+        border-bottom-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    /* 搜索框 */
+    .media-library-search {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .media-library-search:focus {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+    }
+
+    .media-library-search::placeholder {
+        color: #7d8590;
+    }
+
+    /* 内容区域 */
+    .media-library-content {
+        background: #161b22;
+    }
+
+    /* 网格滚动条 */
+    .media-library-grid::-webkit-scrollbar-track {
+        background: #0d1117;
+    }
+
+    .media-library-grid::-webkit-scrollbar-thumb {
+        background: #30363d;
+    }
+
+    .media-library-grid::-webkit-scrollbar-thumb:hover {
+        background: #484f58;
+    }
+
+    /* 媒体项目 */
+    .media-library-item,
+    .media-item {
+        background: #0d1117;
+        border-color: #30363d;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .media-library-item:hover,
+    .media-item:hover {
+        border-color: #58a6ff;
+        box-shadow: 0 2px 8px rgba(88, 166, 255, 0.15);
+    }
+
+    .media-library-item.selected,
+    .media-item.selected {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+        background: #1c2d41;
+    }
+
+    /* 预览区域 */
+    .media-library-preview,
+    .media-preview {
+        background: linear-gradient(135deg, #21262d 0%, #161b22 100%);
+        border-bottom-color: #30363d;
+    }
+
+    .media-library-preview .file-icon,
+    .media-preview .file-icon {
+        color: #7d8590;
+    }
+
+    /* 标题和元信息 */
+    .media-library-title,
+    .media-title {
+        background: #0d1117;
+        color: #c9d1d9;
+    }
+
+    .media-meta {
+        color: #7d8590;
+    }
+
+    .media-info {
+        background: #0d1117;
+    }
+
+    /* 空状态 */
+    .media-empty {
+        color: #7d8590;
+    }
+
+    .media-empty p {
+        color: #c9d1d9;
+    }
+
+    .media-empty button {
+        background: linear-gradient(135deg, #238636 0%, #1a7f37 100%);
+        box-shadow: 0 1px 3px rgba(35, 134, 54, 0.2);
+    }
+
+    .media-empty button:hover {
+        background: linear-gradient(135deg, #2ea043 0%, #238636 100%);
+        box-shadow: 0 2px 6px rgba(35, 134, 54, 0.3);
+    }
+
+    /* 操作链接 */
+    .media-library-actions {
+        border-top-color: #30363d;
+    }
+
+    .media-library-actions a {
+        color: #58a6ff;
+    }
+
+    .media-library-actions a:hover {
+        color: #79c0ff;
+    }
+
+    /* 复制模态框 */
+    .media-copy-modal {
+        background-color: rgba(0, 0, 0, 0.7);
+    }
+
+    .media-copy-dialog {
+        background: #161b22;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .media-copy-header {
+        border-bottom-color: #30363d;
+    }
+
+    .media-copy-header h3 {
+        color: #c9d1d9;
+    }
+
+    .media-copy-close {
+        color: #7d8590;
+    }
+
+    .media-copy-close:hover {
+        color: #c9d1d9;
+        background: #21262d;
+    }
+
+    .media-copy-body {
+        background: #161b22;
+    }
+
+    .media-copy-preview {
+        background: #0d1117;
+    }
+
+    .media-copy-preview img {
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .media-copy-form label {
+        color: #c9d1d9;
+    }
+
+    .media-copy-form input,
+    .media-copy-form select,
+    .media-copy-form textarea {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .media-copy-form input:focus,
+    .media-copy-form select:focus,
+    .media-copy-form textarea:focus {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+    }
+
+    .media-copy-actions {
+        border-top-color: #30363d;
+    }
+
+    .media-copy-actions button {
+        background: #21262d;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .media-copy-actions button:hover {
+        background: #30363d;
+        border-color: #484f58;
+    }
+
+    .media-copy-actions button.primary {
+        background: linear-gradient(135deg, #238636 0%, #1a7f37 100%);
+        border-color: #238636;
+        color: #ffffff;
+    }
+
+    .media-copy-actions button.primary:hover {
+        background: linear-gradient(135deg, #2ea043 0%, #238636 100%);
+        border-color: #2ea043;
+        box-shadow: 0 2px 4px rgba(35, 134, 54, 0.3);
+    }
+
+    .copy-status {
+        color: #3fb950;
+    }
+
+    /* 全屏预览模态框 */
+    .fullscreen-preview-modal {
+        background-color: rgba(0, 0, 0, 0.95);
+    }
+
+    .fullscreen-preview-dialog.document-preview {
+        background: #161b22;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .fullscreen-preview-dialog.document-preview .fullscreen-preview-header {
+        background: #0d1117;
+        border-bottom-color: #30363d;
+    }
+
+    .fullscreen-preview-dialog.document-preview .fullscreen-preview-header h3 {
+        color: #c9d1d9;
+    }
+
+    .fullscreen-preview-close {
+        color: #7d8590;
+    }
+
+    .fullscreen-preview-close:hover {
+        color: #c9d1d9;
+        background: #21262d;
+    }
+
+    .fullscreen-preview-content {
+        background: #0d1117;
+    }
+
+    /* 压缩结果 */
+    .compress-result {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .compress-result h4 {
+        color: #c9d1d9;
+    }
+
+    .compress-result-item {
+        background: #161b22;
+        border-color: #30363d;
+    }
+
+    .compress-result-item h5 {
+        color: #7d8590;
+    }
+
+    .compress-result-item .size {
+        color: #58a6ff;
+    }
+
+    .compress-result-item .reduction {
+        color: #3fb950;
+    }
+
+    .compress-result-actions .btn {
+        background: #21262d;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    .compress-result-actions .btn:hover {
+        background: #30363d;
+        border-color: #484f58;
+    }
+
+    .compress-result-actions .btn-primary {
+        background: #238636;
+        border-color: #238636;
+        color: #ffffff;
+    }
+
+    .compress-result-actions .btn-primary:hover {
+        background: #2ea043;
+        border-color: #2ea043;
+    }
+
+    /* 移动端卡片布局适配 */
+    @media (max-width: 600px) {
+        .media-library-widget {
+            border-color: #30363d;
+        }
+    }
+}
