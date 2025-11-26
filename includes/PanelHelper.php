@@ -50,9 +50,61 @@ class MediaLibrary_PanelHelper
             }
 
             $enableWebDAV = self::normalizeCheckboxOption($config, 'enableWebDAV') ?? false;
+            $enableObjectStorage = self::normalizeCheckboxOption($config, 'enableObjectStorage') ?? false;
             $gdQuality = intval($config->gdQuality ?? 80);
             $videoQuality = intval($config->videoQuality ?? 23);
             $videoCodec = $config->videoCodec ?? 'libx264';
+
+            // 对象存储配置
+            $storageType = isset($config->storageType) ? trim($config->storageType) : 'tencent_cos';
+            $storageLocalSave = self::normalizeCheckboxOption($config, 'storageLocalSave') ?? false;
+            $storageSyncDelete = self::normalizeCheckboxOption($config, 'storageSyncDelete') ?? false;
+            $storagePathPrefix = isset($config->storagePathPrefix) ? trim($config->storagePathPrefix) : 'uploads/';
+
+            // 腾讯云COS配置
+            $cosSecretId = isset($config->cosSecretId) ? trim($config->cosSecretId) : '';
+            $cosSecretKey = isset($config->cosSecretKey) ? trim($config->cosSecretKey) : '';
+            $cosRegion = isset($config->cosRegion) ? trim($config->cosRegion) : '';
+            $cosBucket = isset($config->cosBucket) ? trim($config->cosBucket) : '';
+            $cosDomain = isset($config->cosDomain) ? trim($config->cosDomain) : '';
+
+            // 阿里云OSS配置
+            $ossAccessKeyId = isset($config->ossAccessKeyId) ? trim($config->ossAccessKeyId) : '';
+            $ossAccessKeySecret = isset($config->ossAccessKeySecret) ? trim($config->ossAccessKeySecret) : '';
+            $ossEndpoint = isset($config->ossEndpoint) ? trim($config->ossEndpoint) : '';
+            $ossBucket = isset($config->ossBucket) ? trim($config->ossBucket) : '';
+            $ossDomain = isset($config->ossDomain) ? trim($config->ossDomain) : '';
+
+            // 七牛云Kodo配置
+            $qiniuAccessKey = isset($config->qiniuAccessKey) ? trim($config->qiniuAccessKey) : '';
+            $qiniuSecretKey = isset($config->qiniuSecretKey) ? trim($config->qiniuSecretKey) : '';
+            $qiniuBucket = isset($config->qiniuBucket) ? trim($config->qiniuBucket) : '';
+            $qiniuDomain = isset($config->qiniuDomain) ? trim($config->qiniuDomain) : '';
+
+            // 又拍云USS配置
+            $upyunBucketName = isset($config->upyunBucketName) ? trim($config->upyunBucketName) : '';
+            $upyunOperatorName = isset($config->upyunOperatorName) ? trim($config->upyunOperatorName) : '';
+            $upyunOperatorPassword = isset($config->upyunOperatorPassword) ? trim($config->upyunOperatorPassword) : '';
+            $upyunDomain = isset($config->upyunDomain) ? trim($config->upyunDomain) : '';
+
+            // 百度云BOS配置
+            $bosAccessKeyId = isset($config->bosAccessKeyId) ? trim($config->bosAccessKeyId) : '';
+            $bosSecretAccessKey = isset($config->bosSecretAccessKey) ? trim($config->bosSecretAccessKey) : '';
+            $bosEndpoint = isset($config->bosEndpoint) ? trim($config->bosEndpoint) : '';
+            $bosBucket = isset($config->bosBucket) ? trim($config->bosBucket) : '';
+            $bosDomain = isset($config->bosDomain) ? trim($config->bosDomain) : '';
+
+            // 华为云OBS配置
+            $obsAccessKey = isset($config->obsAccessKey) ? trim($config->obsAccessKey) : '';
+            $obsSecretKey = isset($config->obsSecretKey) ? trim($config->obsSecretKey) : '';
+            $obsEndpoint = isset($config->obsEndpoint) ? trim($config->obsEndpoint) : '';
+            $obsBucket = isset($config->obsBucket) ? trim($config->obsBucket) : '';
+            $obsDomain = isset($config->obsDomain) ? trim($config->obsDomain) : '';
+
+            // LskyPro配置
+            $lskyproApiUrl = isset($config->lskyproApiUrl) ? trim($config->lskyproApiUrl) : '';
+            $lskyproToken = isset($config->lskyproToken) ? trim($config->lskyproToken) : '';
+            $lskyproStrategyId = isset($config->lskyproStrategyId) ? trim($config->lskyproStrategyId) : '';
 
             // WebDAV 配置
             $webdavPreset = isset($config->webdavPreset) ? trim($config->webdavPreset) : 'custom';
@@ -86,9 +138,47 @@ class MediaLibrary_PanelHelper
             $enableFFmpeg = false;
             $enableVideoCompress = false;
             $enableWebDAV = false;
+            $enableObjectStorage = false;
             $gdQuality = 80;
             $videoQuality = 23;
             $videoCodec = 'libx264';
+            // 对象存储默认值
+            $storageType = 'tencent_cos';
+            $storageLocalSave = false;
+            $storageSyncDelete = false;
+            $storagePathPrefix = 'uploads/';
+            $cosSecretId = '';
+            $cosSecretKey = '';
+            $cosRegion = '';
+            $cosBucket = '';
+            $cosDomain = '';
+            $ossAccessKeyId = '';
+            $ossAccessKeySecret = '';
+            $ossEndpoint = '';
+            $ossBucket = '';
+            $ossDomain = '';
+            $qiniuAccessKey = '';
+            $qiniuSecretKey = '';
+            $qiniuBucket = '';
+            $qiniuDomain = '';
+            $upyunBucketName = '';
+            $upyunOperatorName = '';
+            $upyunOperatorPassword = '';
+            $upyunDomain = '';
+            $bosAccessKeyId = '';
+            $bosSecretAccessKey = '';
+            $bosEndpoint = '';
+            $bosBucket = '';
+            $bosDomain = '';
+            $obsAccessKey = '';
+            $obsSecretKey = '';
+            $obsEndpoint = '';
+            $obsBucket = '';
+            $obsDomain = '';
+            $lskyproApiUrl = '';
+            $lskyproToken = '';
+            $lskyproStrategyId = '';
+            // WebDAV 默认值
             $webdavPreset = 'custom';
             $webdavLocalPath = '';
             $webdavEndpoint = '';
@@ -115,9 +205,54 @@ class MediaLibrary_PanelHelper
             'enableFFmpeg' => $enableFFmpeg,
             'enableVideoCompress' => $enableVideoCompress,
             'enableWebDAV' => $enableWebDAV,
+            'enableObjectStorage' => $enableObjectStorage ? ['1'] : [],
             'gdQuality' => $gdQuality,
             'videoQuality' => $videoQuality,
             'videoCodec' => $videoCodec,
+            // 对象存储配置
+            'storageType' => $storageType,
+            'storageLocalSave' => $storageLocalSave ? ['1'] : [],
+            'storageSyncDelete' => $storageSyncDelete ? ['1'] : [],
+            'storagePathPrefix' => $storagePathPrefix,
+            // 腾讯云COS
+            'cosSecretId' => $cosSecretId,
+            'cosSecretKey' => $cosSecretKey,
+            'cosRegion' => $cosRegion,
+            'cosBucket' => $cosBucket,
+            'cosDomain' => $cosDomain,
+            // 阿里云OSS
+            'ossAccessKeyId' => $ossAccessKeyId,
+            'ossAccessKeySecret' => $ossAccessKeySecret,
+            'ossEndpoint' => $ossEndpoint,
+            'ossBucket' => $ossBucket,
+            'ossDomain' => $ossDomain,
+            // 七牛云Kodo
+            'qiniuAccessKey' => $qiniuAccessKey,
+            'qiniuSecretKey' => $qiniuSecretKey,
+            'qiniuBucket' => $qiniuBucket,
+            'qiniuDomain' => $qiniuDomain,
+            // 又拍云USS
+            'upyunBucketName' => $upyunBucketName,
+            'upyunOperatorName' => $upyunOperatorName,
+            'upyunOperatorPassword' => $upyunOperatorPassword,
+            'upyunDomain' => $upyunDomain,
+            // 百度云BOS
+            'bosAccessKeyId' => $bosAccessKeyId,
+            'bosSecretAccessKey' => $bosSecretAccessKey,
+            'bosEndpoint' => $bosEndpoint,
+            'bosBucket' => $bosBucket,
+            'bosDomain' => $bosDomain,
+            // 华为云OBS
+            'obsAccessKey' => $obsAccessKey,
+            'obsSecretKey' => $obsSecretKey,
+            'obsEndpoint' => $obsEndpoint,
+            'obsBucket' => $obsBucket,
+            'obsDomain' => $obsDomain,
+            // LskyPro
+            'lskyproApiUrl' => $lskyproApiUrl,
+            'lskyproToken' => $lskyproToken,
+            'lskyproStrategyId' => $lskyproStrategyId,
+            // WebDAV配置
             'webdavPreset' => $webdavPreset,
             'webdavLocalPath' => $webdavLocalPath,
             'webdavEndpoint' => $webdavEndpoint,
@@ -922,6 +1057,12 @@ class MediaLibrary_PanelHelper
     public static function getObjectStorageStatus()
     {
         $configOptions = self::getPluginConfig();
+
+        // 调试输出（临时）
+        error_log('Object Storage Config Check: ' . print_r([
+            'enableObjectStorage' => $configOptions['enableObjectStorage'] ?? 'not set',
+            'storageType' => $configOptions['storageType'] ?? 'not set'
+        ], true));
 
         // 检查是否启用对象存储
         $enabled = isset($configOptions['enableObjectStorage'])
