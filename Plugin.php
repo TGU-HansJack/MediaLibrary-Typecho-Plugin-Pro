@@ -61,17 +61,15 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
      */
     public static function addMediaLibraryToWritePage()
     {
-        $pluginUrl = Helper::options()->pluginUrl . '/MediaLibrary';
-        echo '<div id="media-library-container"></div>';
-        echo '<script>
-        if (typeof jQuery !== "undefined") {
-            jQuery(document).ready(function($) {
-                $.get("' . $pluginUrl . '/write-post-media.php", function(data) {
-                    $("#media-library-container").html(data);
-                });
-            });
+        if (defined('MEDIALIBRARY_INLINE_RENDERED') && MEDIALIBRARY_INLINE_RENDERED) {
+            return;
         }
-        </script>';
+
+        define('MEDIALIBRARY_INLINE_RENDERED', true);
+
+        echo '<div id="media-library-container">';
+        include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/write-post-media.php';
+        echo '</div>';
     }
 
     /**
