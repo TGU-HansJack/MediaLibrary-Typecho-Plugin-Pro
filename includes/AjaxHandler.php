@@ -735,7 +735,8 @@ class MediaLibrary_AjaxHandler
                 $remotePath = $year . '/' . $month . '/' . $fileName;
 
                 // 创建临时本地目录（如果需要本地备份）
-                $localDir = __TYPECHO_ROOT_DIR__ . __TYPECHO_UPLOADS_DIR__ . '/' . $year . '/' . $month;
+                $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads';
+                $localDir = __TYPECHO_ROOT_DIR__ . $uploadDir . '/' . $year . '/' . $month;
                 $localPath = $localDir . '/' . $fileName;
 
                 if ($storageManager->shouldSaveLocal()) {
