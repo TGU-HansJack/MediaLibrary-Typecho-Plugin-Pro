@@ -386,6 +386,31 @@ jQuery(function($) {
         });
     }
 
+    // 对象存储配置动态显示/隐藏
+    function toggleStorageOptions() {
+        var selectedType = $("select[name=\\"storageType\\"]").val();
+
+        // 隐藏所有存储配置项
+        $("input[data-storage-type]").each(function() {
+            $(this).closest("li.typecho-option").hide();
+        });
+
+        // 显示选中的存储配置项
+        if (selectedType) {
+            $("input[data-storage-type=\\"" + selectedType + "\\"]").each(function() {
+                $(this).closest("li.typecho-option").show();
+            });
+        }
+    }
+
+    // 监听存储类型下拉框变化
+    $("select[name=\\"storageType\\"]").on("change", function() {
+        toggleStorageOptions();
+    });
+
+    // 页面加载时执行一次
+    toggleStorageOptions();
+
     var $copyBtn = $("#ml-copy-log-btn");
     if ($copyBtn.length) {
         var originalText = $copyBtn.text();
@@ -732,162 +757,193 @@ jQuery(function($) {
         $cosSecretId = new Typecho_Widget_Helper_Form_Element_Text('cosSecretId', NULL, '',
             '腾讯云COS SecretId',
             '请前往<a target="_blank" href="https://console.cloud.tencent.com/capi">腾讯云控制台</a>获取');
+        $cosSecretId->input->setAttribute('data-storage-type', 'tencent_cos');
         $form->addInput($cosSecretId);
 
         $cosSecretKey = new Typecho_Widget_Helper_Form_Element_Text('cosSecretKey', NULL, '',
             '腾讯云COS SecretKey',
             '请前往<a target="_blank" href="https://console.cloud.tencent.com/capi">腾讯云控制台</a>获取');
+        $cosSecretKey->input->setAttribute('data-storage-type', 'tencent_cos');
         $form->addInput($cosSecretKey);
 
         $cosRegion = new Typecho_Widget_Helper_Form_Element_Text('cosRegion', NULL, '',
             '腾讯云COS地域',
             '例如：ap-beijing（北京）、ap-shanghai（上海）、ap-guangzhou（广州）');
+        $cosRegion->input->setAttribute('data-storage-type', 'tencent_cos');
         $form->addInput($cosRegion);
 
         $cosBucket = new Typecho_Widget_Helper_Form_Element_Text('cosBucket', NULL, '',
             '腾讯云COS存储桶名称',
             '格式为 xxxxx-xxxxxx，请在<a target="_blank" href="https://console.cloud.tencent.com/cos/bucket">COS控制台</a>获取');
+        $cosBucket->input->setAttribute('data-storage-type', 'tencent_cos');
         $form->addInput($cosBucket);
 
         $cosDomain = new Typecho_Widget_Helper_Form_Element_Text('cosDomain', NULL, '',
             '腾讯云COS访问域名',
             '留空则使用默认域名，也可填写自定义CDN域名（需包含 http:// 或 https://）');
+        $cosDomain->input->setAttribute('data-storage-type', 'tencent_cos');
         $form->addInput($cosDomain);
 
         // 阿里云OSS配置
         $ossAccessKeyId = new Typecho_Widget_Helper_Form_Element_Text('ossAccessKeyId', NULL, '',
             '阿里云OSS AccessKey ID',
             '请前往<a target="_blank" href="https://ram.console.aliyun.com/manage/ak">阿里云控制台</a>获取');
+        $ossAccessKeyId->input->setAttribute('data-storage-type', 'aliyun_oss');
         $form->addInput($ossAccessKeyId);
 
         $ossAccessKeySecret = new Typecho_Widget_Helper_Form_Element_Text('ossAccessKeySecret', NULL, '',
             '阿里云OSS AccessKey Secret',
             '请前往<a target="_blank" href="https://ram.console.aliyun.com/manage/ak">阿里云控制台</a>获取');
+        $ossAccessKeySecret->input->setAttribute('data-storage-type', 'aliyun_oss');
         $form->addInput($ossAccessKeySecret);
 
         $ossEndpoint = new Typecho_Widget_Helper_Form_Element_Text('ossEndpoint', NULL, '',
             '阿里云OSS Endpoint',
             '例如：oss-cn-hangzhou.aliyuncs.com');
+        $ossEndpoint->input->setAttribute('data-storage-type', 'aliyun_oss');
         $form->addInput($ossEndpoint);
 
         $ossBucket = new Typecho_Widget_Helper_Form_Element_Text('ossBucket', NULL, '',
             '阿里云OSS Bucket名称',
             '请填写阿里云OSS存储空间名称');
+        $ossBucket->input->setAttribute('data-storage-type', 'aliyun_oss');
         $form->addInput($ossBucket);
 
         $ossDomain = new Typecho_Widget_Helper_Form_Element_Text('ossDomain', NULL, '',
             '阿里云OSS访问域名',
             '留空则使用默认域名，也可填写自定义域名（需包含 http:// 或 https://）');
+        $ossDomain->input->setAttribute('data-storage-type', 'aliyun_oss');
         $form->addInput($ossDomain);
 
         // 七牛云Kodo配置
         $qiniuAccessKey = new Typecho_Widget_Helper_Form_Element_Text('qiniuAccessKey', NULL, '',
             '七牛云Kodo AccessKey',
             '请前往<a target="_blank" href="https://portal.qiniu.com/user/key">七牛云控制台</a>获取');
+        $qiniuAccessKey->input->setAttribute('data-storage-type', 'qiniu_kodo');
         $form->addInput($qiniuAccessKey);
 
         $qiniuSecretKey = new Typecho_Widget_Helper_Form_Element_Text('qiniuSecretKey', NULL, '',
             '七牛云Kodo SecretKey',
             '请前往<a target="_blank" href="https://portal.qiniu.com/user/key">七牛云控制台</a>获取');
+        $qiniuSecretKey->input->setAttribute('data-storage-type', 'qiniu_kodo');
         $form->addInput($qiniuSecretKey);
 
         $qiniuBucket = new Typecho_Widget_Helper_Form_Element_Text('qiniuBucket', NULL, '',
             '七牛云Kodo Bucket名称',
             '请填写七牛云存储空间名称');
+        $qiniuBucket->input->setAttribute('data-storage-type', 'qiniu_kodo');
         $form->addInput($qiniuBucket);
 
         $qiniuDomain = new Typecho_Widget_Helper_Form_Element_Text('qiniuDomain', NULL, '',
             '七牛云Kodo访问域名',
             '必填项，请填写七牛云绑定的域名（需包含 http:// 或 https://）');
+        $qiniuDomain->input->setAttribute('data-storage-type', 'qiniu_kodo');
         $form->addInput($qiniuDomain);
 
         // 又拍云USS配置
         $upyunBucketName = new Typecho_Widget_Helper_Form_Element_Text('upyunBucketName', NULL, '',
             '又拍云USS服务名称',
             '请填写又拍云云存储服务名称');
+        $upyunBucketName->input->setAttribute('data-storage-type', 'upyun_uss');
         $form->addInput($upyunBucketName);
 
         $upyunOperatorName = new Typecho_Widget_Helper_Form_Element_Text('upyunOperatorName', NULL, '',
             '又拍云USS操作员名称',
             '请填写又拍云操作员名称');
+        $upyunOperatorName->input->setAttribute('data-storage-type', 'upyun_uss');
         $form->addInput($upyunOperatorName);
 
         $upyunOperatorPassword = new Typecho_Widget_Helper_Form_Element_Text('upyunOperatorPassword', NULL, '',
             '又拍云USS操作员密码',
             '请填写又拍云操作员密码');
+        $upyunOperatorPassword->input->setAttribute('data-storage-type', 'upyun_uss');
         $form->addInput($upyunOperatorPassword);
 
         $upyunDomain = new Typecho_Widget_Helper_Form_Element_Text('upyunDomain', NULL, '',
             '又拍云USS访问域名',
             '留空则使用默认域名，也可填写自定义域名（需包含 http:// 或 https://）');
+        $upyunDomain->input->setAttribute('data-storage-type', 'upyun_uss');
         $form->addInput($upyunDomain);
 
         // 百度云BOS配置
         $bosAccessKeyId = new Typecho_Widget_Helper_Form_Element_Text('bosAccessKeyId', NULL, '',
             '百度云BOS AccessKey ID',
             '请前往<a target="_blank" href="https://console.bce.baidu.com/iam/#/iam/accesslist">百度云控制台</a>获取');
+        $bosAccessKeyId->input->setAttribute('data-storage-type', 'baidu_bos');
         $form->addInput($bosAccessKeyId);
 
         $bosSecretAccessKey = new Typecho_Widget_Helper_Form_Element_Text('bosSecretAccessKey', NULL, '',
             '百度云BOS SecretAccessKey',
             '请前往<a target="_blank" href="https://console.bce.baidu.com/iam/#/iam/accesslist">百度云控制台</a>获取');
+        $bosSecretAccessKey->input->setAttribute('data-storage-type', 'baidu_bos');
         $form->addInput($bosSecretAccessKey);
 
         $bosEndpoint = new Typecho_Widget_Helper_Form_Element_Text('bosEndpoint', NULL, '',
             '百度云BOS Endpoint',
             '例如：bj.bcebos.com');
+        $bosEndpoint->input->setAttribute('data-storage-type', 'baidu_bos');
         $form->addInput($bosEndpoint);
 
         $bosBucket = new Typecho_Widget_Helper_Form_Element_Text('bosBucket', NULL, '',
             '百度云BOS Bucket名称',
             '请填写百度云BOS存储桶名称');
+        $bosBucket->input->setAttribute('data-storage-type', 'baidu_bos');
         $form->addInput($bosBucket);
 
         $bosDomain = new Typecho_Widget_Helper_Form_Element_Text('bosDomain', NULL, '',
             '百度云BOS访问域名',
             '留空则使用默认域名，也可填写自定义域名（需包含 http:// 或 https://）');
+        $bosDomain->input->setAttribute('data-storage-type', 'baidu_bos');
         $form->addInput($bosDomain);
 
         // 华为云OBS配置
         $obsAccessKey = new Typecho_Widget_Helper_Form_Element_Text('obsAccessKey', NULL, '',
             '华为云OBS AccessKey',
             '请前往<a target="_blank" href="https://console.huaweicloud.com/iam">华为云控制台</a>获取');
+        $obsAccessKey->input->setAttribute('data-storage-type', 'huawei_obs');
         $form->addInput($obsAccessKey);
 
         $obsSecretKey = new Typecho_Widget_Helper_Form_Element_Text('obsSecretKey', NULL, '',
             '华为云OBS SecretKey',
             '请前往<a target="_blank" href="https://console.huaweicloud.com/iam">华为云控制台</a>获取');
+        $obsSecretKey->input->setAttribute('data-storage-type', 'huawei_obs');
         $form->addInput($obsSecretKey);
 
         $obsEndpoint = new Typecho_Widget_Helper_Form_Element_Text('obsEndpoint', NULL, '',
             '华为云OBS Endpoint',
             '例如：obs.cn-north-4.myhuaweicloud.com');
+        $obsEndpoint->input->setAttribute('data-storage-type', 'huawei_obs');
         $form->addInput($obsEndpoint);
 
         $obsBucket = new Typecho_Widget_Helper_Form_Element_Text('obsBucket', NULL, '',
             '华为云OBS Bucket名称',
             '请填写华为云OBS桶名称');
+        $obsBucket->input->setAttribute('data-storage-type', 'huawei_obs');
         $form->addInput($obsBucket);
 
         $obsDomain = new Typecho_Widget_Helper_Form_Element_Text('obsDomain', NULL, '',
             '华为云OBS访问域名',
             '留空则使用默认域名，也可填写自定义域名（需包含 http:// 或 https://）');
+        $obsDomain->input->setAttribute('data-storage-type', 'huawei_obs');
         $form->addInput($obsDomain);
 
         // LskyPro配置
         $lskyproApiUrl = new Typecho_Widget_Helper_Form_Element_Text('lskyproApiUrl', NULL, '',
             'LskyPro API地址',
             '请填写LskyPro API地址，例如：https://your-lskypro.com');
+        $lskyproApiUrl->input->setAttribute('data-storage-type', 'lskypro');
         $form->addInput($lskyproApiUrl);
 
         $lskyproToken = new Typecho_Widget_Helper_Form_Element_Text('lskyproToken', NULL, '',
             'LskyPro Token',
             '请在LskyPro后台获取API Token');
+        $lskyproToken->input->setAttribute('data-storage-type', 'lskypro');
         $form->addInput($lskyproToken);
 
         $lskyproStrategyId = new Typecho_Widget_Helper_Form_Element_Text('lskyproStrategyId', NULL, '',
             'LskyPro 储存策略ID',
             '可选，留空则使用默认储存策略');
+        $lskyproStrategyId->input->setAttribute('data-storage-type', 'lskypro');
         $form->addInput($lskyproStrategyId);
 
         // 通用配置
