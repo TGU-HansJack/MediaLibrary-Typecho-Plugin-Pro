@@ -1,61 +1,168 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
-// 获取数据库实例
-$db = Typecho_Db::get();
-$options = Typecho_Widget::widget('Widget_Options');
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/FileOperations.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PanelHelper.php';
 
-// 获取最近20个附件
-$attachments = $db->fetchAll($db->select()->from('table.contents')
-    ->where('table.contents.type = ?', 'attachment')
-    ->where('table.contents.status = ?', 'publish')
-    ->order('table.contents.created', Typecho_Db::SORT_DESC)
-    ->limit(20));
+header('Content-Type: application/json; charset=utf-8');
 
-// 处理附件数据
-$mediaItems = [];
-foreach ($attachments as $attachment) {
-    $textData = isset($attachment['text']) ? $attachment['text'] : '';
-    
-    $attachmentData = [];
-    if (!empty($textData)) {
-        $unserialized = @unserialize($textData);
-        if (is_array($unserialized)) {
-            $attachmentData = $unserialized;
+try {
+    $db = Typecho_Db::get();
+
+    $page = max(1, intval(isset($_GET['page']) ? $_GET['page'] : 1));
+    $perPage = isset($_GET['per_page']) ? intval($_GET['per_page']) : 20;
+    $perPage = max(5, min(60, $perPage));
+    $keywords = trim(isset($_GET['keywords']) ? (string)$_GET['keywords'] : '');
+    $type = isset($_GET['type']) ? strtolower($_GET['type']) : 'all';
+    $storage = isset($_GET['storage']) ? strtolower($_GET['storage']) : 'all';
+
+    $mediaData = MediaLibrary_PanelHelper::getMediaList($db, $page, $perPage, $keywords, $type, $storage);
+
+    if (isset($mediaData['error']) && $mediaData['error']) {
+        throw new Exception($mediaData['error']);
+    }
+
+    $attachments = isset($mediaData['attachments']) && is_array($mediaData['attachments'])
+        ? $mediaData['attachments']
+        : array();
+    $total = isset($mediaData['total']) ? intval($mediaData['total']) : count($attachments);
+
+    $items = array();
+    foreach ($attachments as $attachment) {
+        $attachmentData = isset($attachment['attachment']) && is_array($attachment['attachment'])
+            ? $attachment['attachment']
+            : array();
+
+        $cid = isset($attachment['cid']) ? intval($attachment['cid']) : 0;
+        $path = isset($attachmentData['path']) ? (string)$attachmentData['path'] : '';
+        $url = isset($attachment['url']) ? (string)$attachment['url'] : '';
+        $hasValidUrl = isset($attachment['hasValidUrl'])
+            ? (bool)$attachment['hasValidUrl']
+            : (!empty($url));
+        $storageType = isset($attachmentData['storage']) ? strtolower($attachmentData['storage']) : 'local';
+        $filename = isset($attachmentData['name']) && $attachmentData['name'] !== ''
+            ? (string)$attachmentData['name']
+            : ($path ? basename($path) : '');
+        $title = isset($attachment['title']) && $attachment['title'] !== ''
+            ? (string)$attachment['title']
+            : ($filename !== '' ? $filename : '未命名文件');
+        $sizeBytes = isset($attachmentData['size']) ? intval($attachmentData['size']) : 0;
+        $sizeLabel = isset($attachment['size']) ? (string)$attachment['size']
+            : MediaLibrary_FileOperations::formatFileSize($sizeBytes);
+
+        $mime = isset($attachment['mime']) && $attachment['mime'] !== ''
+            ? (string)$attachment['mime']
+            : (isset($attachmentData['mime']) ? (string)$attachmentData['mime'] : 'application/octet-stream');
+        if ($mime === '' || $mime === 'application/octet-stream') {
+            $guessedMime = MediaLibrary_FileOperations::guessMimeType($filename ?: $title);
+            if ($guessedMime) {
+                $mime = $guessedMime;
+            }
         }
-    }
-    
-    $isImage = isset($attachmentData['mime']) && strpos($attachmentData['mime'], 'image/') === 0;
-    $url = '';
-    
-    if (isset($attachmentData['path'])) {
-        $url = Typecho_Common::url($attachmentData['path'], $options->siteUrl);
-    }
-    
-    $mediaItems[] = [
-        'cid' => $attachment['cid'],
-        'title' => isset($attachment['title']) ? $attachment['title'] : '未命名文件',
-        'url' => $url,
-        'isImage' => $isImage,
-        'mime' => isset($attachmentData['mime']) ? $attachmentData['mime'] : 'unknown'
-    ];
-}
 
-// 输出HTML
-if (empty($mediaItems)) {
-    echo '<div class="empty-state">没有媒体文件，请上传</div>';
-} else {
-    foreach ($mediaItems as $item) {
-        echo '<div class="editor-media-item" data-cid="' . $item['cid'] . '" data-url="' . htmlspecialchars($item['url']) . '" data-is-image="' . ($item['isImage'] ? 1 : 0) . '" data-title="' . htmlspecialchars($item['title']) . '">';
-        
-        if ($item['isImage']) {
-            echo '<div class="media-preview"><img src="' . $item['url'] . '" alt=""></div>';
-        } else {
-            echo '<div class="media-preview"><div class="file-icon">' . strtoupper(pathinfo($item['title'], PATHINFO_EXTENSION)) . '</div></div>';
+        $extension = strtolower(pathinfo($filename ?: $title, PATHINFO_EXTENSION));
+        if ($extension === '' && strpos($mime, '/') !== false) {
+            $extension = substr($mime, strpos($mime, '/') + 1);
         }
-        
-        echo '<div class="media-title">' . htmlspecialchars($item['title']) . '</div>';
-        echo '</div>';
+
+        $isImage = isset($attachment['isImage'])
+            ? (bool)$attachment['isImage']
+            : (strpos($mime, 'image/') === 0 || $extension === 'avif');
+        $isVideo = isset($attachment['isVideo'])
+            ? (bool)$attachment['isVideo']
+            : (strpos($mime, 'video/') === 0);
+        $isAudio = strpos($mime, 'audio/') === 0;
+        $isDocument = isset($attachment['isDocument'])
+            ? (bool)$attachment['isDocument']
+            : (
+                strpos($mime, 'application/pdf') === 0 ||
+                strpos($mime, 'application/msword') === 0 ||
+                strpos($mime, 'application/vnd.openxmlformats-officedocument') === 0 ||
+                strpos($mime, 'application/vnd.ms-powerpoint') === 0 ||
+                strpos($mime, 'application/vnd.ms-excel') === 0
+            );
+
+        $webdavPath = '';
+        if (isset($attachment['webdav_path'])) {
+            $webdavPath = (string)$attachment['webdav_path'];
+        } elseif (isset($attachmentData['webdav_path'])) {
+            $webdavPath = (string)$attachmentData['webdav_path'];
+        }
+
+        $objectStoragePath = isset($attachmentData['object_storage_path'])
+            ? (string)$attachmentData['object_storage_path']
+            : '';
+        $objectStorageUrl = isset($attachmentData['object_storage_url'])
+            ? (string)$attachmentData['object_storage_url']
+            : '';
+
+        $parentPost = isset($attachment['parent_post']) && is_array($attachment['parent_post'])
+            ? $attachment['parent_post']
+            : array('status' => 'unknown', 'post' => null);
+        $parentPostData = isset($parentPost['post']) && is_array($parentPost['post'])
+            ? $parentPost['post']
+            : array();
+
+        $items[] = array(
+            'cid' => $cid,
+            'title' => $title,
+            'filename' => $filename ?: $title,
+            'url' => $url,
+            'thumbnail' => ($isImage && $hasValidUrl) ? $url : '',
+            'path' => $path,
+            'mime' => $mime ?: 'application/octet-stream',
+            'extension' => $extension,
+            'is_image' => $isImage,
+            'is_video' => $isVideo,
+            'is_audio' => $isAudio,
+            'is_document' => $isDocument,
+            'size' => $sizeLabel,
+            'size_bytes' => $sizeBytes,
+            'storage' => $storageType,
+            'storage_label' => $storageType === 'webdav'
+                ? 'WebDAV'
+                : ($storageType === 'object_storage' ? '对象存储' : '本地存储'),
+            'webdav_file' => !empty($attachment['webdav_file']),
+            'webdav_path' => $webdavPath,
+            'object_storage_path' => $objectStoragePath,
+            'object_storage_url' => $objectStorageUrl,
+            'has_url' => $hasValidUrl && $url !== '',
+            'has_local_backup' => !empty($attachmentData['has_local_backup']),
+            'created' => isset($attachment['created']) ? intval($attachment['created']) : 0,
+            'created_label' => isset($attachment['created']) && $attachment['created']
+                ? date('Y-m-d H:i', intval($attachment['created']))
+                : '',
+            'parent_post' => array(
+                'status' => isset($parentPost['status']) ? $parentPost['status'] : 'unknown',
+                'title' => isset($parentPostData['title']) ? $parentPostData['title'] : '',
+                'cid' => isset($parentPostData['cid']) ? intval($parentPostData['cid']) : 0,
+                'type' => isset($parentPostData['type']) ? $parentPostData['type'] : ''
+            ),
+            'can_copy' => $hasValidUrl && $url !== ''
+        );
     }
+
+    $pageCount = $perPage > 0 ? (int)ceil($total / $perPage) : 0;
+    $hasMore = ($page * $perPage) < $total;
+
+    echo json_encode(array(
+        'success' => true,
+        'page' => $page,
+        'per_page' => $perPage,
+        'total' => $total,
+        'page_count' => $pageCount,
+        'has_more' => $hasMore,
+        'next_page' => $hasMore ? $page + 1 : null,
+        'filters' => array(
+            'keywords' => $keywords,
+            'type' => $type,
+            'storage' => $storage
+        ),
+        'items' => $items
+    ), JSON_UNESCAPED_UNICODE);
+} catch (Exception $e) {
+    echo json_encode(array(
+        'success' => false,
+        'message' => $e->getMessage()
+    ), JSON_UNESCAPED_UNICODE);
 }
-?>

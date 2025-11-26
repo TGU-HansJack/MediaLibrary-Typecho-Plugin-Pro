@@ -36,6 +36,33 @@ if (!empty($objectStorageStatus) && $objectStorageStatus['class'] !== 'disabled'
     );
 }
 
+$storageFilterOptions = array(
+    array('value' => 'all', 'label' => '全部存储'),
+    array('value' => 'local', 'label' => '本地')
+);
+
+if (!empty($webdavStatus['enabled'])) {
+    $storageFilterOptions[] = array(
+        'value' => 'webdav',
+        'label' => 'WebDAV'
+    );
+}
+
+if (!empty($objectStorageStatus) && $objectStorageStatus['class'] !== 'disabled') {
+    $storageFilterOptions[] = array(
+        'value' => 'object_storage',
+        'label' => $objectStorageStatus['name']
+    );
+}
+
+$typeFilterOptions = array(
+    array('value' => 'all', 'label' => '全部类型'),
+    array('value' => 'image', 'label' => '图片'),
+    array('value' => 'video', 'label' => '视频'),
+    array('value' => 'audio', 'label' => '音频'),
+    array('value' => 'document', 'label' => '文档')
+);
+
 $defaultUploadStorage = 'local';
 $hasDefaultUploadStorage = false;
 foreach ($uploadStorageOptions as $storageOption) {
@@ -177,12 +204,44 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     border: 1px solid var(--ml-border-muted);
     border-radius: var(--ml-radius);
     padding: 8px;
+    display: block;
+    background: var(--ml-bg-secondary);
+    scrollbar-width: thin;
+    scrollbar-color: var(--ml-border) transparent;
+    position: relative;
+}
+
+#media-library-container .media-page-group {
+    margin-bottom: 12px;
+}
+
+#media-library-container .media-page-group:last-child {
+    margin-bottom: 0;
+}
+
+#media-library-container .media-page-label {
+    font-size: 11px;
+    color: var(--ml-text-muted);
+    margin: 4px 0 6px;
+}
+
+#media-library-container .media-page-items {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
     gap: 8px;
     background: var(--ml-bg-secondary);
-    scrollbar-width: thin;
-    scrollbar-color: var(--ml-border) transparent;
+}
+
+#media-library-container .media-end-indicator {
+    text-align: center;
+    color: var(--ml-text-muted);
+    font-size: 11px;
+    padding: 6px 0;
+}
+
+#media-library-container .media-page-items .loading,
+#media-library-container .media-page-items .empty-state {
+    grid-column: 1 / -1;
 }
 
 #media-library-container .media-grid::-webkit-scrollbar {
@@ -269,6 +328,13 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     line-height: 1.3;
 }
 
+#media-library-container .editor-media-item .media-meta {
+    margin-top: 2px;
+    font-size: 10px;
+    color: var(--ml-text-muted);
+    text-align: center;
+}
+
 /* 上传模态框 */
 .ml-modal {
     position: fixed;
@@ -277,11 +343,21 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     width: 100%;
     height: 100%;
     background: rgba(27, 31, 36, 0.5);
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
     padding: 16px;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.2s ease;
+}
+
+.ml-modal.active {
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -597,6 +673,211 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     font-size: 11px;
 }
 
+.media-toolbar .toolbar-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.media-toolbar .btn-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: var(--ml-bg);
+}
+
+.media-toolbar .btn-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.media-pagination {
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.media-pagination .pager-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--ml-border);
+    background: var(--ml-bg);
+    color: var(--ml-text);
+    cursor: pointer;
+    transition: background var(--ml-transition);
+}
+
+.media-pagination .pager-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.media-pagination .pager-btn:not(:disabled):hover {
+    background: var(--ml-bg-secondary);
+}
+
+.media-library-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(13, 17, 23, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+}
+
+.media-library-overlay.active {
+    display: flex;
+}
+
+.media-overlay-panel {
+    width: 90vw;
+    height: 90vh;
+    background: #fff;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.35);
+    animation: mlModalScale 0.25s ease;
+    overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+    .media-overlay-panel {
+        background: #161b22;
+        color: #c9d1d9;
+    }
+}
+
+.overlay-header {
+    padding: 18px 20px 10px;
+    border-bottom: 1px solid var(--ml-border-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.overlay-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ml-text);
+}
+
+.overlay-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.overlay-controls input[type="text"],
+.overlay-controls select {
+    border: 1px solid var(--ml-border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 13px;
+    background: var(--ml-bg);
+    color: var(--ml-text);
+}
+
+.overlay-toolbar {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--ml-border-muted);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.overlay-toolbar .btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--ml-border);
+    background: var(--ml-bg);
+    cursor: pointer;
+}
+
+.overlay-toolbar .btn-primary {
+    background: var(--ml-primary);
+    color: #fff;
+    border-color: var(--ml-primary);
+}
+
+.overlay-toolbar .btn-danger {
+    background: var(--ml-danger);
+    border-color: var(--ml-danger);
+    color: #fff;
+}
+
+.media-overlay-content {
+    flex: 1;
+    overflow: hidden;
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+#expanded-media-grid {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    padding: 16px 0;
+}
+
+.expanded-media-item {
+    border: 1px solid var(--ml-border);
+    border-radius: 8px;
+    background: var(--ml-bg);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color var(--ml-transition), box-shadow var(--ml-transition);
+}
+
+.expanded-media-item.selected {
+    border-color: var(--ml-primary);
+    box-shadow: 0 0 0 2px var(--ml-primary-bg);
+}
+
+.expanded-media-item .media-preview {
+    height: 120px;
+}
+
+.expanded-media-item .media-meta {
+    font-size: 12px;
+    color: var(--ml-text-secondary);
+}
+
+.overlay-pagination {
+    padding: 12px 20px 20px;
+    border-top: 1px solid var(--ml-border-muted);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+}
+
+.overlay-pagination .page-indicator {
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+}
 /* Toast 提示 */
 .ml-editor-toast {
     position: fixed;
@@ -642,13 +923,27 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     <div class="media-toolbar">
         <div>
             <button type="button" class="btn btn-primary" id="editor-upload-btn">上传文件</button>
-            <button type="button" class="btn" id="editor-insert-selected" style="display:none;">插入选中</button>
+            <button type="button" class="btn" id="editor-copy-markdown" style="display:none;">复制 Markdown</button>
+        </div>
+        <div class="toolbar-actions">
+            <button type="button" class="btn btn-icon" id="editor-expand-btn" title="展开媒体库">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M5 9V5h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M19 15v4h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M5 5l5 5M19 19l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
         </div>
     </div>
     
     <div class="media-grid editor-media-grid">
         <!-- 动态加载内容 -->
         <div class="loading">加载中...</div>
+    </div>
+
+    <div class="media-pagination">
+        <button type="button" class="pager-btn" id="editor-page-prev" title="上一页">&lsaquo;</button>
+        <button type="button" class="pager-btn" id="editor-page-next" title="下一页">&rsaquo;</button>
     </div>
 </div>
 
@@ -686,7 +981,45 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                 <div class="upload-hint">拖拽文件到此处或点击按钮选择</div>
                 <a href="#" class="btn btn-primary" id="editor-upload-file-btn">选择文件</a>
             </div>
-            <ul id="editor-file-list"></ul>
+<ul id="editor-file-list"></ul>
+        </div>
+    </div>
+</div>
+
+<div class="media-library-overlay" id="editor-expanded-overlay">
+    <div class="media-overlay-panel">
+        <div class="overlay-header">
+            <div class="overlay-title">媒体库</div>
+            <div class="overlay-controls">
+                <input type="text" id="expanded-search-input" placeholder="搜索文件...">
+                <select id="expanded-type-filter">
+                    <?php foreach ($typeFilterOptions as $option): ?>
+                        <option value="<?php echo $option['value']; ?>"><?php echo $option['label']; ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select id="expanded-storage-filter">
+                    <?php foreach ($storageFilterOptions as $option): ?>
+                        <option value="<?php echo $option['value']; ?>"><?php echo $option['label']; ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="button" class="btn" id="expanded-refresh-btn">刷新</button>
+                <button type="button" class="btn btn-icon" id="expanded-close-btn" title="关闭">&times;</button>
+            </div>
+        </div>
+        <div class="overlay-toolbar">
+            <button type="button" class="btn btn-primary" id="expanded-upload-btn">上传文件</button>
+            <button type="button" class="btn btn-danger" id="expanded-delete-btn" disabled>删除选中</button>
+            <button type="button" class="btn" id="expanded-copy-btn" disabled>复制 Markdown</button>
+        </div>
+        <div class="media-overlay-content">
+            <div class="media-grid" id="expanded-media-grid">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+        <div class="overlay-pagination">
+            <button type="button" class="pager-btn" id="expanded-prev-page">&lsaquo;</button>
+            <span class="page-indicator" id="expanded-page-indicator">第 1 页</span>
+            <button type="button" class="pager-btn" id="expanded-next-page">&rsaquo;</button>
         </div>
     </div>
 </div>
@@ -734,21 +1067,41 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     var maxFileSize = '<?php echo $phpMaxFilesize; ?>';
     var adminStaticUrl = '<?php echo addslashes($options->adminStaticUrl); ?>';
     var $grid = $('.editor-media-grid');
-    var $insertBtn = $('#editor-insert-selected');
+    var $copyBtn = $('#editor-copy-markdown');
+    var $pagerPrev = $('#editor-page-prev');
+    var $pagerNext = $('#editor-page-next');
+    var defaultPerPage = 20;
+    var editorState = {
+        perPage: defaultPerPage,
+        currentPage: 1,
+        maxLoadedPage: 0,
+        totalPages: 0,
+        hasMore: true,
+        loading: false,
+        filters: {
+            keywords: '',
+            type: 'all',
+            storage: 'all'
+        },
+        loadedPages: {},
+        selection: {}
+    };
 
-    function loadMediaList() {
-        $grid.html('<div class="loading">加载中...</div>');
-        $.get(listUrl, function(data) {
-            $grid.html(data || '<div class="empty-state">没有媒体文件，请上传</div>');
-            updateInsertButton();
-        }).fail(function() {
-            $grid.html('<div class="empty-state">媒体列表加载失败，请刷新页面</div>');
-        });
+    function resetSelection(skipDomUpdate) {
+        editorState.selection = {};
+        if (!skipDomUpdate) {
+            $grid.find('.editor-media-item.selected').removeClass('selected');
+        }
+        updateCopyButton();
     }
 
-    function updateInsertButton() {
-        var selected = $('.editor-media-item.selected').length;
-        $insertBtn.toggle(selected > 0);
+    function updateCopyButton() {
+        var selected = Object.keys(editorState.selection).length;
+        if (selected > 0) {
+            $copyBtn.show().text('复制 Markdown (' + selected + ')');
+        } else {
+            $copyBtn.hide();
+        }
     }
 
     function showToast(message) {
@@ -765,45 +1118,387 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         }, 2500);
     }
 
-    function insertContentToEditor(content) {
-        if (window.editor && window.editor.txt) {
-            window.editor.txt.append(content);
-            return;
-        }
-
-        var textarea = $('#text');
-        if (textarea.length > 0 && textarea[0]) {
-            var caretPos = textarea[0].selectionStart || 0;
-            var textAreaTxt = textarea.val();
-            textarea.val(textAreaTxt.substring(0, caretPos) + content + textAreaTxt.substring(caretPos));
-        }
+    function escapeMarkdown(text) {
+        return (text || '').replace(/\\/g, '\\\\')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]')
+            .replace(/\*/g, '\\*')
+            .replace(/_/g, '\\_');
     }
 
-    function bindSelectionEvents() {
-        $(document).on('click', '.editor-media-item', function() {
-            $(this).toggleClass('selected');
-            updateInsertButton();
+    function buildMarkdownSnippet(title, url, isImage) {
+        if (!url) {
+            return '';
+        }
+        var safeTitle = escapeMarkdown(title || url);
+        return isImage
+            ? '![' + safeTitle + '](' + url + ')'
+            : '[' + safeTitle + '](' + url + ')';
+    }
+
+    function copyTextToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text);
+        }
+        return new Promise(function(resolve, reject) {
+            var textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                var successful = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                if (successful) {
+                    resolve();
+                } else {
+                    reject();
+                }
+            } catch (err) {
+                document.body.removeChild(textarea);
+                reject(err);
+            }
         });
     }
 
-    function bindInsertEvent() {
-        $insertBtn.on('click', function() {
-            $('.editor-media-item.selected').each(function() {
-                var url = $(this).data('url');
-                var isImage = $(this).data('is-image') === 1 || $(this).data('is-image') === '1';
-                if (!url) {
-                    return;
-                }
-                if (isImage) {
-                    insertContentToEditor('<img src="' + url + '" alt="" />');
-                } else {
-                    var title = $(this).data('title') || url;
-                    insertContentToEditor('<a href="' + url + '">' + title + '</a>');
-                }
-            });
+    function makeItemKey(item) {
+        if (item.cid) {
+            return 'cid-' + item.cid;
+        }
+        if (item.webdav_path) {
+            return 'webdav-' + item.webdav_path;
+        }
+        if (item.object_storage_path) {
+            return 'object-' + item.object_storage_path;
+        }
+        if (item.path) {
+            return 'path-' + item.path;
+        }
+        if (item.url) {
+            return 'url-' + item.url;
+        }
+        return 'file-' + (item.filename || item.title || Date.now());
+    }
 
-            $('.editor-media-item.selected').removeClass('selected');
-            updateInsertButton();
+    function getFileIconLabel(item) {
+        var mime = (item.mime || '').toLowerCase();
+        var ext = (item.extension || '').toLowerCase();
+        if (mime.indexOf('video/') === 0) return 'VIDEO';
+        if (mime.indexOf('audio/') === 0) return 'AUDIO';
+        if (mime.indexOf('application/pdf') === 0 || ext === 'pdf') return 'PDF';
+        if (mime.indexOf('text/') === 0 || ext === 'txt') return 'TEXT';
+        if (ext === 'zip' || ext === 'rar' || mime.indexOf('zip') >= 0) return 'ZIP';
+        if (ext === 'doc' || ext === 'docx') return 'DOC';
+        if (ext === 'xls' || ext === 'xlsx') return 'XLS';
+        if (ext === 'ppt' || ext === 'pptx') return 'PPT';
+        return 'FILE';
+    }
+
+    function buildMediaCard(item) {
+        var key = makeItemKey(item);
+        var title = item.title || item.filename || '未命名文件';
+        var meta = {
+            key: key,
+            title: title,
+            url: item.url || '',
+            isImage: !!item.is_image
+        };
+
+        var $item = $('<div class="editor-media-item" tabindex="0"></div>');
+        $item.attr({
+            'data-item-key': key,
+            'data-url': meta.url,
+            'data-title': title,
+            'data-is-image': item.is_image ? 1 : 0,
+            'data-storage': item.storage || 'local'
+        });
+        $item.data('meta', meta);
+
+        if (editorState.selection[key]) {
+            $item.addClass('selected');
+        }
+
+        var $preview = $('<div class="media-preview"></div>');
+        var previewUrl = item.thumbnail || (item.is_image && item.has_url ? item.url : '');
+        if (previewUrl) {
+            $('<img>').attr({
+                src: previewUrl,
+                alt: title
+            }).appendTo($preview);
+        } else {
+            $('<div class="file-icon"></div>').text(getFileIconLabel(item)).appendTo($preview);
+        }
+        $item.append($preview);
+
+        $('<div class="media-title"></div>').text(title).appendTo($item);
+
+        var metaParts = [];
+        if (item.storage_label) {
+            metaParts.push(item.storage_label);
+        }
+        if (item.size) {
+            metaParts.push(item.size);
+        }
+        $('<div class="media-meta"></div>').text(metaParts.join(' · ')).appendTo($item);
+
+        return $item;
+    }
+
+    function showGridLoading(replaceContent) {
+        if (replaceContent || !$grid.children().length) {
+            $grid.html('<div class="loading editor-grid-loading">加载中...</div>');
+        } else if (!$grid.find('.editor-grid-loading').length) {
+            $grid.append('<div class="loading editor-grid-loading">加载中...</div>');
+        }
+    }
+
+    function hideGridLoading() {
+        $grid.find('.editor-grid-loading').remove();
+    }
+
+    function clearEndIndicator() {
+        $grid.find('.media-end-indicator').remove();
+    }
+
+    function appendEndIndicator() {
+        if (!$grid.find('.media-end-indicator').length) {
+            $grid.append('<div class="media-end-indicator">已经到底啦</div>');
+        }
+    }
+
+    function renderMediaPage(page, items, options) {
+        var opts = $.extend({ replaceAll: false }, options || {});
+        if (opts.replaceAll) {
+            $grid.empty();
+        }
+
+        var $group = $('<div class="media-page-group" data-page="' + page + '"></div>');
+        $('<div class="media-page-label"></div>').text('第 ' + page + ' 页').appendTo($group);
+
+        var $itemsWrapper = $('<div class="media-page-items"></div>');
+        if (!items.length) {
+            var emptyText = page === 1 ? '没有媒体文件，请上传' : '本页没有文件';
+            $('<div class="empty-state"></div>').text(emptyText).appendTo($itemsWrapper);
+        } else {
+            items.forEach(function(item) {
+                $itemsWrapper.append(buildMediaCard(item));
+            });
+        }
+
+        $group.append($itemsWrapper);
+
+        var $existing = $grid.find('.media-page-group[data-page="' + page + '"]');
+        if ($existing.length) {
+            $existing.replaceWith($group);
+        } else {
+            $grid.append($group);
+        }
+    }
+
+    function scrollToPage(page, instant) {
+        var $target = $grid.find('.media-page-group[data-page="' + page + '"]');
+        if (!$target.length) {
+            return;
+        }
+        var top = $target[0].offsetTop;
+        if (instant) {
+            $grid.scrollTop(top);
+        } else {
+            $grid.stop().animate({ scrollTop: top }, 200);
+        }
+        editorState.currentPage = page;
+        updatePagerButtons();
+    }
+
+    function updateCurrentPageByScroll() {
+        var scrollTop = $grid.scrollTop();
+        var activePage = editorState.currentPage;
+        $grid.find('.media-page-group').each(function() {
+            var page = parseInt($(this).data('page'), 10) || 1;
+            if (scrollTop >= this.offsetTop - 20) {
+                activePage = page;
+            }
+        });
+        if (activePage !== editorState.currentPage) {
+            editorState.currentPage = activePage;
+            updatePagerButtons();
+        }
+    }
+
+    function updatePagerButtons() {
+        var current = editorState.currentPage || 1;
+        var hasPrev = current > 1;
+        var hasNext = editorState.hasMore || (editorState.maxLoadedPage > current);
+        if (!hasNext && editorState.totalPages) {
+            hasNext = current < editorState.totalPages;
+        }
+        $pagerPrev.prop('disabled', !hasPrev);
+        $pagerNext.prop('disabled', !hasNext);
+    }
+
+    function requestPage(page, options) {
+        var opts = $.extend({
+            replaceAll: false,
+            scrollIntoView: false
+        }, options || {});
+
+        if (editorState.loading) {
+            return;
+        }
+
+        if (page < 1) {
+            page = 1;
+        }
+
+        if (opts.replaceAll) {
+            editorState.currentPage = 1;
+            editorState.maxLoadedPage = 0;
+            editorState.totalPages = 0;
+            editorState.hasMore = true;
+            editorState.loadedPages = {};
+            clearEndIndicator();
+            resetSelection(true);
+        }
+
+        editorState.loading = true;
+        showGridLoading(opts.replaceAll);
+
+        var params = $.extend({}, editorState.filters, {
+            page: page,
+            per_page: editorState.perPage
+        });
+
+        $.getJSON(listUrl, params).done(function(response) {
+            if (!response || response.success === false) {
+                showToast(response && response.message ? response.message : '媒体列表加载失败');
+                return;
+            }
+
+            var items = Array.isArray(response.items) ? response.items : [];
+            editorState.hasMore = !!response.has_more;
+            editorState.totalPages = response.page_count || 0;
+            editorState.loadedPages[page] = items;
+            editorState.maxLoadedPage = Math.max(editorState.maxLoadedPage, page);
+            editorState.currentPage = page;
+
+            renderMediaPage(page, items, { replaceAll: opts.replaceAll });
+
+            if (opts.scrollIntoView || opts.replaceAll) {
+                scrollToPage(page, opts.replaceAll);
+            }
+
+            if (!editorState.hasMore) {
+                appendEndIndicator();
+            }
+        }).fail(function() {
+            showToast('媒体列表加载失败，请刷新页面');
+            if (opts.replaceAll) {
+                $grid.html('<div class="empty-state">媒体列表加载失败，请稍后重试</div>');
+            }
+        }).always(function() {
+            editorState.loading = false;
+            hideGridLoading();
+            updatePagerButtons();
+            updateCopyButton();
+        });
+    }
+
+    function reloadMediaList() {
+        requestPage(1, { replaceAll: true, scrollIntoView: true });
+    }
+
+    function copySelectedItems() {
+        var keys = Object.keys(editorState.selection);
+        if (!keys.length) {
+            showToast('请选择文件');
+            return;
+        }
+
+        var snippets = [];
+        keys.forEach(function(key) {
+            var meta = editorState.selection[key];
+            if (!meta) {
+                return;
+            }
+            var snippet = buildMarkdownSnippet(meta.title, meta.url, meta.isImage);
+            if (snippet) {
+                snippets.push(snippet);
+            }
+        });
+
+        if (!snippets.length) {
+            showToast('所选文件不可复制');
+            return;
+        }
+
+        copyTextToClipboard(snippets.join('\n')).then(function() {
+            showToast('Markdown 已复制到剪贴板');
+            resetSelection();
+        }).catch(function() {
+            showToast('复制失败，请检查浏览器权限');
+        });
+    }
+
+    function bindSelectionEvents() {
+        $grid.on('click', '.editor-media-item', function() {
+            var $item = $(this);
+            var meta = $item.data('meta');
+            if (!meta) {
+                return;
+            }
+            var key = meta.key;
+            if ($item.hasClass('selected')) {
+                $item.removeClass('selected');
+                delete editorState.selection[key];
+            } else {
+                $item.addClass('selected');
+                editorState.selection[key] = meta;
+            }
+            updateCopyButton();
+        });
+    }
+
+    function bindCopyEvent() {
+        $copyBtn.on('click', function() {
+            copySelectedItems();
+        });
+    }
+
+    function bindPaginationEvents() {
+        $pagerPrev.on('click', function() {
+            if (editorState.currentPage <= 1) {
+                return;
+            }
+            var target = editorState.currentPage - 1;
+            if (editorState.loadedPages[target]) {
+                scrollToPage(target, false);
+            } else {
+                requestPage(target, { replaceAll: false, scrollIntoView: true });
+            }
+        });
+
+        $pagerNext.on('click', function() {
+            var target = editorState.currentPage + 1;
+            if (editorState.loadedPages[target]) {
+                scrollToPage(target, false);
+            } else if (editorState.hasMore) {
+                requestPage(target, { replaceAll: false, scrollIntoView: true });
+            }
+        });
+    }
+
+    function bindInfiniteScroll() {
+        $grid.on('scroll', function() {
+            updateCurrentPageByScroll();
+            if (!editorState.hasMore || editorState.loading) {
+                return;
+            }
+            var el = this;
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+                requestPage(editorState.maxLoadedPage + 1, { replaceAll: false });
+            }
         });
     }
 
@@ -833,13 +1528,14 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         }
 
         function openModal() {
-            $modal.fadeIn(120);
+            $modal.addClass('active');
         }
 
         function closeModal() {
-            $modal.fadeOut(120, function() {
+            $modal.removeClass('active');
+            setTimeout(function() {
                 $fileList.empty();
-            });
+            }, 200);
         }
 
         $('#editor-upload-btn').on('click', function(e) {
@@ -965,7 +1661,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                 },
                 UploadComplete: function() {
                     closeModal();
-                    loadMediaList();
+                    reloadMediaList();
                     showToast('上传完成');
                 },
                 Error: function(up, error) {
@@ -1007,9 +1703,11 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     }
 
     $(function() {
-        loadMediaList();
+        reloadMediaList();
         bindSelectionEvents();
-        bindInsertEvent();
+        bindCopyEvent();
+        bindPaginationEvents();
+        bindInfiniteScroll();
         initUploadModal();
     });
 });
