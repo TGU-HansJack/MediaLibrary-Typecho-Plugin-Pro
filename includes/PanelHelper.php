@@ -152,6 +152,8 @@ class MediaLibrary_PanelHelper
     public static function getMediaList($db, $page, $pageSize, $keywords, $type, $storage = 'all')
     {
         $configOptions = self::getPluginConfig();
+        $uploadMode = isset($configOptions['webdavUploadMode']) ? $configOptions['webdavUploadMode'] : 'local-cache';
+        $useMetadataListing = $uploadMode === 'remote-only';
 
         // WebDAV 存储：直接读取本地 WebDAV 文件夹，不查询数据库
         if ($storage === 'webdav') {
@@ -360,7 +362,14 @@ class MediaLibrary_PanelHelper
 
         try {
             $sync = new MediaLibrary_WebDAVSync($configOptions);
-            $allItems = $sync->listLocalFiles('');
+            if ($useMetadataListing) {
+                $allItems = self::getWebDAVFilesFromMetadata($configOptions);
+                if (empty($allItems)) {
+                    $allItems = $sync->listLocalFiles('');
+                }
+            } else {
+                $allItems = $sync->listLocalFiles('');
+            }
 
             // 过滤文件（不包括目录）
             $files = array_filter($allItems, function($item) {
@@ -474,6 +483,58 @@ class MediaLibrary_PanelHelper
     }
 
     /**
+     * 从 WebDAV 元数据文件中读取文件列表
+     *
+     * @param array $configOptions
+     * @return array
+     */
+    private static function getWebDAVFilesFromMetadata($configOptions)
+    {
+        $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
+        if ($localPath === '') {
+            return [];
+        }
+
+        $metadataFile = $localPath . DIRECTORY_SEPARATOR . '.webdav-sync-metadata.json';
+        if (!is_file($metadataFile)) {
+            return [];
+        }
+
+        $content = @file_get_contents($metadataFile);
+        if ($content === false) {
+            return [];
+        }
+
+        $data = json_decode($content, true);
+        if (!is_array($data) || !isset($data['files']) || !is_array($data['files'])) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($data['files'] as $relative => $info) {
+            $relative = (string)$relative;
+            $normalizedPath = '/' . ltrim(str_replace('\\', '/', $relative), '/');
+            $mtime = 0;
+            if (isset($info['remoteMtime'])) {
+                $mtime = (int)$info['remoteMtime'];
+            } elseif (isset($info['mtime'])) {
+                $mtime = (int)$info['mtime'];
+            }
+            $items[] = [
+                'name' => basename($relative),
+                'path' => $normalizedPath,
+                'type' => 'file',
+                'size' => isset($info['size']) ? (int)$info['size'] : 0,
+                'modified' => $mtime,
+                'modified_format' => $mtime ? date('Y-m-d H:i:s', $mtime) : '',
+                'public_url' => self::buildWebDAVFileUrl(ltrim($normalizedPath, '/'), $configOptions)
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
      * 根据文件名猜测 MIME 类型
      *
      * @param string $filename 文件名
@@ -528,6 +589,17 @@ class MediaLibrary_PanelHelper
      */
     private static function buildWebDAVFileUrl($relativePath, $configOptions)
     {
+        // 如果配置了外链域名，优先返回
+        if (!empty($configOptions['webdavExternalDomain'])) {
+            $external = trim($configOptions['webdavExternalDomain']);
+            if ($external !== '') {
+                if (!preg_match('/^https?:\\/\\//i', $external)) {
+                    $external = 'https://' . ltrim($external, '/');
+                }
+                return rtrim($external, '/') . '/' . ltrim($relativePath, '/');
+            }
+        }
+
         // 从本地 WebDAV 路径构建 URL
         // 如果配置了 webdavLocalPath，尝试生成可访问的 URL
         $localPath = rtrim($configOptions['webdavLocalPath'], '/\\');
@@ -540,17 +612,6 @@ class MediaLibrary_PanelHelper
             $webPath = str_replace('\\', '/', $webPath);
             $webPath = ltrim($webPath, '/');
             return Typecho_Common::url($webPath . '/' . $relativePath, Helper::options()->siteUrl);
-        }
-
-        // 如果配置了外链域名，优先返回
-        if (!empty($configOptions['webdavExternalDomain'])) {
-            $external = trim($configOptions['webdavExternalDomain']);
-            if ($external !== '') {
-                if (!preg_match('/^https?:\\/\\//i', $external)) {
-                    $external = 'https://' . ltrim($external, '/');
-                }
-                return rtrim($external, '/') . '/' . ltrim($relativePath, '/');
-            }
         }
 
         // 如果无法生成 URL，返回空字符串
