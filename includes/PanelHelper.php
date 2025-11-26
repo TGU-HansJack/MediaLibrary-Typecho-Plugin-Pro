@@ -278,12 +278,14 @@ class MediaLibrary_PanelHelper
             $attachment['size'] = MediaLibrary_FileOperations::formatFileSize(isset($attachmentData['size']) ? intval($attachmentData['size']) : 0);
             
             if (isset($attachmentData['path']) && !empty($attachmentData['path'])) {
-                $shouldPreferExternal = isset($attachmentData['storage']) &&
-                    $attachmentData['storage'] === 'webdav' &&
-                    !empty($configOptions['webdavExternalDomain']);
+                $hasExternalDomain = !empty($configOptions['webdavExternalDomain']);
+                $isWebDAVStorage = isset($attachmentData['storage']) && $attachmentData['storage'] === 'webdav';
+                $hasWebDAVPath = !empty($attachmentData['webdav_path']);
+                $shouldPreferExternal = $hasExternalDomain && ($isWebDAVStorage || $hasWebDAVPath);
 
                 if ($shouldPreferExternal) {
-                    $externalUrl = self::buildWebDAVFileUrl(ltrim($attachmentData['path'], '/'), $configOptions);
+                    $relative = $hasWebDAVPath ? ltrim($attachmentData['webdav_path'], '/') : ltrim($attachmentData['path'], '/');
+                    $externalUrl = self::buildWebDAVFileUrl($relative, $configOptions);
                 } else {
                     $externalUrl = '';
                 }
@@ -369,6 +371,13 @@ class MediaLibrary_PanelHelper
                 }
             } else {
                 $allItems = $sync->listLocalFiles('');
+            }
+
+            if (empty($allItems)) {
+                $metaItems = self::getWebDAVFilesFromMetadata($configOptions);
+                if (!empty($metaItems)) {
+                    $allItems = $metaItems;
+                }
             }
 
             // 过滤文件（不包括目录）
