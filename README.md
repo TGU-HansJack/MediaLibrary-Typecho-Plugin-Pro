@@ -12,6 +12,7 @@
 
 > 下个版本，年前(2026年)不会更新了，一股劲不能完美一个插件的，明年再更新，有问题发[GitHub Issues](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/issues) 
 
+> [赞助我](https://github.com/user-attachments/assets/7c6374c7-ddcf-4cb7-ac23-1874554bc018)
 ## ✨ 核心特性
 
 ### 📁 媒体库管理
@@ -63,6 +64,9 @@
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro&type=date&legend=top-left)](https://www.star-history.com/#TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro&type=date&legend=top-left)
+
+- 赞助我
+<img width="720" height="250" alt="sponsor" src="https://github.com/user-attachments/assets/7c6374c7-ddcf-4cb7-ac23-1874554bc018" />
 
 ## 🎯 系统要求
 
