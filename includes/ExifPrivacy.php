@@ -128,23 +128,24 @@ class MediaLibrary_ExifPrivacy
     /**
      * 检查图片隐私信息
      */
-    public static function checkImagePrivacy($cid, $db, $options) 
+    public static function checkImagePrivacy($cid, $db, $options)
     {
         try {
             $attachment = $db->fetchRow($db->select()->from('table.contents')
                 ->where('cid = ? AND type = ?', $cid, 'attachment'));
-                
+
             if (!$attachment) {
                 return ['success' => false, 'cid' => $cid, 'message' => '文件不存在'];
             }
-            
+
             $attachmentData = @unserialize($attachment['text']);
             if (!is_array($attachmentData) || !isset($attachmentData['path'])) {
                 return ['success' => false, 'cid' => $cid, 'message' => '文件数据错误'];
             }
-            
-            $filePath = __TYPECHO_ROOT_DIR__ . $attachmentData['path'];
-            if (!file_exists($filePath)) {
+
+            $storedPath = $attachmentData['path'];
+            $filePath = self::resolveLocalPath($storedPath);
+            if (!$filePath || !file_exists($filePath)) {
                 return ['success' => false, 'cid' => $cid, 'message' => '文件不存在'];
             }
             
@@ -396,5 +397,31 @@ class MediaLibrary_ExifPrivacy
         }
         
         return ['success' => false, 'message' => 'ExifTool 不可用，无法清除EXIF信息'];
+    }
+
+    /**
+     * 根据附件记录解析本地文件的绝对路径
+     *
+     * @param string $path 附件中保存的路径
+     * @return string|null 本地绝对路径
+     */
+    private static function resolveLocalPath($path)
+    {
+        if (!$path) {
+            return null;
+        }
+
+        // 已经是绝对路径（Unix 或 Windows）
+        if (strpos($path, __TYPECHO_ROOT_DIR__) === 0 || preg_match('/^[a-zA-Z]:\\\\/', $path)) {
+            return $path;
+        }
+
+        // 跳过远程地址
+        if (preg_match('#^https?://#i', $path)) {
+            return null;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $path), '/');
+        return rtrim(__TYPECHO_ROOT_DIR__, '/\\') . '/' . $normalized;
     }
 }

@@ -145,10 +145,15 @@ class QiniuKodoAdapter extends AbstractAdapter
     {
         try {
             $bucket = $this->getConfig('bucket');
-            list($ret, $err) = $this->bucketManager->bucketInfo($bucket);
+
+            list($ret, $err) = $this->bucketManager->buckets();
 
             if ($err !== null) {
                 throw new \Exception($err->message());
+            }
+
+            if (!is_array($ret) || !in_array($bucket, $ret, true)) {
+                throw new \Exception('未在账号下找到对应空间：' . $bucket);
             }
 
             $this->logConnectionTest(true, '连接测试成功', ['bucket' => $bucket]);
