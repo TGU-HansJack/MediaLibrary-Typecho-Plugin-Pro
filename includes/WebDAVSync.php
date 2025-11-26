@@ -910,6 +910,7 @@ class MediaLibrary_WebDAVSync
             'name' => $targetInfo['filename'],
             'path' => '/' . str_replace('\\', '/', $relativePath),
             'full_path' => $targetInfo['target_path'],
+            'local_path' => $targetInfo['target_path'],
             'size' => filesize($targetInfo['target_path']),
             'mime' => $this->getMimeType($targetInfo['target_path'])
         ];

@@ -511,6 +511,8 @@ class MediaLibrary_AjaxHandler
 
             $uploadedFiles = [];
             $pendingSyncs = [];
+            $isRemoteOnly = isset($configOptions['webdavUploadMode']) && $configOptions['webdavUploadMode'] === 'remote-only';
+            $webdavClient = new MediaLibrary_WebDAVClient($configOptions);
             foreach ($files as $file) {
                 if (!isset($file['tmp_name']) || !isset($file['name']) || !is_uploaded_file($file['tmp_name'])) {
                     continue;
@@ -518,18 +520,20 @@ class MediaLibrary_AjaxHandler
 
                 // 保存文件到本地 WebDAV 文件夹
                 try {
-                    $result = $sync->saveUploadedFile($file);
+                    if ($isRemoteOnly) {
+                        $result = $sync->uploadFileDirectly($file);
+                    } else {
+                        $result = $sync->saveUploadedFile($file);
+                    }
 
                     if ($result && isset($result['path'])) {
-                        // 获取相对路径和完整路径
                         $relativePath = $result['path'];
-                        $localPath = $result['local_path'];
-                        $fileName = basename($relativePath);
+                        $fileName = basename(ltrim($relativePath, '/'));
+                        $localPath = isset($result['local_path']) ? $result['local_path'] : (isset($result['full_path']) ? $result['full_path'] : null);
 
                         // 构建公开访问 URL
-                        $webdavClient = new MediaLibrary_WebDAVClient($configOptions);
                         $remotePath = $configOptions['webdavRemotePath'] . '/' . ltrim($relativePath, '/');
-                        $publicUrl = $webdavClient->buildPublicUrl($remotePath);
+                        $publicUrl = isset($result['public_url']) ? $result['public_url'] : $webdavClient->buildPublicUrl($remotePath);
 
                         // 保存到数据库
                         $attachmentData = [
@@ -573,7 +577,8 @@ class MediaLibrary_AjaxHandler
                         ];
 
                         // 如果启用了自动同步，立即同步到远程
-                        if (!empty($configOptions['webdavSyncEnabled']) &&
+                        if (!$isRemoteOnly &&
+                            !empty($configOptions['webdavSyncEnabled']) &&
                             $configOptions['webdavSyncMode'] === 'onupload') {
                             $pendingSyncs[] = $relativePath;
                             MediaLibrary_Logger::log('upload', 'WebDAV 文件已记录等待同步', [
@@ -582,7 +587,8 @@ class MediaLibrary_AjaxHandler
                             ]);
                         }
 
-                        MediaLibrary_Logger::log('upload', 'WebDAV 文件上传并记录成功', [
+                        $logType = $isRemoteOnly ? 'upload_remote_only' : 'upload';
+                        MediaLibrary_Logger::log($logType, 'WebDAV 文件上传并记录成功', [
                             'cid' => $insertId,
                             'file' => $fileName,
                             'path' => $relativePath,
