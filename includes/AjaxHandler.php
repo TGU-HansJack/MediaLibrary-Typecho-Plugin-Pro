@@ -168,9 +168,11 @@ class MediaLibrary_AjaxHandler
         // 获取 WebDAV 配置
         $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
         $webdavClient = null;
+        $webdavSync = null;
         if ($configOptions['enableWebDAV']) {
             try {
                 $webdavClient = new MediaLibrary_WebDAVClient($configOptions);
+                $webdavSync = new MediaLibrary_WebDAVSync($configOptions);
             } catch (Exception $e) {
                 // WebDAV 客户端初始化失败，继续使用本地删除
                 MediaLibrary_Logger::log('delete', 'WebDAV 客户端初始化失败: ' . $e->getMessage(), [], 'warning');
@@ -224,15 +226,16 @@ class MediaLibrary_AjaxHandler
                     }
 
                     // 如果启用了 WebDAV，也尝试从 WebDAV 删除
-                    if ($webdavClient && isset($attachmentData['webdav_path'])) {
+                    if ($webdavSync && isset($attachmentData['webdav_path']) && !empty($configOptions['webdavEndpoint'])) {
                         try {
-                            $webdavClient->delete($attachmentData['webdav_path']);
-                            MediaLibrary_Logger::log('delete', 'WebDAV 文件删除成功', [
+                            // 使用 WebDAVSync 删除远程文件并更新元数据
+                            $webdavSync->deleteRemoteFile($attachmentData['webdav_path']);
+                            MediaLibrary_Logger::log('delete', 'WebDAV 远程文件删除成功并更新元数据', [
                                 'cid' => $cid,
                                 'path' => $attachmentData['webdav_path']
                             ]);
                         } catch (Exception $e) {
-                            MediaLibrary_Logger::log('delete', 'WebDAV 文件删除失败: ' . $e->getMessage(), [
+                            MediaLibrary_Logger::log('delete', 'WebDAV 远程文件删除失败: ' . $e->getMessage(), [
                                 'cid' => $cid,
                                 'path' => $attachmentData['webdav_path']
                             ], 'warning');
@@ -291,7 +294,27 @@ class MediaLibrary_AjaxHandler
                 try {
                     $deleted = false;
                     if ($webdavSync) {
+                        // 删除本地文件
                         $deleted = $webdavSync->deleteLocalFile($relativePath);
+
+                        // 根据删除策略处理远程文件
+                        if ($deleted) {
+                            $deleteStrategy = isset($configOptions['webdavDeleteStrategy']) ? $configOptions['webdavDeleteStrategy'] : 'auto';
+
+                            if ($deleteStrategy === 'auto' && !empty($configOptions['webdavEndpoint'])) {
+                                // 自动同步删除远程文件
+                                try {
+                                    $webdavSync->deleteRemoteFile($relativePath);
+                                    MediaLibrary_Logger::log('delete', '本地 WebDAV 文件已删除并同步删除远程', [
+                                        'path' => $relativePath
+                                    ]);
+                                } catch (Exception $e) {
+                                    MediaLibrary_Logger::log('delete', '本地文件已删除，但远程删除失败: ' . $e->getMessage(), [
+                                        'path' => $relativePath
+                                    ], 'warning');
+                                }
+                            }
+                        }
                     }
                     if (!$deleted) {
                         if ($webdavLocalRoot === '' || !self::deleteLocalWebDAVTarget($webdavLocalRoot, $relativePath)) {
