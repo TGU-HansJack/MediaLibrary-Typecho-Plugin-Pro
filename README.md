@@ -4,7 +4,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6-yellow?logo=javascript&logoColor=white)
 ![Typecho](https://img.shields.io/badge/Typecho-%3E%3D1.0-orange)
 ![License](https://img.shields.io/badge/License-Free-green)
-![Version](https://img.shields.io/badge/Version-pro__0.1.0-blue)
+![Version](https://img.shields.io/badge/Version-pro__0.1.2-blue)
 [![GitHub Release](https://img.shields.io/github/v/release/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro)](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/releases)
 [![Release Workflow](https://img.shields.io/github/actions/workflow/status/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/release.yml?label=release)](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/actions/workflows/release.yml)
 
