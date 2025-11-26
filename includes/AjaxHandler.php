@@ -698,15 +698,28 @@ class MediaLibrary_AjaxHandler
 
         try {
             // 检查对象存储是否启用
-            $storageManager = new MediaLibrary_ObjectStorageManager(\Typecho\Db::get(), $configOptions);
+            $db = Typecho_Db::get();
+            $storageManager = new MediaLibrary_ObjectStorageManager($db, $configOptions);
 
             if (!$storageManager->isEnabled()) {
+                MediaLibrary_Logger::log('object_storage_upload', '对象存储上传被拒绝：功能未启用', [], 'warning');
                 return ['success' => false, 'message' => '对象存储未启用'];
             }
 
-            $db = \Typecho\Db::get();
-            $options = \Widget\Options::alloc();
-            $user = \Widget\User::alloc();
+            // 检查存储管理器是否正确初始化
+            $testResult = $storageManager->testConnection();
+            if (!$testResult['success']) {
+                MediaLibrary_Logger::log('object_storage_upload', '对象存储连接测试失败', [
+                    'error' => $testResult['message']
+                ], 'error');
+                return [
+                    'success' => false,
+                    'message' => '对象存储配置错误: ' . $testResult['message']
+                ];
+            }
+
+            $options = Typecho_Widget::widget('Widget_Options');
+            $user = Typecho_Widget::widget('Widget_User');
 
             $uploadedFiles = [];
             $uploadCount = 0;
@@ -726,7 +739,7 @@ class MediaLibrary_AjaxHandler
                 }
 
                 // 生成文件名和路径
-                $date = new \Typecho\Date($options->gmtTime);
+                $date = new Typecho_Date($options->gmtTime);
                 $year = $date->year;
                 $month = $date->month;
 

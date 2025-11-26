@@ -44,7 +44,10 @@ class MediaLibrary_ObjectStorageManager
         try {
             $this->storage = StorageFactory::create($storageType, $config);
         } catch (\Exception $e) {
-            MediaLibrary_Logger::log('对象存储初始化失败: ' . $e->getMessage(), 'error');
+            MediaLibrary_Logger::log('object_storage_init', '对象存储初始化失败: ' . $e->getMessage(), [
+                'storage_type' => $storageType,
+                'error' => $e->getMessage()
+            ], 'error');
             $this->storage = null;
         }
     }
