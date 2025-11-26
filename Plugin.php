@@ -25,6 +25,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 添加控制台菜单
         Helper::addPanel(3, 'MediaLibrary/panel.php', '媒体库', '媒体库管理', 'administrator');
+        Helper::addPanel(3, 'MediaLibrary/editor-media-ajax.php', '媒体库编辑器', '编辑器媒体库', 'administrator', true);
         Helper::addAction('medialibrary-log', 'MediaLibrary_LogAction');
         Helper::addAction('media-library', 'MediaLibrary_Action');
 
@@ -50,6 +51,7 @@ class MediaLibrary_Plugin implements Typecho_Plugin_Interface
     {
         // 移除控制台菜单
         Helper::removePanel(3, 'MediaLibrary/panel.php');
+        Helper::removePanel(3, 'MediaLibrary/editor-media-ajax.php');
         Helper::removeAction('medialibrary-log');
         Helper::removeAction('media-library');
 

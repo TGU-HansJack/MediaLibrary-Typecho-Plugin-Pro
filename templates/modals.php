@@ -123,8 +123,8 @@
             </div>
             <div class="modal-body">
                 <!-- 智能建议区域 -->
-                <div id="smart-suggestion-area" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; display: none;">
-                    <h4 style="margin: 0 0 10px 0; color: #495057;">🤖 智能压缩建议</h4>
+                <div id="smart-suggestion-area" class="smart-suggestion-area" style="margin-bottom: 20px; padding: 15px; border-radius: 4px; display: none;">
+                    <h4 style="margin: 0 0 10px 0;">🤖 智能压缩建议</h4>
                     <div id="suggestion-content"></div>
                     <div style="margin-top: 10px;">
                         <button class="btn btn-success btn-small" id="apply-smart-suggestion">应用建议设置</button>
@@ -157,13 +157,13 @@
                             <option value="webp">WebP</option>
                             <option value="avif">AVIF</option>
                         </select>
-                        <small style="color: #666;">注意：格式转换时，替换原文件会保持相同链接</small>
+                        <small class="form-hint">注意：格式转换时，替换原文件会保持相同链接</small>
                     </div>
                     
                     <div style="margin-bottom: 15px;">
                         <label>压缩质量: <span id="image-quality-value"><?php echo $gdQuality; ?>%</span></label>
                         <input type="range" id="image-quality-slider" min="10" max="100" value="<?php echo $gdQuality; ?>" style="width: 100%; margin-top: 5px;">
-                        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        <div class="slider-labels" style="font-size: 12px; margin-top: 5px;">
                             <span style="float: left;">高压缩</span>
                             <span style="float: right;">高质量</span>
                             <div style="clear: both;"></div>
@@ -182,7 +182,7 @@
                         </label>
                         <div id="image-custom-name-group" style="margin-top: 10px; display: none;">
                             <input type="text" id="image-custom-name" placeholder="自定义文件名前缀（可选）" style="width: 100%;">
-                            <small style="color: #666;">留空则使用默认命名规则</small>
+                            <small class="form-hint">留空则使用默认命名规则</small>
                         </div>
                     </div>
                 </div>
@@ -221,7 +221,7 @@
                     <div style="margin-bottom: 15px;">
                         <label>压缩质量: <span id="video-quality-value"><?php echo $videoQuality; ?></span></label>
                         <input type="range" id="video-quality-slider" min="18" max="35" value="<?php echo $videoQuality; ?>" style="width: 100%; margin-top: 5px;">
-                        <small style="color: #666;">数值越小质量越高，推荐18-28</small>
+                        <small class="form-hint">数值越小质量越高，推荐18-28</small>
                     </div>
                     
                     <div style="margin-bottom: 15px;">
@@ -236,7 +236,7 @@
                         </label>
                         <div id="video-custom-name-group" style="margin-top: 10px; display: none;">
                             <input type="text" id="video-custom-name" placeholder="自定义文件名前缀（可选）" style="width: 100%;">
-                            <small style="color: #666;">留空则使用默认命名规则</small>
+                            <small class="form-hint">留空则使用默认命名规则</small>
                         </div>
                     </div>
                 </div>
@@ -360,11 +360,11 @@
                             </label>
                             <div id="crop-custom-name-group" style="margin-top: 10px; display: none;">
                                 <input type="text" id="crop-custom-name" placeholder="自定义文件名前缀（可选）" style="width: 100%;">
-                                <small style="color: #666;">留空则使用默认命名规则</small>
+                                <small class="form-hint">留空则使用默认命名规则</small>
                             </div>
                         </div>
                         
-                        <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+                        <div class="crop-info-section" style="margin-top: 15px; padding-top: 15px;">
                             <p>当前裁剪框信息：</p>
                             <ul style="font-size: 13px; margin: 10px 0; padding-left: 20px;">
                                 <li>左上角: X: <span id="crop-info-x">0</span>, Y: <span id="crop-info-y">0</span></li>
@@ -401,7 +401,7 @@
                                 <!-- 水印预览 - 动态内容 -->
                             </div>
                         </div>
-                        <p style="margin: 10px 0; font-size: 13px; color: #666;">提示：可拖动调整水印位置，使用鼠标滚轮调整水印大小</p>
+                        <p class="preview-hint" style="margin: 10px 0; font-size: 13px;">提示：可拖动调整水印位置，使用鼠标滚轮调整水印大小</p>
                     </div>
                     
                     <div class="watermark-settings" style="flex: 1; min-width: 250px; padding-left: 20px;">
@@ -510,7 +510,7 @@
                             </label>
                             <div id="watermark-custom-name-group" style="margin-top: 10px; display: none;">
                                 <input type="text" id="watermark-custom-name" placeholder="自定义文件名前缀（可选）" style="width: 100%;">
-                                <small style="color: #666;">留空则使用默认命名规则</small>
+                                <small class="form-hint">留空则使用默认命名规则</small>
                             </div>
                         </div>
                         

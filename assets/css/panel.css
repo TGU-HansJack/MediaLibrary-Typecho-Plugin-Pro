@@ -2808,6 +2808,43 @@
 }
 
 /* ========================================
+   表单提示文字和模态框辅助类
+   ======================================== */
+
+/* 表单提示文字 */
+.form-hint {
+    color: #656d76;
+    font-size: 12px;
+    display: block;
+    margin-top: 4px;
+}
+
+/* 智能建议区域 */
+.smart-suggestion-area {
+    background: #f8f9fa;
+    border: 1px solid #e8eaed;
+}
+
+.smart-suggestion-area h4 {
+    color: #495057;
+}
+
+/* 滑块标签 */
+.slider-labels {
+    color: #656d76;
+}
+
+/* 裁剪信息区域 */
+.crop-info-section {
+    border-top: 1px solid #e8eaed;
+}
+
+/* 预览提示文字 */
+.preview-hint {
+    color: #656d76;
+}
+
+/* ========================================
    列表视图 - GitHub 风格优化
    ======================================== */
 
@@ -3499,5 +3536,321 @@
     /* 存储空状态 */
     .storage-empty {
         color: #7d8590;
+    }
+
+    /* ========================================
+       图片编辑器模态框暗色模式
+       ======================================== */
+
+    /* 裁剪模态框 */
+    #crop-modal .modal-body,
+    #watermark-modal .modal-body {
+        background: #161b22;
+    }
+
+    #crop-modal .crop-settings,
+    #watermark-modal .watermark-settings {
+        background: #161b22;
+    }
+
+    #crop-modal label,
+    #watermark-modal label {
+        color: #c9d1d9;
+    }
+
+    #crop-modal select,
+    #watermark-modal select,
+    #crop-modal input[type="text"],
+    #watermark-modal input[type="text"],
+    #crop-modal input[type="number"],
+    #watermark-modal input[type="number"] {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    #crop-modal select:focus,
+    #watermark-modal select:focus,
+    #crop-modal input:focus,
+    #watermark-modal input:focus {
+        border-color: #58a6ff;
+    }
+
+    #crop-modal small,
+    #watermark-modal small {
+        color: #7d8590 !important;
+    }
+
+    #crop-modal p,
+    #watermark-modal p {
+        color: #c9d1d9;
+    }
+
+    #crop-modal ul,
+    #watermark-modal ul {
+        color: #c9d1d9;
+    }
+
+    /* 裁剪框信息区域 */
+    #crop-modal .crop-settings > div[style*="border-top"] {
+        border-top-color: #30363d !important;
+    }
+
+    /* 裁剪框样式 */
+    #crop-box {
+        border-color: rgba(255, 255, 255, 0.8) !important;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8) !important;
+    }
+
+    #crop-box .resize-handle {
+        background: #c9d1d9 !important;
+        border-color: #0d1117 !important;
+    }
+
+    /* 水印预览提示 */
+    #watermark-modal .watermark-preview-container p {
+        color: #7d8590 !important;
+    }
+
+    /* 图片压缩模态框 */
+    #image-compress-modal .modal-body,
+    #video-compress-modal .modal-body {
+        background: #161b22;
+    }
+
+    #image-compress-modal .compress-settings,
+    #video-compress-modal .compress-settings {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    #image-compress-modal label,
+    #video-compress-modal label {
+        color: #c9d1d9;
+    }
+
+    #image-compress-modal select,
+    #video-compress-modal select,
+    #image-compress-modal input[type="text"],
+    #video-compress-modal input[type="text"] {
+        background: #0d1117 !important;
+        border-color: #30363d !important;
+        color: #c9d1d9 !important;
+    }
+
+    #image-compress-modal select:focus,
+    #video-compress-modal select:focus,
+    #image-compress-modal input:focus,
+    #video-compress-modal input:focus {
+        border-color: #58a6ff !important;
+    }
+
+    #image-compress-modal small,
+    #video-compress-modal small {
+        color: #7d8590 !important;
+    }
+
+    /* 智能建议区域 */
+    #smart-suggestion-area {
+        background: #0d1117 !important;
+        border-color: #30363d !important;
+    }
+
+    #smart-suggestion-area h4 {
+        color: #c9d1d9 !important;
+    }
+
+    #suggestion-content {
+        color: #c9d1d9;
+    }
+
+    /* 压缩质量滑块 */
+    #image-quality-slider,
+    #video-quality-slider {
+        accent-color: #58a6ff;
+    }
+
+    #image-quality-value,
+    #video-quality-value {
+        color: #58a6ff;
+    }
+
+    /* 压缩结果区域 */
+    #image-compress-result,
+    #video-compress-result {
+        background: #0d1117;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    /* 自定义文件名输入框 */
+    #image-custom-name-group,
+    #video-custom-name-group,
+    #crop-custom-name-group,
+    #watermark-custom-name-group {
+        background: transparent;
+    }
+
+    #image-custom-name,
+    #video-custom-name,
+    #crop-custom-name,
+    #watermark-custom-name {
+        background: #0d1117 !important;
+        border-color: #30363d !important;
+        color: #c9d1d9 !important;
+    }
+
+    /* 隐私检测模态框 */
+    #privacy-modal .modal-body {
+        background: #161b22;
+    }
+
+    #privacy-content {
+        color: #c9d1d9;
+    }
+
+    /* GPS地图模态框 */
+    #gps-map-modal .modal-body {
+        background: #0d1117;
+    }
+
+    /* 按钮样式覆盖 */
+    #crop-modal .btn,
+    #watermark-modal .btn,
+    #image-compress-modal .btn,
+    #video-compress-modal .btn,
+    #privacy-modal .btn {
+        background: #21262d;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    #crop-modal .btn:hover,
+    #watermark-modal .btn:hover,
+    #image-compress-modal .btn:hover,
+    #video-compress-modal .btn:hover,
+    #privacy-modal .btn:hover {
+        background: #30363d;
+        border-color: #484f58;
+    }
+
+    #crop-modal .btn-primary,
+    #watermark-modal .btn-primary,
+    #image-compress-modal .btn-primary,
+    #video-compress-modal .btn-primary {
+        background: #238636;
+        border-color: #238636;
+        color: #ffffff;
+    }
+
+    #crop-modal .btn-primary:hover,
+    #watermark-modal .btn-primary:hover,
+    #image-compress-modal .btn-primary:hover,
+    #video-compress-modal .btn-primary:hover {
+        background: #2ea043;
+        border-color: #2ea043;
+    }
+
+    #image-compress-modal .btn-success,
+    #video-compress-modal .btn-success {
+        background: #238636;
+        border-color: #238636;
+        color: #ffffff;
+    }
+
+    #image-compress-modal .btn-success:hover,
+    #video-compress-modal .btn-success:hover {
+        background: #2ea043;
+        border-color: #2ea043;
+    }
+
+    #image-compress-modal .btn-secondary,
+    #video-compress-modal .btn-secondary {
+        background: #21262d;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+
+    /* 范围滑块轨道 */
+    input[type="range"] {
+        background: transparent;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+        background: #30363d;
+    }
+
+    input[type="range"]::-moz-range-track {
+        background: #30363d;
+    }
+
+    /* 颜色选择器 */
+    #watermark-color {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    /* 图片容器背景 */
+    #crop-image-container,
+    #watermark-image-container {
+        background: #0d1117;
+    }
+
+    /* 水印叠加层 */
+    #watermark-overlay {
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9) !important;
+    }
+
+    /* 表单提示文字 */
+    .form-hint {
+        color: #7d8590;
+    }
+
+    /* 智能建议区域 */
+    .smart-suggestion-area {
+        background: #0d1117;
+        border-color: #30363d;
+    }
+
+    .smart-suggestion-area h4 {
+        color: #c9d1d9;
+    }
+
+    /* 滑块标签 */
+    .slider-labels {
+        color: #7d8590;
+    }
+
+    /* 裁剪信息区域 */
+    .crop-info-section {
+        border-top-color: #30363d;
+    }
+
+    /* 预览提示文字 */
+    .preview-hint {
+        color: #7d8590;
+    }
+
+    /* 裁剪信息显示区域数值 */
+    #crop-info-x,
+    #crop-info-y,
+    #crop-info-width,
+    #crop-info-height,
+    #crop-info-ratio {
+        color: #58a6ff;
+    }
+
+    /* 水印滑块数值显示 */
+    #font-size-value,
+    #scale-value,
+    #opacity-value {
+        color: #58a6ff;
+    }
+
+    /* 裁剪/水印预览区域背景 */
+    .crop-modal .crop-preview-container,
+    .watermark-modal .watermark-preview-container {
+        background: #0d1117;
+        border-radius: 6px;
     }
 }
