@@ -1997,15 +1997,23 @@ handleChunkedUploadComplete: function() {
                     }
 
                     if (useChunked) {
-                        chunkedFiles.push(file);
+                        // 在移除前先保存原生文件对象和必要信息
+                        var nativeFile = file.getNative();
+                        chunkedFiles.push({
+                            id: file.id,
+                            name: file.name,
+                            size: file.size,
+                            nativeFile: nativeFile,
+                            pluploadFile: file
+                        });
                     } else {
                         normalFiles.push(file);
                     }
                 });
 
                 // 如果有分片上传文件，从 plupload 队列中移除
-                chunkedFiles.forEach(function(file) {
-                    up.removeFile(file);
+                chunkedFiles.forEach(function(fileInfo) {
+                    up.removeFile(fileInfo.pluploadFile);
                 });
 
                 // 处理分片上传
@@ -2027,14 +2035,14 @@ handleChunkedUploadComplete: function() {
                             return;
                         }
 
-                        var file = chunkedFiles[index];
-                        var li = document.getElementById(file.id);
+                        var fileInfo = chunkedFiles[index];
+                        var li = document.getElementById(fileInfo.id);
                         var status = li ? li.querySelector('.status') : null;
                         var progressFill = li ? li.querySelector('.progress-fill') : null;
 
                         if (status) status.textContent = '初始化分片上传...';
 
-                        chunkedUploader.upload(file.getNative(), currentStorage, {
+                        chunkedUploader.upload(fileInfo.nativeFile, currentStorage, {
                             onProgress: function(progress) {
                                 if (progressFill) {
                                     progressFill.style.width = progress.percent + '%';
@@ -2043,7 +2051,7 @@ handleChunkedUploadComplete: function() {
                                     status.textContent = '上传中... ' + progress.percent + '% (' + progress.uploadedChunks + '/' + progress.totalChunks + ' 分片)';
                                 }
                             },
-                            onChunkComplete: function(data) {
+                            onChunkComplete: function() {
                                 // 单个分片完成
                             },
                             onError: function(error) {
@@ -2064,9 +2072,9 @@ handleChunkedUploadComplete: function() {
                             // 保存上传成功的文件信息
                             if (result.data && result.data.url) {
                                 uploadedFilesData.push({
-                                    title: result.data.name || file.name,
+                                    title: result.data.name || fileInfo.name,
                                     url: result.data.url,
-                                    isImage: result.data.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(file.name)
+                                    isImage: result.data.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(fileInfo.name)
                                 });
                             }
 

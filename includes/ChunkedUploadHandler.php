@@ -249,6 +249,11 @@ class MediaLibrary_ChunkedUploadHandler
      */
     public function completeUpload($params, $configOptions)
     {
+        // 设置较长的执行时间限制（10分钟）
+        @set_time_limit(600);
+        // 确保即使用户断开连接也继续执行
+        @ignore_user_abort(true);
+
         $uploadId = isset($params['uploadId']) ? $params['uploadId'] : '';
 
         if (empty($uploadId)) {
@@ -935,5 +940,97 @@ class MediaLibrary_ChunkedUploadHandler
         ];
 
         return isset($mimeTypes[$ext]) ? $mimeTypes[$ext] : 'application/octet-stream';
+    }
+
+    /**
+     * 检查上传状态（用于验证 completeUpload 是否成功）
+     * @param string $uploadId 上传ID
+     * @param string $filename 文件名
+     * @return array 状态结果
+     */
+    public function checkUploadStatus($uploadId, $filename)
+    {
+        // 检查分片信息文件是否还存在
+        $infoFile = $this->tempDir . $uploadId . $this->infoExt;
+
+        // 如果信息文件不存在，说明上传已完成（文件已被清理）
+        if (!file_exists($infoFile)) {
+            // 尝试在数据库中查找最近上传的匹配文件
+            $db = Typecho_Db::get();
+
+            // 查找最近 5 分钟内上传的同名文件
+            $fiveMinutesAgo = time() - 300;
+            $query = $db->select()
+                ->from('table.contents')
+                ->where('type = ?', 'attachment')
+                ->where('title = ?', $filename)
+                ->where('created > ?', $fiveMinutesAgo)
+                ->order('created', Typecho_Db::SORT_DESC)
+                ->limit(1);
+
+            $attachment = $db->fetchRow($query);
+
+            if ($attachment) {
+                $attachmentData = @unserialize($attachment['text']);
+                $url = '';
+
+                if ($attachmentData) {
+                    if (!empty($attachmentData['object_storage_url'])) {
+                        $url = $attachmentData['object_storage_url'];
+                    } elseif (!empty($attachmentData['path'])) {
+                        $options = Typecho_Widget::widget('Widget_Options');
+                        $url = Typecho_Common::url($attachmentData['path'], $options->siteUrl);
+                    }
+                }
+
+                $mime = isset($attachmentData['mime']) ? $attachmentData['mime'] : '';
+
+                return [
+                    'success' => true,
+                    'completed' => true,
+                    'message' => '上传已完成',
+                    'data' => [
+                        'cid' => $attachment['cid'],
+                        'name' => $filename,
+                        'url' => $url,
+                        'size' => isset($attachmentData['size']) ? $attachmentData['size'] : 0,
+                        'type' => $mime,
+                        'isImage' => strpos($mime, 'image/') === 0
+                    ]
+                ];
+            }
+
+            // 信息文件不存在但数据库中也没找到，可能正在处理中
+            return [
+                'success' => true,
+                'completed' => false,
+                'processing' => true,
+                'message' => '上传正在处理中，请稍候'
+            ];
+        }
+
+        // 信息文件存在，检查上传进度
+        $uploadInfo = @json_decode(file_get_contents($infoFile), true);
+        if (!$uploadInfo) {
+            return [
+                'success' => false,
+                'message' => '上传信息损坏'
+            ];
+        }
+
+        $uploadedCount = count($uploadInfo['uploadedChunks']);
+        $totalChunks = $uploadInfo['totalChunks'];
+
+        return [
+            'success' => true,
+            'completed' => false,
+            'processing' => false,
+            'message' => '上传未完成',
+            'progress' => [
+                'uploadedChunks' => $uploadedCount,
+                'totalChunks' => $totalChunks,
+                'percent' => round($uploadedCount / $totalChunks * 100, 2)
+            ]
+        ];
     }
 }

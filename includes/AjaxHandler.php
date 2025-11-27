@@ -146,6 +146,10 @@ class MediaLibrary_AjaxHandler
                     self::handleChunkedCancelAction($request);
                     break;
 
+                case 'chunked_status':
+                    self::handleChunkedStatusAction($request);
+                    break;
+
 
                 // 以下 WebDAV 同步方法已移除，请使用新的 WebDAVSync 类
 
@@ -2541,6 +2545,28 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             echo json_encode([
                 'success' => false,
                 'message' => '取消分片上传失败: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理检查分片上传状态请求
+     */
+    private static function handleChunkedStatusAction($request)
+    {
+        try {
+            $handler = new MediaLibrary_ChunkedUploadHandler();
+            $uploadId = $request->get('uploadId', '');
+            $filename = $request->get('filename', '');
+
+            $result = $handler->checkUploadStatus($uploadId, $filename);
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('chunked_status', '检查上传状态失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode([
+                'success' => false,
+                'message' => '检查上传状态失败: ' . $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
     }

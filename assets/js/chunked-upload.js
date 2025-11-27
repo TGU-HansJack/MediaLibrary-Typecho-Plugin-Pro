@@ -58,6 +58,7 @@ var ChunkedUploader = (function() {
             var xhr = new XMLHttpRequest();
             xhr.open('POST', self.options.apiUrl, true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.timeout = 60000; // 1分钟超时
 
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
@@ -70,12 +71,19 @@ var ChunkedUploader = (function() {
                                 reject(new Error(response.message || '初始化上传失败'));
                             }
                         } catch (e) {
+                            console.error('initUpload 解析响应失败:', xhr.responseText);
                             reject(new Error('解析响应失败'));
                         }
+                    } else if (xhr.status === 0) {
+                        reject(new Error('请求被取消或超时'));
                     } else {
                         reject(new Error('HTTP 错误: ' + xhr.status));
                     }
                 }
+            };
+
+            xhr.ontimeout = function() {
+                reject(new Error('初始化请求超时'));
             };
 
             xhr.onerror = function() {
@@ -111,6 +119,7 @@ var ChunkedUploader = (function() {
 
             var xhr = new XMLHttpRequest();
             xhr.open('POST', self.options.apiUrl, true);
+            xhr.timeout = 120000; // 2分钟超时（单个分片）
 
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
@@ -123,12 +132,19 @@ var ChunkedUploader = (function() {
                                 reject(new Error(response.message || '上传分片失败'));
                             }
                         } catch (e) {
+                            console.error('uploadChunk 解析响应失败:', xhr.responseText);
                             reject(new Error('解析响应失败'));
                         }
+                    } else if (xhr.status === 0) {
+                        reject(new Error('分片上传被取消或超时'));
                     } else {
                         reject(new Error('HTTP 错误: ' + xhr.status));
                     }
                 }
+            };
+
+            xhr.ontimeout = function() {
+                reject(new Error('分片上传超时'));
             };
 
             xhr.onerror = function() {
@@ -164,15 +180,48 @@ var ChunkedUploader = (function() {
     /**
      * 完成分片上传
      * @param {string} uploadId 上传ID
+     * @param {string} filename 文件名（用于状态检查）
      * @return {Promise<Object>}
      */
-    ChunkedUploader.prototype.completeUpload = function(uploadId) {
+    ChunkedUploader.prototype.completeUpload = function(uploadId, filename) {
         var self = this;
 
         return new Promise(function(resolve, reject) {
             var xhr = new XMLHttpRequest();
             xhr.open('POST', self.options.apiUrl, true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+            // 设置较长的超时时间（5分钟），因为合并大文件可能需要较长时间
+            xhr.timeout = 300000;
+
+            var handleError = function(errorMsg) {
+                // 当请求失败时，检查上传是否实际已完成
+                console.log('completeUpload 请求失败，检查上传状态...');
+                self.checkUploadStatus(uploadId, filename).then(function(statusResult) {
+                    if (statusResult.completed && statusResult.data) {
+                        console.log('上传状态检查：已完成');
+                        resolve(statusResult);
+                    } else if (statusResult.processing) {
+                        // 正在处理中，等待后重试检查
+                        console.log('上传状态检查：处理中，等待重试...');
+                        setTimeout(function() {
+                            self.checkUploadStatus(uploadId, filename).then(function(retryResult) {
+                                if (retryResult.completed && retryResult.data) {
+                                    resolve(retryResult);
+                                } else {
+                                    reject(new Error(errorMsg));
+                                }
+                            }).catch(function() {
+                                reject(new Error(errorMsg));
+                            });
+                        }, 3000);
+                    } else {
+                        reject(new Error(errorMsg));
+                    }
+                }).catch(function() {
+                    reject(new Error(errorMsg));
+                });
+            };
 
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
@@ -184,6 +233,53 @@ var ChunkedUploader = (function() {
                             } else {
                                 reject(new Error(response.message || '完成上传失败'));
                             }
+                        } catch (e) {
+                            console.error('解析响应失败:', xhr.responseText);
+                            handleError('解析响应失败');
+                        }
+                    } else if (xhr.status === 0) {
+                        // 状态 0 可能是超时或请求被取消，检查实际状态
+                        handleError('请求超时或被取消');
+                    } else {
+                        reject(new Error('HTTP 错误: ' + xhr.status));
+                    }
+                }
+            };
+
+            xhr.ontimeout = function() {
+                handleError('请求超时');
+            };
+
+            xhr.onerror = function() {
+                handleError('网络错误');
+            };
+
+            var params = 'action=chunked_complete&uploadId=' + encodeURIComponent(uploadId);
+            xhr.send(params);
+        });
+    };
+
+    /**
+     * 检查上传状态
+     * @param {string} uploadId 上传ID
+     * @param {string} filename 文件名
+     * @return {Promise<Object>}
+     */
+    ChunkedUploader.prototype.checkUploadStatus = function(uploadId, filename) {
+        var self = this;
+
+        return new Promise(function(resolve, reject) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', self.options.apiUrl, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.timeout = 30000;
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            var response = JSON.parse(xhr.responseText);
+                            resolve(response);
                         } catch (e) {
                             reject(new Error('解析响应失败'));
                         }
@@ -197,7 +293,8 @@ var ChunkedUploader = (function() {
                 reject(new Error('网络错误'));
             };
 
-            var params = 'action=chunked_complete&uploadId=' + encodeURIComponent(uploadId);
+            var params = 'action=chunked_status&uploadId=' + encodeURIComponent(uploadId) +
+                '&filename=' + encodeURIComponent(filename);
             xhr.send(params);
         });
     };
@@ -406,7 +503,7 @@ var ChunkedUploader = (function() {
             }
 
             // 所有分片上传完成，通知服务器合并
-            return self.completeUpload(uploadId);
+            return self.completeUpload(uploadId, file.name);
 
         }).then(function(result) {
             return result;
