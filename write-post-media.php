@@ -2447,9 +2447,14 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                 prevent_duplicates: true
             },
             init: {
+                PostInit: function() {
+                    // 存储已上传文件的数据
+                    uploader.uploadedFiles = [];
+                },
                 FilesAdded: function(up, files) {
                     openModal();
                     $fileList.empty();
+                    up.uploadedFiles = []; // 重置已上传文件列表
                     plupload.each(files, function(file) {
                         var li = document.createElement('li');
                         li.id = file.id;
@@ -2479,10 +2484,13 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                         var parsedData;
                         var uploadSuccess = false;
                         var uploadMessage = '';
+                        var uploadedFileInfo = null;
                         try {
                             parsedData = JSON.parse(result.response);
-                            if (Array.isArray(parsedData)) {
+                            if (Array.isArray(parsedData) && parsedData.length > 0) {
                                 uploadSuccess = true;
+                                // 提取第一个上传的文件信息
+                                uploadedFileInfo = parsedData[0];
                             } else if (parsedData && typeof parsedData === 'object') {
                                 if (typeof parsedData.success === 'boolean') {
                                     uploadSuccess = parsedData.success;
@@ -2491,6 +2499,12 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                                 }
                                 if (parsedData.message) {
                                     uploadMessage = parsedData.message;
+                                }
+                                // 尝试从 data 字段提取文件信息
+                                if (parsedData.data && Array.isArray(parsedData.data) && parsedData.data.length > 0) {
+                                    uploadedFileInfo = parsedData.data[0];
+                                } else if (parsedData.url) {
+                                    uploadedFileInfo = parsedData;
                                 }
                             }
                         } catch (e) {
@@ -2502,6 +2516,14 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                             li.classList.add('success');
                             if (status) status.textContent = uploadMessage || '上传成功';
                             if (fill) fill.style.background = '#22c55e';
+                            // 保存上传成功的文件信息
+                            if (uploadedFileInfo && uploadedFileInfo.url) {
+                                up.uploadedFiles.push({
+                                    title: uploadedFileInfo.title || file.name,
+                                    url: uploadedFileInfo.url,
+                                    isImage: uploadedFileInfo.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(file.name)
+                                });
+                            }
                         } else {
                             li.classList.add('error');
                             if (status) status.textContent = uploadMessage || '上传失败';
@@ -2514,11 +2536,33 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                     }
                     uploader.removeFile(file);
                 },
-                UploadComplete: function() {
+                UploadComplete: function(up) {
                     closeModal();
                     reloadMediaList();
                     refreshExpandedIfOpen();
-                    showToast('上传完成');
+
+                    // 自动复制上传文件的 Markdown 链接
+                    if (up.uploadedFiles && up.uploadedFiles.length > 0) {
+                        var snippets = [];
+                        up.uploadedFiles.forEach(function(fileInfo) {
+                            var snippet = buildMarkdownSnippet(fileInfo.title, fileInfo.url, fileInfo.isImage);
+                            if (snippet) {
+                                snippets.push(snippet);
+                            }
+                        });
+                        if (snippets.length > 0) {
+                            copyTextToClipboard(snippets.join('\n')).then(function() {
+                                showToast('上传完成，Markdown 已复制');
+                            }).catch(function() {
+                                showToast('上传完成');
+                            });
+                        } else {
+                            showToast('上传完成');
+                        }
+                        up.uploadedFiles = []; // 清空列表
+                    } else {
+                        showToast('上传完成');
+                    }
                 },
                 Error: function(up, error) {
                     var li = document.createElement('li');

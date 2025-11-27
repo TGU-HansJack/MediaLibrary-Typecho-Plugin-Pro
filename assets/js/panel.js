@@ -20,6 +20,57 @@ var getPreferredStorage = function() {
 };
 var currentStorage = currentStorageFilter === 'all' ? getPreferredStorage() : currentStorageFilter;
 
+// 存储上传文件信息的数组
+var uploadedFilesData = [];
+
+// Markdown 转义函数
+function escapeMarkdown(text) {
+    return (text || '').replace(/\\/g, '\\\\')
+        .replace(/\[/g, '\\[')
+        .replace(/\]/g, '\\]')
+        .replace(/\*/g, '\\*')
+        .replace(/_/g, '\\_');
+}
+
+// 构建 Markdown 代码片段
+function buildMarkdownSnippet(title, url, isImage) {
+    if (!url) {
+        return '';
+    }
+    var safeTitle = escapeMarkdown(title || url);
+    return isImage
+        ? '![' + safeTitle + '](' + url + ')'
+        : '[' + safeTitle + '](' + url + ')';
+}
+
+// 复制文本到剪贴板
+function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(resolve, reject) {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            var successful = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            if (successful) {
+                resolve();
+            } else {
+                reject();
+            }
+        } catch (err) {
+            document.body.removeChild(textarea);
+            reject(err);
+        }
+    });
+}
+
 // 修复分页跳转函数 - 防止打开新标签页
 function goToPage(page, event) {
     // 阻止默认行为
@@ -1824,6 +1875,9 @@ escapeHtml: function(text) {
 
         init: {
             FilesAdded: function(up, files) {
+                // 重置上传文件列表
+                uploadedFilesData = [];
+
                 // 自动显示上传模态框
                 var uploadModal = document.getElementById('upload-modal');
                 if (uploadModal) {
@@ -1879,10 +1933,11 @@ escapeHtml: function(text) {
                 if (li) {
                     var status = li.querySelector('.status');
                     var progressFill = li.querySelector('.progress-fill');
-                    
+
                     if (200 === result.status) {
                         var parsedData;
                         var parsedSuccessfully = true;
+                        var uploadedFileInfo = null;
                         try {
                             parsedData = JSON.parse(result.response);
                         } catch (error) {
@@ -1896,8 +1951,10 @@ escapeHtml: function(text) {
                             var uploadSuccess = false;
                             var uploadMessage = '';
 
-                            if (Array.isArray(parsedData)) {
+                            if (Array.isArray(parsedData) && parsedData.length > 0) {
                                 uploadSuccess = true;
+                                // 提取第一个上传的文件信息
+                                uploadedFileInfo = parsedData[0];
                             } else if (parsedData && typeof parsedData === 'object') {
                                 if (typeof parsedData.success === 'boolean') {
                                     uploadSuccess = parsedData.success;
@@ -1907,12 +1964,26 @@ escapeHtml: function(text) {
                                 if (parsedData.message) {
                                     uploadMessage = parsedData.message;
                                 }
+                                // 尝试从 data 字段提取文件信息
+                                if (parsedData.data && Array.isArray(parsedData.data) && parsedData.data.length > 0) {
+                                    uploadedFileInfo = parsedData.data[0];
+                                } else if (parsedData.url) {
+                                    uploadedFileInfo = parsedData;
+                                }
                             }
 
                             if (uploadSuccess) {
                                 li.className = 'success';
                                 if (status) status.textContent = uploadMessage || '上传成功';
                                 if (progressFill) progressFill.style.background = '#46b450';
+                                // 保存上传成功的文件信息
+                                if (uploadedFileInfo && uploadedFileInfo.url) {
+                                    uploadedFilesData.push({
+                                        title: uploadedFileInfo.title || file.name,
+                                        url: uploadedFileInfo.url,
+                                        isImage: uploadedFileInfo.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(file.name)
+                                    });
+                                }
                             } else {
                                 li.className = 'error';
                                 if (status) status.textContent = uploadMessage || '上传失败: 服务器响应异常';
@@ -1925,7 +1996,7 @@ escapeHtml: function(text) {
                         if (progressFill) progressFill.style.background = '#dc3232';
                     }
                 }
-                
+
                 uploader.removeFile(file);
             },
 
@@ -1935,56 +2006,80 @@ escapeHtml: function(text) {
                     if (uploadModal) {
                         uploadModal.style.display = 'none';
                     }
-                    
+
                     var successCount = document.querySelectorAll('#file-list .success').length;
                     if (successCount > 0) {
+                        // 构建 Markdown 并复制到剪贴板
+                        var markdownCopied = false;
+                        var toastMessage = '上传完成！成功上传 ' + successCount + ' 个文件';
+
+                        if (uploadedFilesData.length > 0) {
+                            var snippets = [];
+                            uploadedFilesData.forEach(function(fileInfo) {
+                                var snippet = buildMarkdownSnippet(fileInfo.title, fileInfo.url, fileInfo.isImage);
+                                if (snippet) {
+                                    snippets.push(snippet);
+                                }
+                            });
+
+                            if (snippets.length > 0) {
+                                copyTextToClipboard(snippets.join('\n')).then(function() {
+                                    markdownCopied = true;
+                                }).catch(function() {
+                                    // 复制失败，静默处理
+                                });
+                                toastMessage = '上传完成！Markdown 已复制';
+                            }
+                            uploadedFilesData = []; // 清空列表
+                        }
+
                         // 创建并显示弹幕
                         var toast = document.createElement('div');
-                        toast.style.cssText = `
-                            position: fixed;
-                            top: 20px;
-                            right: 20px;
-                            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-                            color: white;
-                            padding: 15px 25px;
-                            border-radius: 8px;
-                            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
-                            font-size: 14px;
-                            font-weight: 500;
-                            z-index: 10000;
-                            opacity: 0;
-                            transform: translateX(100%);
-                            transition: all 0.3s ease-in-out;
-                            max-width: 300px;
-                        `;
-                        
-                        toast.innerHTML = `
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 16px;">✅</span>
-                                <span>上传完成！成功上传 ${successCount} 个文件</span>
-                            </div>
-                        `;
-                        
+                        toast.style.cssText = '\
+                            position: fixed;\
+                            top: 20px;\
+                            right: 20px;\
+                            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);\
+                            color: white;\
+                            padding: 15px 25px;\
+                            border-radius: 8px;\
+                            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);\
+                            font-size: 14px;\
+                            font-weight: 500;\
+                            z-index: 10000;\
+                            opacity: 0;\
+                            transform: translateX(100%);\
+                            transition: all 0.3s ease-in-out;\
+                            max-width: 300px;\
+                        ';
+
+                        toast.innerHTML = '\
+                            <div style="display: flex; align-items: center; gap: 8px;">\
+                                <span style="font-size: 16px;">✅</span>\
+                                <span>' + toastMessage + '</span>\
+                            </div>\
+                        ';
+
                         document.body.appendChild(toast);
-                        
+
                         // 显示动画
                         setTimeout(function() {
                             toast.style.opacity = '1';
                             toast.style.transform = 'translateX(0)';
                         }, 100);
-                        
+
                         // 自动消失并刷新页面
                         setTimeout(function() {
                             toast.style.opacity = '0';
                             toast.style.transform = 'translateX(100%)';
-                            
+
                             setTimeout(function() {
                                 if (toast.parentNode) {
                                     toast.parentNode.removeChild(toast);
                                 }
                                 location.reload();
                             }, 300);
-                        }, 800);
+                        }, 1200);
                     }
                 }, 1000);
             },
