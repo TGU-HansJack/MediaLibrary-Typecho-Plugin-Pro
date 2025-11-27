@@ -1711,7 +1711,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
             <span class="selection-count" id="expanded-selection-count"></span>
         </div>
         <div class="media-overlay-content">
-            <div class="media-grid" id="expanded-media-grid">
+            <div id="expanded-media-grid">
                 <div class="loading">加载中...</div>
             </div>
         </div>
