@@ -1006,8 +1006,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     flex: 1;
     overflow-y: auto;
     display: grid;
-    /* 使用 repeat(auto-fill) 配合 max() 确保最多5列 */
-    grid-template-columns: repeat(auto-fill, minmax(max(160px, calc((100% - 64px) / 5)), 1fr));
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
     padding: 16px 4px 16px 0;
     align-content: start;
@@ -1016,44 +1015,35 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     scrollbar-color: var(--ml-border) transparent;
 }
 
-/* 响应式断点 - 限制最大列数 */
-/* 超小屏幕: 2列 */
-@media (max-width: 480px) {
+/* 响应式断点 - 调整列数 */
+/* 超大屏幕: 5列 */
+@media (max-width: 1200px) {
     #expanded-media-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
     }
 }
 
-/* 小屏幕: 2-3列 */
-@media (min-width: 481px) and (max-width: 640px) {
+/* 中等屏幕: 4列 */
+@media (max-width: 900px) {
     #expanded-media-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 12px;
-    }
-}
-
-/* 中等屏幕: 3-4列 */
-@media (min-width: 641px) and (max-width: 900px) {
-    #expanded-media-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
         gap: 14px;
     }
 }
 
-/* 大屏幕: 4-5列 */
-@media (min-width: 901px) and (max-width: 1200px) {
+/* 小屏幕: 3列 */
+@media (max-width: 640px) {
     #expanded-media-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
     }
 }
 
-/* 超大屏幕: 固定5列 */
-@media (min-width: 1201px) {
+/* 超小屏幕: 2列 */
+@media (max-width: 400px) {
     #expanded-media-grid {
-        grid-template-columns: repeat(5, 1fr);
-        gap: 16px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
     }
 }
 
@@ -1631,7 +1621,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     <div class="media-toolbar">
         <div>
             <button type="button" class="btn btn-primary" id="editor-upload-btn">上传文件</button>
-            <button type="button" class="btn" id="editor-copy-markdown" style="display:none;">复制 Markdown</button>
+            <button type="button" class="btn" id="editor-copy-markdown" style="display:none;">复制</button>
         </div>
         <div class="toolbar-actions">
             <button type="button" class="btn btn-icon" id="editor-expand-btn" title="展开媒体库">
@@ -1717,7 +1707,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         <div class="overlay-toolbar">
             <button type="button" class="btn btn-primary" id="expanded-upload-btn">上传文件</button>
             <button type="button" class="btn btn-danger" id="expanded-delete-btn" disabled>删除选中</button>
-            <button type="button" class="btn" id="expanded-copy-btn" disabled>复制 Markdown</button>
+            <button type="button" class="btn" id="expanded-copy-btn" disabled>复制</button>
             <span class="selection-count" id="expanded-selection-count"></span>
         </div>
         <div class="media-overlay-content">
@@ -1807,7 +1797,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     function updateCopyButton() {
         var selected = Object.keys(editorState.selection).length;
         if (selected > 0) {
-            $copyBtn.show().text('复制 Markdown (' + selected + ')');
+            $copyBtn.show().text('复制 (' + selected + ')');
         } else {
             $copyBtn.hide();
         }
@@ -2596,11 +2586,11 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
         if (count > 0) {
             $expandedDeleteBtn.text('删除选中 (' + count + ')');
-            $expandedCopyBtn.text('复制 Markdown (' + count + ')');
+            $expandedCopyBtn.text('复制 (' + count + ')');
             $selectionCount.text('已选中 ' + count + ' 个文件');
         } else {
             $expandedDeleteBtn.text('删除选中');
-            $expandedCopyBtn.text('复制 Markdown');
+            $expandedCopyBtn.text('复制');
             $selectionCount.text('');
         }
     }
