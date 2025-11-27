@@ -112,7 +112,7 @@ $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php
 $cssVersion = '3.8.6';
 ?>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/all.min.css">
 <link rel="stylesheet" href="<?php echo Helper::options()->pluginUrl; ?>/MediaLibrary/assets/css/panel.css?v=<?php echo $cssVersion; ?>">
 
 <div class="main">
