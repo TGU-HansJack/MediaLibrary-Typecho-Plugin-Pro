@@ -109,7 +109,7 @@ $totalPages = $total > 0 ? ceil($total / $pageSize) : 1;
 $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
 
 // 版本号控制 - 用于强制刷新缓存
-$cssVersion = '3.7.5';
+$cssVersion = '3.7.6';
 ?>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -185,6 +185,7 @@ window.mediaLibraryConfig = {
     enableImageMagick: <?php echo $enableImageMagick ? 'true' : 'false'; ?>,
     enableFFmpeg: <?php echo $enableFFmpeg ? 'true' : 'false'; ?>,
     enableVideoCompress: <?php echo $enableVideoCompress ? 'true' : 'false'; ?>,
+    enableLoadOptimization: <?php echo $enableLoadOptimization ? 'true' : 'false'; ?>,
     gdQuality: <?php echo $gdQuality; ?>,
     videoQuality: <?php echo $videoQuality; ?>,
     videoCodec: '<?php echo $videoCodec; ?>',

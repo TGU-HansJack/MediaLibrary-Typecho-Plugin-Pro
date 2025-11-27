@@ -655,6 +655,14 @@ jQuery(function($) {
         }
         $form->addInput($enableExif);
         
+        // 加载优化设置
+        $enableLoadOptimization = new Typecho_Widget_Helper_Form_Element_Checkbox('enableLoadOptimization',
+            array('1' => '启用加载优化'),
+            array(),
+            '加载优化',
+            '优化媒体库页面图片加载方式：使用懒加载、显示占位符代替原图。适用于内存低或带宽受限的环境，可显著减少页面加载时间和带宽消耗。');
+        $form->addInput($enableLoadOptimization);
+
         // 添加其他配置选项
         self::addImageProcessingOptions($form, $envInfo);
         self::addVideoProcessingOptions($form, $envInfo);

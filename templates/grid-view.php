@@ -13,10 +13,17 @@
                 <div class="media-checkbox">
                     <input type="checkbox" value="<?php echo $attachment['cid']; ?>">
                 </div>
-                
+
                 <?php if ($attachment['isImage'] && $attachment['hasValidUrl']): ?>
                     <div class="media-preview">
-                        <img src="<?php echo $attachment['url']; ?>" alt="<?php echo htmlspecialchars($attachment['title']); ?>">
+                        <?php if (!empty($enableLoadOptimization)): ?>
+                            <!-- 加载优化模式：懒加载图片 -->
+                            <div class="lazy-placeholder" data-src="<?php echo $attachment['url']; ?>">
+                                <span class="lazy-icon">IMG</span>
+                            </div>
+                        <?php else: ?>
+                            <img src="<?php echo $attachment['url']; ?>" alt="<?php echo htmlspecialchars($attachment['title']); ?>">
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <div class="media-preview">

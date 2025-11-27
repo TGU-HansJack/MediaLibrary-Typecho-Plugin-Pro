@@ -49,6 +49,8 @@ class MediaLibrary_PanelHelper
                 $enableVideoCompress = $enableFFmpeg;
             }
 
+            $enableLoadOptimization = self::normalizeCheckboxOption($config, 'enableLoadOptimization') ?? false;
+
             $enableWebDAV = self::normalizeCheckboxOption($config, 'enableWebDAV') ?? false;
             $enableObjectStorage = self::normalizeCheckboxOption($config, 'enableObjectStorage') ?? false;
             $gdQuality = intval($config->gdQuality ?? 80);
@@ -137,6 +139,7 @@ class MediaLibrary_PanelHelper
             $enableImageMagick = false;
             $enableFFmpeg = false;
             $enableVideoCompress = false;
+            $enableLoadOptimization = false;
             $enableWebDAV = false;
             $enableObjectStorage = false;
             $gdQuality = 80;
@@ -204,6 +207,7 @@ class MediaLibrary_PanelHelper
             'enableImageMagick' => $enableImageMagick,
             'enableFFmpeg' => $enableFFmpeg,
             'enableVideoCompress' => $enableVideoCompress,
+            'enableLoadOptimization' => $enableLoadOptimization,
             'enableWebDAV' => $enableWebDAV,
             'enableObjectStorage' => $enableObjectStorage ? ['1'] : [],
             'gdQuality' => $gdQuality,

@@ -32,13 +32,70 @@ function goToPage(page, event) {
 // 主要功能对象
 var MediaLibrary = {
     selectedItems: [],
-    
+
     init: function() {
         this.bindEvents();
         this.initUpload();
         this.hideAllModals();
+        this.initLazyLoad();
     },
-    
+
+    // 懒加载初始化
+    initLazyLoad: function() {
+        if (!config.enableLoadOptimization) return;
+
+        var self = this;
+
+        // 使用 Intersection Observer 实现懒加载
+        if ('IntersectionObserver' in window) {
+            var lazyObserver = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        self.loadImage(entry.target);
+                        lazyObserver.unobserve(entry.target);
+                    }
+                });
+            }, {
+                root: document.querySelector('.media-panel-body'),
+                rootMargin: '50px',
+                threshold: 0.1
+            });
+
+            document.querySelectorAll('.lazy-placeholder').forEach(function(placeholder) {
+                lazyObserver.observe(placeholder);
+            });
+
+            // 保存 observer 以便后续使用
+            this.lazyObserver = lazyObserver;
+        } else {
+            // 降级处理：直接加载所有图片
+            document.querySelectorAll('.lazy-placeholder').forEach(function(placeholder) {
+                self.loadImage(placeholder);
+            });
+        }
+    },
+
+    // 加载单张图片
+    loadImage: function(placeholder) {
+        var src = placeholder.getAttribute('data-src');
+        if (!src) return;
+
+        var img = document.createElement('img');
+        var mediaItem = placeholder.closest('.media-item');
+        var title = mediaItem ? mediaItem.getAttribute('data-title') : '';
+
+        img.alt = title;
+        img.onload = function() {
+            placeholder.parentNode.replaceChild(img, placeholder);
+        };
+        img.onerror = function() {
+            // 加载失败，显示错误图标
+            placeholder.innerHTML = '<span class="lazy-icon lazy-error">ERR</span>';
+            placeholder.classList.add('load-failed');
+        };
+        img.src = src;
+    },
+
     hideAllModals: function() {
         var modals = document.querySelectorAll('.modal');
         modals.forEach(function(modal) {

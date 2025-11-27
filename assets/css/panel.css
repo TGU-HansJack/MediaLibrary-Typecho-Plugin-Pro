@@ -834,6 +834,42 @@
     font-weight: 400;
 }
 
+/* 懒加载占位符样式 */
+.lazy-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    animation: lazyPulse 1.5s ease-in-out infinite;
+}
+
+.lazy-placeholder.load-failed {
+    animation: none;
+    background: #fef2f2;
+}
+
+.lazy-icon {
+    font-size: 24px;
+    font-weight: 600;
+    color: #9ca3af;
+    letter-spacing: 1px;
+}
+
+.lazy-icon.lazy-error {
+    color: #ef4444;
+}
+
+@keyframes lazyPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
 .media-actions {
     position: absolute;
     top: var(--space-sm);
