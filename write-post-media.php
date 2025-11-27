@@ -1142,11 +1142,14 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     background: var(--ml-bg);
     border: 1px solid var(--ml-border-muted);
     border-radius: var(--ml-radius-md);
-    padding: clamp(8px, 1.5vw, 12px);
+    padding: 10px;
     cursor: pointer;
     transition: all var(--ml-transition);
     animation: mlFadeInUp var(--ml-transition-slow) ease backwards;
     position: relative;
+    height: 170px;
+    display: flex;
+    flex-direction: column;
 }
 
 #expanded-media-grid .expanded-media-item:hover {
@@ -1168,8 +1171,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
 #expanded-media-grid .expanded-media-item .media-preview {
     width: 100%;
-    aspect-ratio: 1;
-    min-height: 100px;
+    height: 100px;
     background: var(--ml-bg-secondary);
     border-radius: var(--ml-radius);
     display: flex;
@@ -1199,29 +1201,30 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 }
 
 #expanded-media-grid .expanded-media-item .media-title {
-    margin-top: 10px;
-    font-size: clamp(11px, 1.2vw, 13px);
+    margin-top: 8px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--ml-text);
     text-align: center;
-    max-height: 36px;
+    height: 32px;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    line-height: 1.4;
+    line-height: 1.35;
     word-break: break-all;
 }
 
 #expanded-media-grid .expanded-media-item .media-meta {
-    margin-top: 6px;
-    font-size: clamp(10px, 1vw, 12px);
+    margin-top: 4px;
+    font-size: 11px;
     color: var(--ml-text-muted);
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    height: 16px;
 }
 
 /* 选择复选框 */
@@ -1629,7 +1632,23 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     }
 
     #expanded-media-grid .expanded-media-item .media-preview {
-        min-height: 70px;
+        height: 80px;
+    }
+
+    #expanded-media-grid .expanded-media-item {
+        height: 150px;
+        padding: 8px;
+    }
+
+    #expanded-media-grid .expanded-media-item .media-title {
+        font-size: 11px;
+        margin-top: 6px;
+        height: 28px;
+    }
+
+    #expanded-media-grid .expanded-media-item .media-meta {
+        font-size: 10px;
+        height: 14px;
     }
 
     .overlay-pagination {
@@ -1678,15 +1697,22 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
     #expanded-media-grid .expanded-media-item {
         padding: 8px;
+        height: 140px;
+    }
+
+    #expanded-media-grid .expanded-media-item .media-preview {
+        height: 70px;
     }
 
     #expanded-media-grid .expanded-media-item .media-title {
         font-size: 11px;
         margin-top: 6px;
+        height: 26px;
     }
 
     #expanded-media-grid .expanded-media-item .media-meta {
         font-size: 10px;
+        height: 14px;
     }
 }
 
