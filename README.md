@@ -12,7 +12,7 @@
 
 > 有问题发[GitHub Issues](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/issues) 或者加QQ群 556339740
 
-> [赞助我](https://github.com/user-attachments/assets/7c6374c7-ddcf-4cb7-ac23-1874554bc018)
+> [赞助我](#赞助我)
 
 
 | 赞助者              | 金额  | 备注  |
