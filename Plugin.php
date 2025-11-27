@@ -8,7 +8,7 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVPr
  * 
  * @package MediaLibrary
  * @author HansJack
- * @version pro_0.1.4
+ * @version pro_0.1.5
  * @link http://www.hansjack.com/
  */
 class MediaLibrary_Plugin implements Typecho_Plugin_Interface
