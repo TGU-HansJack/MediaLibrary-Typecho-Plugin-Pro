@@ -1799,6 +1799,83 @@ escapeHtml: function(text) {
     return div.innerHTML;
 },
 
+// 处理分片上传完成
+handleChunkedUploadComplete: function() {
+    setTimeout(function() {
+        var uploadModal = document.getElementById('upload-modal');
+        if (uploadModal) {
+            uploadModal.style.display = 'none';
+        }
+
+        var successCount = document.querySelectorAll('#file-list .success').length;
+        if (successCount > 0) {
+            var toastMessage = '上传完成！成功上传 ' + successCount + ' 个文件';
+
+            if (uploadedFilesData.length > 0) {
+                var snippets = [];
+                uploadedFilesData.forEach(function(fileInfo) {
+                    var snippet = buildMarkdownSnippet(fileInfo.title, fileInfo.url, fileInfo.isImage);
+                    if (snippet) {
+                        snippets.push(snippet);
+                    }
+                });
+
+                if (snippets.length > 0) {
+                    copyTextToClipboard(snippets.join('\n')).catch(function() {});
+                    toastMessage = '上传完成！Markdown 已复制';
+                }
+                uploadedFilesData = [];
+            }
+
+            // 创建并显示弹幕
+            var toast = document.createElement('div');
+            toast.style.cssText = '\
+                position: fixed;\
+                top: 20px;\
+                right: 20px;\
+                background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);\
+                color: white;\
+                padding: 15px 25px;\
+                border-radius: 8px;\
+                box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);\
+                font-size: 14px;\
+                font-weight: 500;\
+                z-index: 10000;\
+                opacity: 0;\
+                transform: translateX(100%);\
+                transition: all 0.3s ease-in-out;\
+                max-width: 300px;\
+            ';
+
+            toast.innerHTML = '\
+                <div style="display: flex; align-items: center; gap: 8px;">\
+                    <span style="font-size: 16px;">✅</span>\
+                    <span>' + toastMessage + '</span>\
+                </div>\
+            ';
+
+            document.body.appendChild(toast);
+
+            setTimeout(function() {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(0)';
+            }, 100);
+
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+
+                setTimeout(function() {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                    location.reload();
+                }, 300);
+            }, 1200);
+        }
+    }, 1000);
+},
+
     initUpload: function() {
         var self = this;
         var storageInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="upload-storage"]'));
@@ -1883,12 +1960,18 @@ escapeHtml: function(text) {
                 if (uploadModal) {
                     uploadModal.style.display = 'flex';
                 }
-                
+
                 var fileList = document.getElementById('file-list');
                 if (fileList) {
                     fileList.innerHTML = '';
                 }
-                
+
+                // 分片上传阈值（默认 5MB）
+                var chunkThreshold = (config.chunkUploadThreshold || 5) * 1024 * 1024;
+                var chunkSize = (config.chunkSize || 2) * 1024 * 1024;
+                var chunkedFiles = [];
+                var normalFiles = [];
+
                 plupload.each(files, function(file) {
                     var li = document.createElement('li');
                     li.id = file.id;
@@ -1896,22 +1979,121 @@ escapeHtml: function(text) {
                     li.style.padding = '10px';
                     li.style.borderBottom = '1px solid #eee';
                     li.style.position = 'relative';
-                    
+
+                    var useChunked = file.size > chunkThreshold;
+                    var statusText = useChunked ? '等待分片上传...' : '等待上传...';
+
                     li.innerHTML = '<div class="file-info">' +
-                        '<div class="file-name">' + file.name + '</div>' +
+                        '<div class="file-name">' + file.name + (useChunked ? ' <span style="color:#007cba;font-size:12px;">(分片)</span>' : '') + '</div>' +
                         '<div class="file-size">(' + plupload.formatSize(file.size) + ')</div>' +
                         '<div class="progress-bar" style="width: 100%; height: 4px; background: #f0f0f0; border-radius: 2px; margin-top: 5px;">' +
                         '<div class="progress-fill" style="width: 0%; height: 100%; background: #007cba; border-radius: 2px; transition: width 0.3s;"></div>' +
                         '</div>' +
-                        '<div class="status">等待上传...</div>' +
+                        '<div class="status">' + statusText + '</div>' +
                         '</div>';
-                    
+
                     if (fileList) {
                         fileList.appendChild(li);
                     }
+
+                    if (useChunked) {
+                        chunkedFiles.push(file);
+                    } else {
+                        normalFiles.push(file);
+                    }
                 });
 
-                uploader.start();
+                // 如果有分片上传文件，从 plupload 队列中移除
+                chunkedFiles.forEach(function(file) {
+                    up.removeFile(file);
+                });
+
+                // 处理分片上传
+                if (chunkedFiles.length > 0 && typeof ChunkedUploader !== 'undefined') {
+                    var chunkedUploader = new ChunkedUploader({
+                        apiUrl: currentUrl + '&action=chunked_init',
+                        chunkSize: chunkSize,
+                        threshold: chunkThreshold
+                    });
+                    chunkedUploader.options.apiUrl = currentUrl.replace(/&action=.*$/, '');
+
+                    var uploadChunkedFile = function(index) {
+                        if (index >= chunkedFiles.length) {
+                            // 分片文件全部上传完成，检查是否还有普通文件
+                            if (normalFiles.length === 0) {
+                                // 触发 UploadComplete
+                                self.handleChunkedUploadComplete();
+                            }
+                            return;
+                        }
+
+                        var file = chunkedFiles[index];
+                        var li = document.getElementById(file.id);
+                        var status = li ? li.querySelector('.status') : null;
+                        var progressFill = li ? li.querySelector('.progress-fill') : null;
+
+                        if (status) status.textContent = '初始化分片上传...';
+
+                        chunkedUploader.upload(file.getNative(), currentStorage, {
+                            onProgress: function(progress) {
+                                if (progressFill) {
+                                    progressFill.style.width = progress.percent + '%';
+                                }
+                                if (status) {
+                                    status.textContent = '上传中... ' + progress.percent + '% (' + progress.uploadedChunks + '/' + progress.totalChunks + ' 分片)';
+                                }
+                            },
+                            onChunkComplete: function(data) {
+                                // 单个分片完成
+                            },
+                            onError: function(error) {
+                                if (li) li.className = 'error';
+                                if (status) status.textContent = '上传失败: ' + error.message;
+                                if (progressFill) progressFill.style.background = '#dc3232';
+                                // 继续上传下一个文件
+                                uploadChunkedFile(index + 1);
+                            },
+                            onCancel: function() {
+                                if (status) status.textContent = '上传已取消';
+                            }
+                        }).then(function(result) {
+                            if (li) li.className = 'success';
+                            if (status) status.textContent = '上传成功';
+                            if (progressFill) progressFill.style.background = '#46b450';
+
+                            // 保存上传成功的文件信息
+                            if (result.data && result.data.url) {
+                                uploadedFilesData.push({
+                                    title: result.data.name || file.name,
+                                    url: result.data.url,
+                                    isImage: result.data.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(file.name)
+                                });
+                            }
+
+                            // 上传下一个文件
+                            uploadChunkedFile(index + 1);
+                        }).catch(function(error) {
+                            if (li) li.className = 'error';
+                            if (status) status.textContent = '上传失败: ' + (error.message || '未知错误');
+                            if (progressFill) progressFill.style.background = '#dc3232';
+                            // 继续上传下一个文件
+                            uploadChunkedFile(index + 1);
+                        });
+                    };
+
+                    // 开始分片上传
+                    uploadChunkedFile(0);
+                }
+
+                // 启动普通文件上传
+                if (normalFiles.length > 0) {
+                    uploader.start();
+                } else if (chunkedFiles.length === 0) {
+                    // 没有文件需要上传
+                    if (uploadModal) {
+                        uploadModal.style.display = 'none';
+                    }
+                }
             },
 
             UploadProgress: function(up, file) {

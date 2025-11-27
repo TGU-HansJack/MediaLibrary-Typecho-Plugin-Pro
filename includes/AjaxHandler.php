@@ -10,6 +10,7 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ExifPriv
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVClient.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/CacheManager.php';
 require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/WebDAVSync.php';
+require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ChunkedUploadHandler.php';
 
 /**
  * Ajax请求处理类
@@ -127,6 +128,22 @@ class MediaLibrary_AjaxHandler
 
                 case 'cache_stats':
                     self::handleCacheStatsAction();
+                    break;
+
+                case 'chunked_init':
+                    self::handleChunkedInitAction($request, $configOptions);
+                    break;
+
+                case 'chunked_upload':
+                    self::handleChunkedUploadAction($request, $configOptions);
+                    break;
+
+                case 'chunked_complete':
+                    self::handleChunkedCompleteAction($request, $configOptions);
+                    break;
+
+                case 'chunked_cancel':
+                    self::handleChunkedCancelAction($request);
                     break;
 
 
@@ -2404,6 +2421,127 @@ private static function handleAddWatermarkAction($request, $db, $options, $user)
             return floor($seconds / 3600) . ' 小时前';
         } else {
             return floor($seconds / 86400) . ' 天前';
+        }
+    }
+
+    /**
+     * 处理分片上传初始化请求
+     */
+    private static function handleChunkedInitAction($request, $configOptions)
+    {
+        try {
+            $handler = new MediaLibrary_ChunkedUploadHandler();
+
+            // 清理过期的分片任务
+            $handler->cleanupExpired(86400); // 24小时过期
+
+            $params = [
+                'filename' => $request->get('filename', ''),
+                'filesize' => intval($request->get('filesize', 0)),
+                'filehash' => $request->get('filehash', ''),
+                'chunkSize' => intval($request->get('chunkSize', 2097152)), // 默认 2MB
+                'storage' => $request->get('storage', 'local')
+            ];
+
+            $result = $handler->initUpload($params);
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('chunked_init', '初始化分片上传失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode([
+                'success' => false,
+                'message' => '初始化分片上传失败: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理分片上传请求
+     */
+    private static function handleChunkedUploadAction($request, $configOptions)
+    {
+        try {
+            $handler = new MediaLibrary_ChunkedUploadHandler();
+
+            $uploadId = $request->get('uploadId', '');
+            $chunkIndex = intval($request->get('chunkIndex', -1));
+
+            $params = [
+                'uploadId' => $uploadId,
+                'chunkIndex' => $chunkIndex,
+                'chunkData' => null,
+                'chunkFile' => null
+            ];
+
+            // 检查分片数据来源
+            if (!empty($_FILES['chunk'])) {
+                // 从文件上传获取分片
+                $params['chunkFile'] = $_FILES['chunk'];
+            } elseif ($request->get('chunkData')) {
+                // 从 base64 获取分片数据
+                $params['chunkData'] = $request->get('chunkData');
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '缺少分片数据'
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $result = $handler->uploadChunk($params);
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('chunked_upload', '上传分片失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode([
+                'success' => false,
+                'message' => '上传分片失败: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理分片上传完成请求
+     */
+    private static function handleChunkedCompleteAction($request, $configOptions)
+    {
+        try {
+            $handler = new MediaLibrary_ChunkedUploadHandler();
+
+            $params = [
+                'uploadId' => $request->get('uploadId', '')
+            ];
+
+            $result = $handler->completeUpload($params, $configOptions);
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('chunked_complete', '完成分片上传失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode([
+                'success' => false,
+                'message' => '完成分片上传失败: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * 处理取消分片上传请求
+     */
+    private static function handleChunkedCancelAction($request)
+    {
+        try {
+            $handler = new MediaLibrary_ChunkedUploadHandler();
+            $uploadId = $request->get('uploadId', '');
+
+            $result = $handler->cancelUpload($uploadId);
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            MediaLibrary_Logger::log('chunked_cancel', '取消分片上传失败: ' . $e->getMessage(), [], 'error');
+            echo json_encode([
+                'success' => false,
+                'message' => '取消分片上传失败: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
         }
     }
 }
