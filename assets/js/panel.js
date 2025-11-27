@@ -4,8 +4,21 @@ var currentKeywords = window.mediaLibraryKeywords || '';
 var currentType = window.mediaLibraryType || 'all';
 var currentView = window.mediaLibraryView || 'grid';
 var currentStorageFilter = window.mediaLibraryStorage || 'all';
-var currentStorage = currentStorageFilter === 'all' ? 'local' : currentStorageFilter;
 var config = window.mediaLibraryConfig || {};
+
+// 根据配置确定默认上传存储位置
+var getPreferredStorage = function() {
+    var preferred = config.preferredStorage || 'local';
+    // 验证优先存储位置对应的存储类型是否已启用
+    if (preferred === 'object_storage' && !config.enableObjectStorage) {
+        preferred = 'local';
+    }
+    if (preferred === 'webdav' && !config.enableWebDAV) {
+        preferred = 'local';
+    }
+    return preferred;
+};
+var currentStorage = currentStorageFilter === 'all' ? getPreferredStorage() : currentStorageFilter;
 
 // 修复分页跳转函数 - 防止打开新标签页
 function goToPage(page, event) {
@@ -1757,6 +1770,17 @@ escapeHtml: function(text) {
         };
 
         var initialCheckedInput = document.querySelector('input[name="upload-storage"]:checked:not(:disabled)');
+
+        // 如果没有选中的选项，尝试选中优先存储位置对应的选项
+        if (!initialCheckedInput) {
+            var preferredInput = document.querySelector('input[name="upload-storage"][value="' + getPreferredStorage() + '"]:not(:disabled)');
+            if (preferredInput) {
+                preferredInput.checked = true;
+                initialCheckedInput = preferredInput;
+            }
+        }
+
+        // 如果仍然没有，选择第一个可用的选项
         if (!initialCheckedInput) {
             for (var i = 0; i < storageInputs.length; i++) {
                 if (!storageInputs[i].disabled) {

@@ -51,6 +51,9 @@ class MediaLibrary_PanelHelper
 
             $enableLoadOptimization = self::normalizeCheckboxOption($config, 'enableLoadOptimization') ?? false;
 
+            // 优先存储位置
+            $preferredStorage = isset($config->preferredStorage) ? trim($config->preferredStorage) : 'local';
+
             $enableWebDAV = self::normalizeCheckboxOption($config, 'enableWebDAV') ?? false;
             $enableObjectStorage = self::normalizeCheckboxOption($config, 'enableObjectStorage') ?? false;
             $gdQuality = intval($config->gdQuality ?? 80);
@@ -140,6 +143,7 @@ class MediaLibrary_PanelHelper
             $enableFFmpeg = false;
             $enableVideoCompress = false;
             $enableLoadOptimization = false;
+            $preferredStorage = 'local';
             $enableWebDAV = false;
             $enableObjectStorage = false;
             $gdQuality = 80;
@@ -208,6 +212,7 @@ class MediaLibrary_PanelHelper
             'enableFFmpeg' => $enableFFmpeg,
             'enableVideoCompress' => $enableVideoCompress,
             'enableLoadOptimization' => $enableLoadOptimization,
+            'preferredStorage' => $preferredStorage,
             'enableWebDAV' => $enableWebDAV,
             'enableObjectStorage' => $enableObjectStorage ? ['1'] : [],
             'gdQuality' => $gdQuality,

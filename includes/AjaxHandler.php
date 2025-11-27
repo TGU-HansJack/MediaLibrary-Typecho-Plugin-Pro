@@ -905,12 +905,49 @@ class MediaLibrary_AjaxHandler
             }
         }
         
+        // 构建访问 URL - 根据存储类型使用不同的域名
+        $fileUrl = '';
+        if (isset($attachmentData['path'])) {
+            $storageType = isset($attachmentData['storage']) ? $attachmentData['storage'] : 'local';
+
+            if ($storageType === 'object_storage' && isset($attachmentData['object_storage_url'])) {
+                // 对象存储：使用已保存的对象存储 URL
+                $fileUrl = $attachmentData['object_storage_url'];
+            } elseif ($storageType === 'webdav') {
+                // WebDAV 存储：使用配置的外链域名或构建公开 URL
+                $configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+                $webdavExternalDomain = isset($configOptions['webdavExternalDomain']) ? trim($configOptions['webdavExternalDomain']) : '';
+
+                if (!empty($webdavExternalDomain)) {
+                    // 使用配置的外链域名
+                    $webdavExternalDomain = rtrim($webdavExternalDomain, '/');
+                    $relativePath = isset($attachmentData['webdav_path']) ? $attachmentData['webdav_path'] : $attachmentData['path'];
+                    $fileUrl = $webdavExternalDomain . '/' . ltrim($relativePath, '/');
+                } elseif (!empty($configOptions['webdavEndpoint'])) {
+                    // 使用 WebDAV 客户端构建公开 URL
+                    try {
+                        $webdavClient = new MediaLibrary_WebDAVClient($configOptions);
+                        $remotePath = (isset($configOptions['webdavRemotePath']) ? $configOptions['webdavRemotePath'] : '') . '/' . ltrim($attachmentData['path'], '/');
+                        $fileUrl = $webdavClient->buildPublicUrl($remotePath);
+                    } catch (Exception $e) {
+                        // 如果构建失败，回退到本地 URL
+                        $fileUrl = Typecho_Common::url($attachmentData['path'], $options->siteUrl);
+                    }
+                } else {
+                    // 回退到本地 URL
+                    $fileUrl = Typecho_Common::url($attachmentData['path'], $options->siteUrl);
+                }
+            } else {
+                // 本地存储：使用站点 URL
+                $fileUrl = Typecho_Common::url($attachmentData['path'], $options->siteUrl);
+            }
+        }
+
         $info = [
             'title' => isset($attachment['title']) ? $attachment['title'] : '未命名文件',
             'mime' => isset($attachmentData['mime']) ? $attachmentData['mime'] : 'unknown',
             'size' => MediaLibrary_FileOperations::formatFileSize(isset($attachmentData['size']) ? intval($attachmentData['size']) : 0),
-            'url' => isset($attachmentData['path']) ? 
-                Typecho_Common::url($attachmentData['path'], $options->siteUrl) : '',
+            'url' => $fileUrl,
             'created' => isset($attachment['created']) ? date('Y-m-d H:i:s', $attachment['created']) : '',
             'path' => isset($attachmentData['path']) ? $attachmentData['path'] : '',
             'parent_post' => $parentPost,

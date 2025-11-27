@@ -663,6 +663,18 @@ jQuery(function($) {
             '启用后图片显示为图标而非缩略图，鼠标悬停时才异步加载预览。适用于1M等低带宽服务器，页面加载几乎不消耗带宽，且加载过程不阻塞界面操作。');
         $form->addInput($enableLoadOptimization);
 
+        // 优先存储位置设置
+        $preferredStorage = new Typecho_Widget_Helper_Form_Element_Select('preferredStorage',
+            array(
+                'local' => '本地存储（默认）',
+                'object_storage' => '对象存储（需先启用）',
+                'webdav' => 'WebDAV 存储（需先启用）'
+            ),
+            'local',
+            '优先存储位置',
+            '拖拽上传文件时的默认存储位置。选择对象存储或 WebDAV 前，请确保已在下方启用并正确配置相应的存储服务。');
+        $form->addInput($preferredStorage);
+
         // 添加其他配置选项
         self::addImageProcessingOptions($form, $envInfo);
         self::addVideoProcessingOptions($form, $envInfo);

@@ -109,7 +109,7 @@ $totalPages = $total > 0 ? ceil($total / $pageSize) : 1;
 $currentUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
 
 // 版本号控制 - 用于强制刷新缓存
-$cssVersion = '3.7.7';
+$cssVersion = '3.7.8';
 ?>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -199,7 +199,9 @@ window.mediaLibraryConfig = {
     webdavConfigured: <?php echo $webdavStatus['configured'] ? 'true' : 'false'; ?>,
     webdavConnected: <?php echo $webdavStatus['connected'] ? 'true' : 'false'; ?>,
     webdavRoot: '<?php echo addslashes($webdavStatus['root']); ?>',
-    webdavPreset: '<?php echo addslashes($webdavPreset ?? 'custom'); ?>'
+    webdavPreset: '<?php echo addslashes($webdavPreset ?? 'custom'); ?>',
+    preferredStorage: '<?php echo addslashes($preferredStorage ?? 'local'); ?>',
+    enableObjectStorage: <?php echo !empty($enableObjectStorage) ? 'true' : 'false'; ?>
 };
 </script>
 
