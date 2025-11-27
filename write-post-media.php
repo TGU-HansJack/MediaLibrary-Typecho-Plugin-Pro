@@ -878,6 +878,538 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     font-size: 13px;
     color: var(--ml-text-secondary);
 }
+
+/* 展开版网格样式 */
+#expanded-media-grid {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 16px 0;
+    align-content: start;
+}
+
+#expanded-media-grid .expanded-media-item {
+    background: var(--ml-bg);
+    border: 1px solid var(--ml-border-muted);
+    border-radius: var(--ml-radius-md);
+    padding: 10px;
+    cursor: pointer;
+    transition: all var(--ml-transition);
+    animation: mlFadeInUp 0.25s ease backwards;
+}
+
+#expanded-media-grid .expanded-media-item:hover {
+    border-color: var(--ml-border);
+    box-shadow: var(--ml-shadow-md);
+    transform: translateY(-2px);
+}
+
+#expanded-media-grid .expanded-media-item.selected {
+    border-color: var(--ml-primary);
+    box-shadow: 0 0 0 3px var(--ml-primary-bg);
+}
+
+#expanded-media-grid .expanded-media-item .media-preview {
+    width: 100%;
+    height: 100px;
+    background: var(--ml-bg-secondary);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+}
+
+#expanded-media-grid .expanded-media-item .media-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#expanded-media-grid .expanded-media-item .file-icon {
+    font-size: 24px;
+    color: var(--ml-text-secondary);
+    font-weight: 600;
+}
+
+#expanded-media-grid .expanded-media-item .media-title {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ml-text);
+    text-align: center;
+    max-height: 32px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.35;
+}
+
+#expanded-media-grid .expanded-media-item .media-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--ml-text-muted);
+    text-align: center;
+}
+
+#expanded-media-grid .expanded-media-item .media-checkbox {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--ml-transition);
+}
+
+#expanded-media-grid .expanded-media-item:hover .media-checkbox,
+#expanded-media-grid .expanded-media-item.selected .media-checkbox {
+    opacity: 1;
+}
+
+#expanded-media-grid .expanded-media-item.selected .media-checkbox {
+    background: var(--ml-primary);
+    border-color: var(--ml-primary);
+}
+
+#expanded-media-grid .expanded-media-item.selected .media-checkbox::after {
+    content: '✓';
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+/* 展开版加载和空状态 */
+#expanded-media-grid .loading,
+#expanded-media-grid .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--ml-text-muted);
+    padding: 60px 20px;
+    font-size: 14px;
+}
+
+#expanded-media-grid .end-indicator {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--ml-text-muted);
+    font-size: 12px;
+    padding: 16px 0;
+}
+
+/* 展开版 Header 样式优化 */
+.overlay-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--ml-border-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--ml-bg);
+}
+
+.overlay-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ml-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.overlay-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.overlay-controls input[type="text"] {
+    width: 180px;
+    border: 1px solid var(--ml-border);
+    border-radius: var(--ml-radius);
+    padding: 6px 10px;
+    font-size: 13px;
+    background: var(--ml-bg);
+    color: var(--ml-text);
+    transition: border-color var(--ml-transition);
+}
+
+.overlay-controls input[type="text"]:focus {
+    outline: none;
+    border-color: var(--ml-primary);
+    box-shadow: 0 0 0 2px var(--ml-primary-bg);
+}
+
+.overlay-controls select {
+    border: 1px solid var(--ml-border);
+    border-radius: var(--ml-radius);
+    padding: 6px 10px;
+    font-size: 13px;
+    background: var(--ml-bg);
+    color: var(--ml-text);
+    cursor: pointer;
+}
+
+/* 展开版工具栏优化 */
+.overlay-toolbar {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--ml-border-muted);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--ml-bg-secondary);
+}
+
+.overlay-toolbar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    border-radius: var(--ml-radius);
+    border: 1px solid var(--ml-border);
+    background: var(--ml-bg);
+    color: var(--ml-text);
+    cursor: pointer;
+    transition: all var(--ml-transition);
+}
+
+.overlay-toolbar .btn:hover:not(:disabled) {
+    background: var(--ml-bg-secondary);
+}
+
+.overlay-toolbar .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.overlay-toolbar .btn-primary {
+    background: var(--ml-success);
+    border-color: transparent;
+    color: #fff;
+}
+
+.overlay-toolbar .btn-primary:hover:not(:disabled) {
+    background: #1a7f37;
+}
+
+@media (prefers-color-scheme: dark) {
+    .overlay-toolbar .btn-primary {
+        background: #238636;
+    }
+    .overlay-toolbar .btn-primary:hover:not(:disabled) {
+        background: #2ea043;
+    }
+}
+
+.overlay-toolbar .btn-danger {
+    background: var(--ml-danger);
+    border-color: transparent;
+    color: #fff;
+}
+
+.overlay-toolbar .btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+}
+
+.overlay-toolbar .selection-count {
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+    margin-left: auto;
+}
+
+/* 展开版分页优化 */
+.overlay-pagination {
+    padding: 14px 20px;
+    border-top: 1px solid var(--ml-border-muted);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    background: var(--ml-bg);
+}
+
+.overlay-pagination .pager-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--ml-radius);
+    border: 1px solid var(--ml-border);
+    background: var(--ml-bg);
+    color: var(--ml-text);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all var(--ml-transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.overlay-pagination .pager-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.overlay-pagination .pager-btn:not(:disabled):hover {
+    background: var(--ml-bg-secondary);
+    border-color: var(--ml-primary);
+}
+
+/* 关闭按钮样式 */
+#expanded-close-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 20px;
+    line-height: 1;
+    border-radius: var(--ml-radius);
+}
+
+/* 动画 */
+@keyframes mlFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes mlOverlayFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes mlPanelSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.media-library-overlay {
+    animation: mlOverlayFadeIn 0.2s ease;
+}
+
+.media-library-overlay.closing {
+    animation: mlOverlayFadeIn 0.15s ease reverse;
+}
+
+.media-overlay-panel {
+    animation: mlPanelSlideIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.media-library-overlay.closing .media-overlay-panel {
+    animation: mlPanelSlideIn 0.15s ease reverse;
+}
+
+/* 删除确认对话框 */
+.ml-confirm-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(13, 17, 23, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    animation: mlOverlayFadeIn 0.15s ease;
+}
+
+.ml-confirm-dialog .confirm-box {
+    background: var(--ml-bg, #fff);
+    border-radius: var(--ml-radius-md, 8px);
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    animation: mlPanelSlideIn 0.2s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+    .ml-confirm-dialog .confirm-box {
+        background: #161b22;
+    }
+}
+
+.ml-confirm-dialog .confirm-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ml-text, #24292f);
+    margin-bottom: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .ml-confirm-dialog .confirm-title {
+        color: #c9d1d9;
+    }
+}
+
+.ml-confirm-dialog .confirm-message {
+    font-size: 14px;
+    color: var(--ml-text-secondary, #656d76);
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+    .ml-confirm-dialog .confirm-message {
+        color: #8b949e;
+    }
+}
+
+.ml-confirm-dialog .confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.ml-confirm-dialog .confirm-actions .btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--ml-radius, 6px);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ml-confirm-dialog .btn-cancel {
+    background: var(--ml-bg-secondary, #f6f8fa);
+    border: 1px solid var(--ml-border, #d0d7de);
+    color: var(--ml-text, #24292f);
+}
+
+@media (prefers-color-scheme: dark) {
+    .ml-confirm-dialog .btn-cancel {
+        background: #21262d;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+}
+
+.ml-confirm-dialog .btn-cancel:hover {
+    background: var(--ml-border-muted, #d8dee4);
+}
+
+@media (prefers-color-scheme: dark) {
+    .ml-confirm-dialog .btn-cancel:hover {
+        background: #30363d;
+    }
+}
+
+.ml-confirm-dialog .btn-confirm-danger {
+    background: var(--ml-danger, #d1242f);
+    border: 1px solid transparent;
+    color: #fff;
+}
+
+.ml-confirm-dialog .btn-confirm-danger:hover {
+    background: #b91c1c;
+}
+
+/* 加载动画 */
+@keyframes mlSpinnerRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading::before {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--ml-border, #d0d7de);
+    border-top-color: var(--ml-primary, #0969da);
+    border-radius: 50%;
+    animation: mlSpinnerRotate 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .media-library-overlay {
+        padding: 10px;
+    }
+
+    .media-overlay-panel {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+    }
+
+    .overlay-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .overlay-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .overlay-controls input[type="text"] {
+        width: 100%;
+        flex: 1;
+    }
+
+    .overlay-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .overlay-toolbar .selection-count {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 8px;
+        text-align: center;
+    }
+
+    #expanded-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 8px;
+    }
+
+    #expanded-media-grid .expanded-media-item .media-preview {
+        height: 80px;
+    }
+}
+
+/* 深色模式下的加载动画 */
+@media (prefers-color-scheme: dark) {
+    .loading::before {
+        border-color: #30363d;
+        border-top-color: #58a6ff;
+    }
+}
 /* Toast 提示 */
 .ml-editor-toast {
     position: fixed;
@@ -1010,6 +1542,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
             <button type="button" class="btn btn-primary" id="expanded-upload-btn">上传文件</button>
             <button type="button" class="btn btn-danger" id="expanded-delete-btn" disabled>删除选中</button>
             <button type="button" class="btn" id="expanded-copy-btn" disabled>复制 Markdown</button>
+            <span class="selection-count" id="expanded-selection-count"></span>
         </div>
         <div class="media-overlay-content">
             <div class="media-grid" id="expanded-media-grid">
@@ -1662,6 +2195,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                 UploadComplete: function() {
                     closeModal();
                     reloadMediaList();
+                    refreshExpandedIfOpen();
                     showToast('上传完成');
                 },
                 Error: function(up, error) {
@@ -1702,6 +2236,504 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         uploader.init();
     }
 
+    // ========================================
+    // 展开版 Overlay 功能
+    // ========================================
+    var $overlay = $('#editor-expanded-overlay');
+    var $expandedGrid = $('#expanded-media-grid');
+    var $expandedSearchInput = $('#expanded-search-input');
+    var $expandedTypeFilter = $('#expanded-type-filter');
+    var $expandedStorageFilter = $('#expanded-storage-filter');
+    var $expandedRefreshBtn = $('#expanded-refresh-btn');
+    var $expandedCloseBtn = $('#expanded-close-btn');
+    var $expandedUploadBtn = $('#expanded-upload-btn');
+    var $expandedDeleteBtn = $('#expanded-delete-btn');
+    var $expandedCopyBtn = $('#expanded-copy-btn');
+    var $expandedPrevPage = $('#expanded-prev-page');
+    var $expandedNextPage = $('#expanded-next-page');
+    var $expandedPageIndicator = $('#expanded-page-indicator');
+
+    var expandedState = {
+        page: 1,
+        perPage: 30,
+        totalPages: 0,
+        total: 0,
+        hasMore: true,
+        loading: false,
+        filters: {
+            keywords: '',
+            type: 'all',
+            storage: 'all'
+        },
+        selection: {},
+        items: []
+    };
+
+    function openOverlay() {
+        expandedState.page = 1;
+        expandedState.selection = {};
+        expandedState.items = [];
+        $expandedSearchInput.val(expandedState.filters.keywords);
+        $expandedTypeFilter.val(expandedState.filters.type);
+        $expandedStorageFilter.val(expandedState.filters.storage);
+        $overlay.addClass('active').css('display', 'flex');
+        loadExpandedMedia(true);
+        $('body').css('overflow', 'hidden');
+    }
+
+    function closeOverlay() {
+        $overlay.addClass('closing');
+        setTimeout(function() {
+            $overlay.removeClass('active closing').css('display', 'none');
+            $('body').css('overflow', '');
+        }, 150);
+    }
+
+    function loadExpandedMedia(replaceAll) {
+        if (expandedState.loading) return;
+        expandedState.loading = true;
+
+        if (replaceAll) {
+            $expandedGrid.html('<div class="loading">加载中...</div>');
+            expandedState.items = [];
+        } else {
+            $expandedGrid.find('.end-indicator').remove();
+            $expandedGrid.append('<div class="loading">加载更多...</div>');
+        }
+
+        var params = $.extend({}, expandedState.filters, {
+            page: expandedState.page,
+            per_page: expandedState.perPage
+        });
+
+        $.getJSON(listUrl, params).done(function(response) {
+            if (!response || response.success === false) {
+                showToast(response && response.message ? response.message : '加载失败');
+                return;
+            }
+
+            var items = Array.isArray(response.items) ? response.items : [];
+            expandedState.hasMore = !!response.has_more;
+            expandedState.totalPages = response.page_count || 0;
+            expandedState.total = response.total || 0;
+
+            if (replaceAll) {
+                expandedState.items = items;
+                $expandedGrid.empty();
+            } else {
+                expandedState.items = expandedState.items.concat(items);
+            }
+
+            if (items.length === 0 && replaceAll) {
+                $expandedGrid.html('<div class="empty-state">没有找到媒体文件</div>');
+            } else {
+                items.forEach(function(item, index) {
+                    var $card = buildExpandedCard(item);
+                    $card.css('animation-delay', (index * 0.03) + 's');
+                    $expandedGrid.append($card);
+                });
+
+                if (!expandedState.hasMore) {
+                    $expandedGrid.append('<div class="end-indicator">已经到底啦</div>');
+                }
+            }
+
+            updateExpandedPagination();
+            updateExpandedToolbar();
+        }).fail(function() {
+            showToast('加载失败，请重试');
+            if (replaceAll) {
+                $expandedGrid.html('<div class="empty-state">加载失败，请重试</div>');
+            }
+        }).always(function() {
+            expandedState.loading = false;
+            $expandedGrid.find('.loading').remove();
+        });
+    }
+
+    function buildExpandedCard(item) {
+        var key = makeItemKey(item);
+        var title = item.title || item.filename || '未命名文件';
+        var meta = {
+            key: key,
+            cid: item.cid,
+            title: title,
+            url: item.url || '',
+            isImage: !!item.is_image,
+            storage: item.storage || 'local',
+            webdavPath: item.webdav_path || '',
+            objectStoragePath: item.object_storage_path || ''
+        };
+
+        var $card = $('<div class="expanded-media-item" tabindex="0"></div>');
+        $card.attr({
+            'data-item-key': key,
+            'data-cid': item.cid || 0,
+            'data-url': meta.url,
+            'data-title': title,
+            'data-is-image': item.is_image ? 1 : 0,
+            'data-storage': item.storage || 'local',
+            'data-webdav-path': item.webdav_path || '',
+            'data-object-storage-path': item.object_storage_path || ''
+        });
+        $card.data('meta', meta);
+
+        if (expandedState.selection[key]) {
+            $card.addClass('selected');
+        }
+
+        var $preview = $('<div class="media-preview"></div>');
+        $preview.append('<div class="media-checkbox"></div>');
+
+        var previewUrl = item.thumbnail || (item.is_image && item.has_url ? item.url : '');
+        if (previewUrl) {
+            $('<img>').attr({ src: previewUrl, alt: title }).appendTo($preview);
+        } else {
+            $('<div class="file-icon"></div>').text(getFileIconLabel(item)).appendTo($preview);
+        }
+        $card.append($preview);
+
+        $('<div class="media-title"></div>').text(title).attr('title', title).appendTo($card);
+
+        var metaParts = [];
+        if (item.storage_label) metaParts.push(item.storage_label);
+        if (item.size) metaParts.push(item.size);
+        $('<div class="media-meta"></div>').text(metaParts.join(' · ')).appendTo($card);
+
+        return $card;
+    }
+
+    function updateExpandedPagination() {
+        var current = expandedState.page;
+        var total = expandedState.totalPages || 1;
+        $expandedPageIndicator.text('第 ' + current + ' / ' + total + ' 页');
+        $expandedPrevPage.prop('disabled', current <= 1);
+        $expandedNextPage.prop('disabled', !expandedState.hasMore && current >= total);
+    }
+
+    function updateExpandedToolbar() {
+        var count = Object.keys(expandedState.selection).length;
+        var $selectionCount = $('#expanded-selection-count');
+
+        $expandedDeleteBtn.prop('disabled', count === 0);
+        $expandedCopyBtn.prop('disabled', count === 0);
+
+        if (count > 0) {
+            $expandedDeleteBtn.text('删除选中 (' + count + ')');
+            $expandedCopyBtn.text('复制 Markdown (' + count + ')');
+            $selectionCount.text('已选中 ' + count + ' 个文件');
+        } else {
+            $expandedDeleteBtn.text('删除选中');
+            $expandedCopyBtn.text('复制 Markdown');
+            $selectionCount.text('');
+        }
+    }
+
+    function bindExpandedSelectionEvents() {
+        $expandedGrid.on('click', '.expanded-media-item', function(e) {
+            var $card = $(this);
+            var meta = $card.data('meta');
+            if (!meta) return;
+
+            var key = meta.key;
+            if ($card.hasClass('selected')) {
+                $card.removeClass('selected');
+                delete expandedState.selection[key];
+            } else {
+                $card.addClass('selected');
+                expandedState.selection[key] = meta;
+            }
+            updateExpandedToolbar();
+        });
+    }
+
+    function expandedCopySelected() {
+        var keys = Object.keys(expandedState.selection);
+        if (!keys.length) {
+            showToast('请选择文件');
+            return;
+        }
+
+        var snippets = [];
+        keys.forEach(function(key) {
+            var meta = expandedState.selection[key];
+            if (!meta || !meta.url) return;
+            var snippet = buildMarkdownSnippet(meta.title, meta.url, meta.isImage);
+            if (snippet) snippets.push(snippet);
+        });
+
+        if (!snippets.length) {
+            showToast('所选文件不可复制');
+            return;
+        }
+
+        copyTextToClipboard(snippets.join('\n')).then(function() {
+            showToast('Markdown 已复制到剪贴板');
+            expandedState.selection = {};
+            $expandedGrid.find('.expanded-media-item.selected').removeClass('selected');
+            updateExpandedToolbar();
+        }).catch(function() {
+            showToast('复制失败，请检查浏览器权限');
+        });
+    }
+
+    function showConfirmDialog(title, message, onConfirm) {
+        var $dialog = $('<div class="ml-confirm-dialog"></div>');
+        var $box = $('<div class="confirm-box"></div>');
+        $box.append('<div class="confirm-title">' + title + '</div>');
+        $box.append('<div class="confirm-message">' + message + '</div>');
+
+        var $actions = $('<div class="confirm-actions"></div>');
+        var $cancelBtn = $('<button class="btn btn-cancel">取消</button>');
+        var $confirmBtn = $('<button class="btn btn-confirm-danger">确认删除</button>');
+
+        $cancelBtn.on('click', function() {
+            $dialog.remove();
+        });
+
+        $confirmBtn.on('click', function() {
+            $dialog.remove();
+            if (typeof onConfirm === 'function') onConfirm();
+        });
+
+        $actions.append($cancelBtn).append($confirmBtn);
+        $box.append($actions);
+        $dialog.append($box);
+        $('body').append($dialog);
+
+        $dialog.on('click', function(e) {
+            if ($(e.target).is('.ml-confirm-dialog')) {
+                $dialog.remove();
+            }
+        });
+    }
+
+    function expandedDeleteSelected() {
+        var keys = Object.keys(expandedState.selection);
+        if (!keys.length) {
+            showToast('请选择要删除的文件');
+            return;
+        }
+
+        var cids = [];
+        var webdavPaths = [];
+        var objectStoragePaths = [];
+
+        keys.forEach(function(key) {
+            var meta = expandedState.selection[key];
+            if (!meta) return;
+            if (meta.cid && meta.cid !== 0) {
+                cids.push(meta.cid);
+            }
+            if (meta.webdavPath) {
+                webdavPaths.push(meta.webdavPath);
+            }
+            if (meta.objectStoragePath) {
+                objectStoragePaths.push(meta.objectStoragePath);
+            }
+        });
+
+        if (cids.length === 0 && webdavPaths.length === 0) {
+            showToast('没有可删除的文件');
+            return;
+        }
+
+        showConfirmDialog(
+            '确认删除',
+            '确定要删除选中的 ' + keys.length + ' 个文件吗？此操作不可恢复！',
+            function() {
+                performDelete(cids, webdavPaths, objectStoragePaths);
+            }
+        );
+    }
+
+    function performDelete(cids, webdavPaths, objectStoragePaths) {
+        $expandedDeleteBtn.prop('disabled', true).text('删除中...');
+
+        var params = { action: 'delete' };
+        if (cids.length > 0) {
+            params['cids[]'] = cids;
+        }
+        if (webdavPaths.length > 0) {
+            params['webdav_paths[]'] = webdavPaths;
+        }
+
+        $.ajax({
+            url: uploadBaseUrl,
+            type: 'POST',
+            data: $.param(params, true),
+            dataType: 'json'
+        }).done(function(response) {
+            if (response && response.success) {
+                showToast(response.message || '删除成功');
+                expandedState.selection = {};
+                expandedState.page = 1;
+                loadExpandedMedia(true);
+                reloadMediaList();
+            } else {
+                showToast('删除失败: ' + (response && response.message ? response.message : '未知错误'));
+            }
+        }).fail(function() {
+            showToast('删除失败，请检查网络连接');
+        }).always(function() {
+            updateExpandedToolbar();
+        });
+    }
+
+    function bindExpandedFilterEvents() {
+        var searchTimeout;
+        $expandedSearchInput.on('input', function() {
+            clearTimeout(searchTimeout);
+            var value = $(this).val();
+            searchTimeout = setTimeout(function() {
+                expandedState.filters.keywords = value;
+                expandedState.page = 1;
+                loadExpandedMedia(true);
+            }, 300);
+        });
+
+        $expandedSearchInput.on('keypress', function(e) {
+            if (e.which === 13) {
+                clearTimeout(searchTimeout);
+                expandedState.filters.keywords = $(this).val();
+                expandedState.page = 1;
+                loadExpandedMedia(true);
+            }
+        });
+
+        $expandedTypeFilter.on('change', function() {
+            expandedState.filters.type = $(this).val();
+            expandedState.page = 1;
+            loadExpandedMedia(true);
+        });
+
+        $expandedStorageFilter.on('change', function() {
+            expandedState.filters.storage = $(this).val();
+            expandedState.page = 1;
+            loadExpandedMedia(true);
+        });
+
+        $expandedRefreshBtn.on('click', function() {
+            expandedState.page = 1;
+            loadExpandedMedia(true);
+        });
+    }
+
+    function bindExpandedPaginationEvents() {
+        $expandedPrevPage.on('click', function() {
+            if (expandedState.page > 1) {
+                expandedState.page--;
+                loadExpandedMedia(true);
+            }
+        });
+
+        $expandedNextPage.on('click', function() {
+            if (expandedState.hasMore || expandedState.page < expandedState.totalPages) {
+                expandedState.page++;
+                loadExpandedMedia(true);
+            }
+        });
+    }
+
+    function bindExpandedInfiniteScroll() {
+        $expandedGrid.on('scroll', function() {
+            if (!expandedState.hasMore || expandedState.loading) return;
+            var el = this;
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
+                expandedState.page++;
+                loadExpandedMedia(false);
+            }
+        });
+    }
+
+    function bindExpandedToolbarEvents() {
+        $expandedCopyBtn.on('click', function() {
+            expandedCopySelected();
+        });
+
+        $expandedDeleteBtn.on('click', function() {
+            expandedDeleteSelected();
+        });
+
+        $expandedUploadBtn.on('click', function() {
+            $('#editor-upload-modal').addClass('active');
+        });
+    }
+
+    function refreshExpandedIfOpen() {
+        if ($overlay.hasClass('active')) {
+            expandedState.page = 1;
+            loadExpandedMedia(true);
+        }
+    }
+
+    function bindOverlayEvents() {
+        $('#editor-expand-btn').on('click', function() {
+            openOverlay();
+        });
+
+        $expandedCloseBtn.on('click', function() {
+            closeOverlay();
+        });
+
+        $overlay.on('click', function(e) {
+            if ($(e.target).is('.media-library-overlay')) {
+                closeOverlay();
+            }
+        });
+
+        $(document).on('keydown', function(e) {
+            if (!$overlay.hasClass('active')) return;
+
+            if (e.key === 'Escape') {
+                closeOverlay();
+            }
+
+            // Ctrl/Cmd + A 全选
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                e.preventDefault();
+                selectAllExpanded();
+            }
+        });
+    }
+
+    function selectAllExpanded() {
+        var allSelected = Object.keys(expandedState.selection).length === expandedState.items.length && expandedState.items.length > 0;
+
+        if (allSelected) {
+            // 取消全选
+            expandedState.selection = {};
+            $expandedGrid.find('.expanded-media-item').removeClass('selected');
+        } else {
+            // 全选
+            expandedState.items.forEach(function(item) {
+                var key = makeItemKey(item);
+                var title = item.title || item.filename || '未命名文件';
+                expandedState.selection[key] = {
+                    key: key,
+                    cid: item.cid,
+                    title: title,
+                    url: item.url || '',
+                    isImage: !!item.is_image,
+                    storage: item.storage || 'local',
+                    webdavPath: item.webdav_path || '',
+                    objectStoragePath: item.object_storage_path || ''
+                };
+            });
+            $expandedGrid.find('.expanded-media-item').addClass('selected');
+        }
+        updateExpandedToolbar();
+    }
+
+    function initExpandedOverlay() {
+        bindOverlayEvents();
+        bindExpandedSelectionEvents();
+        bindExpandedFilterEvents();
+        bindExpandedPaginationEvents();
+        bindExpandedInfiniteScroll();
+        bindExpandedToolbarEvents();
+    }
+
     $(function() {
         reloadMediaList();
         bindSelectionEvents();
@@ -1709,6 +2741,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         bindPaginationEvents();
         bindInfiniteScroll();
         initUploadModal();
+        initExpandedOverlay();
     });
 });
 </script>
