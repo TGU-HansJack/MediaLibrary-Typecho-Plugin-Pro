@@ -526,6 +526,50 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     text-overflow: ellipsis;
 }
 
+/* 存储类型标签 */
+#media-library-container .editor-media-item .storage-tag {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    z-index: 2;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+#media-library-container .editor-media-item .storage-tag.storage-local {
+    background: rgba(110, 119, 129, 0.85);
+    color: #fff;
+}
+
+#media-library-container .editor-media-item .storage-tag.storage-webdav {
+    background: rgba(9, 105, 218, 0.9);
+    color: #fff;
+}
+
+#media-library-container .editor-media-item .storage-tag.storage-object {
+    background: rgba(63, 185, 80, 0.9);
+    color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+    #media-library-container .editor-media-item .storage-tag.storage-local {
+        background: rgba(139, 148, 158, 0.85);
+    }
+    #media-library-container .editor-media-item .storage-tag.storage-webdav {
+        background: rgba(56, 139, 253, 0.9);
+    }
+    #media-library-container .editor-media-item .storage-tag.storage-object {
+        background: rgba(46, 160, 67, 0.9);
+    }
+}
+
 /* 上传模态框 - GitHub 风格 */
 .ml-modal {
     position: fixed;
@@ -537,7 +581,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999;
+    z-index: 10001;
     padding: 16px;
     opacity: 0;
     pointer-events: none;
@@ -817,9 +861,34 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     color: var(--ml-text);
 }
 
+.media-toolbar .btn-icon.btn-expand {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--ml-primary-bg) 0%, var(--ml-bg) 100%);
+    border-color: var(--ml-primary-border);
+    color: var(--ml-primary);
+}
+
+.media-toolbar .btn-icon.btn-expand:hover {
+    background: var(--ml-primary);
+    border-color: var(--ml-primary);
+    color: #fff;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(9, 105, 218, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+    .media-toolbar .btn-icon.btn-expand {
+        background: linear-gradient(135deg, var(--ml-primary-bg) 0%, var(--ml-bg-tertiary) 100%);
+    }
+    .media-toolbar .btn-icon.btn-expand:hover {
+        box-shadow: 0 2px 8px rgba(47, 129, 247, 0.4);
+    }
+}
+
 .media-toolbar .btn-icon svg {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
 }
 
 .media-pagination {
@@ -1190,6 +1259,50 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     font-size: 13px;
     font-weight: bold;
     line-height: 1;
+}
+
+/* 展开版存储类型标签 */
+#expanded-media-grid .expanded-media-item .storage-tag {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    z-index: 2;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+#expanded-media-grid .expanded-media-item .storage-tag.storage-local {
+    background: rgba(110, 119, 129, 0.85);
+    color: #fff;
+}
+
+#expanded-media-grid .expanded-media-item .storage-tag.storage-webdav {
+    background: rgba(9, 105, 218, 0.9);
+    color: #fff;
+}
+
+#expanded-media-grid .expanded-media-item .storage-tag.storage-object {
+    background: rgba(63, 185, 80, 0.9);
+    color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+    #expanded-media-grid .expanded-media-item .storage-tag.storage-local {
+        background: rgba(139, 148, 158, 0.85);
+    }
+    #expanded-media-grid .expanded-media-item .storage-tag.storage-webdav {
+        background: rgba(56, 139, 253, 0.9);
+    }
+    #expanded-media-grid .expanded-media-item .storage-tag.storage-object {
+        background: rgba(46, 160, 67, 0.9);
+    }
 }
 
 /* 加载和空状态 */
@@ -1625,11 +1738,10 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
             <button type="button" class="btn" id="editor-copy-markdown" style="display:none;">复制</button>
         </div>
         <div class="toolbar-actions">
-            <button type="button" class="btn btn-icon" id="editor-expand-btn" title="展开媒体库">
-                <svg viewBox="0 0 24 24" fill="none">
-                    <path d="M5 9V5h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M19 15v4h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M5 5l5 5M19 19l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <button type="button" class="btn btn-icon btn-expand" id="editor-expand-btn" title="展开媒体库">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2M16 4h2a2 2 0 012 2v2M16 20h2a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <rect x="8" y="8" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </button>
         </div>
@@ -1928,6 +2040,19 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
             $item.addClass('selected');
         }
 
+        // 添加存储类型标签
+        var storage = item.storage || 'local';
+        var storageClass = 'storage-local';
+        var storageText = '本地';
+        if (storage === 'webdav') {
+            storageClass = 'storage-webdav';
+            storageText = 'DAV';
+        } else if (storage === 'object_storage') {
+            storageClass = 'storage-object';
+            storageText = '云';
+        }
+        $('<span class="storage-tag ' + storageClass + '"></span>').text(storageText).appendTo($item);
+
         var $preview = $('<div class="media-preview"></div>');
         var previewUrl = item.thumbnail || (item.is_image && item.has_url ? item.url : '');
         if (previewUrl) {
@@ -1942,14 +2067,10 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
         $('<div class="media-title"></div>').text(title).appendTo($item);
 
-        var metaParts = [];
-        if (item.storage_label) {
-            metaParts.push(item.storage_label);
-        }
+        // 只显示文件大小
         if (item.size) {
-            metaParts.push(item.size);
+            $('<div class="media-meta"></div>').text(item.size).appendTo($item);
         }
-        $('<div class="media-meta"></div>').text(metaParts.join(' · ')).appendTo($item);
 
         return $item;
     }
@@ -2557,6 +2678,19 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
             $card.addClass('selected');
         }
 
+        // 添加存储类型标签
+        var storage = item.storage || 'local';
+        var storageClass = 'storage-local';
+        var storageText = '本地';
+        if (storage === 'webdav') {
+            storageClass = 'storage-webdav';
+            storageText = 'DAV';
+        } else if (storage === 'object_storage') {
+            storageClass = 'storage-object';
+            storageText = '云';
+        }
+        $('<span class="storage-tag ' + storageClass + '"></span>').text(storageText).appendTo($card);
+
         var $preview = $('<div class="media-preview"></div>');
         $preview.append('<div class="media-checkbox"></div>');
 
@@ -2570,10 +2704,10 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
         $('<div class="media-title"></div>').text(title).attr('title', title).appendTo($card);
 
-        var metaParts = [];
-        if (item.storage_label) metaParts.push(item.storage_label);
-        if (item.size) metaParts.push(item.size);
-        $('<div class="media-meta"></div>').text(metaParts.join(' · ')).appendTo($card);
+        // 只显示文件大小
+        if (item.size) {
+            $('<div class="media-meta"></div>').text(item.size).appendTo($card);
+        }
 
         return $card;
     }
