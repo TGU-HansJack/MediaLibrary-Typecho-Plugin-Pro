@@ -1953,21 +1953,31 @@ escapeHtml: function(text) {
 
                             if (Array.isArray(parsedData) && parsedData.length > 0) {
                                 uploadSuccess = true;
-                                // 提取第一个上传的文件信息
                                 uploadedFileInfo = parsedData[0];
                             } else if (parsedData && typeof parsedData === 'object') {
                                 if (typeof parsedData.success === 'boolean') {
                                     uploadSuccess = parsedData.success;
-                                } else if (parsedData.count || parsedData.data) {
+                                } else if (parsedData.count || parsedData.data || parsedData.files) {
                                     uploadSuccess = true;
                                 }
                                 if (parsedData.message) {
                                     uploadMessage = parsedData.message;
                                 }
-                                // 尝试从 data 字段提取文件信息
-                                if (parsedData.data && Array.isArray(parsedData.data) && parsedData.data.length > 0) {
+                                // 尝试从不同字段提取文件信息
+                                // 1. 对象存储使用 files 字段
+                                if (parsedData.files && Array.isArray(parsedData.files) && parsedData.files.length > 0) {
+                                    uploadedFileInfo = parsedData.files[0];
+                                }
+                                // 2. WebDAV 使用 data 数组
+                                else if (parsedData.data && Array.isArray(parsedData.data) && parsedData.data.length > 0) {
                                     uploadedFileInfo = parsedData.data[0];
-                                } else if (parsedData.url) {
+                                }
+                                // 3. 本地上传 data 是单个对象
+                                else if (parsedData.data && typeof parsedData.data === 'object' && parsedData.data.url) {
+                                    uploadedFileInfo = parsedData.data;
+                                }
+                                // 4. 直接包含 url 字段
+                                else if (parsedData.url) {
                                     uploadedFileInfo = parsedData;
                                 }
                             }
@@ -1979,7 +1989,7 @@ escapeHtml: function(text) {
                                 // 保存上传成功的文件信息
                                 if (uploadedFileInfo && uploadedFileInfo.url) {
                                     uploadedFilesData.push({
-                                        title: uploadedFileInfo.title || file.name,
+                                        title: uploadedFileInfo.title || uploadedFileInfo.name || file.name,
                                         url: uploadedFileInfo.url,
                                         isImage: uploadedFileInfo.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(file.name)
                                     });
