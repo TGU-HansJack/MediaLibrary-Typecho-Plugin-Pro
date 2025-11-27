@@ -4,7 +4,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6-yellow?logo=javascript&logoColor=white)
 ![Typecho](https://img.shields.io/badge/Typecho-%3E%3D1.2.1-orange)
 ![License](https://img.shields.io/badge/License-Free-green)
-![Version](https://img.shields.io/badge/Version-pro__0.1.5-blue)
+![Version](https://img.shields.io/badge/Version-pro__0.1.6-blue)
 [![GitHub Release](https://img.shields.io/github/v/release/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro)](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/releases)
 [![Release Workflow](https://img.shields.io/github/actions/workflow/status/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/release.yml?label=release)](https://github.com/TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro/actions/workflows/release.yml)
 
@@ -65,7 +65,7 @@
 
 [![Star History Chart](https://api.star-history.com/svg?repos=TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro&type=date&legend=top-left)](https://www.star-history.com/#TGU-HansJack/MediaLibrary-Typecho-Plugin-Pro&type=date&legend=top-left)
 
-- 赞助我
+## 赞助我
 <img width="720" height="250" alt="sponsor" src="https://github.com/user-attachments/assets/7c6374c7-ddcf-4cb7-ac23-1874554bc018" />
 
 ## 🎯 系统要求
