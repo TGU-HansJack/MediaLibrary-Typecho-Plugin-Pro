@@ -84,6 +84,10 @@ if (preg_match("/^([0-9]+)([a-z]{1,2})$/i", $phpMaxFilesize, $matches)) {
 $allowedTypes = 'jpg,jpeg,png,gif,bmp,webp,svg,mp4,avi,mov,wmv,flv,mp3,wav,ogg,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip,rar,avif';
 $adminAjaxBase = $options->adminUrl . 'extending.php?panel=MediaLibrary%2Fpanel.php';
 $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/editor-media-ajax.php';
+
+// 分片上传配置
+$chunkUploadThreshold = 5; // 超过此大小(MB)使用分片上传
+$chunkSize = 2; // 分片大小(MB)
 ?>
 
 <style>
@@ -1872,6 +1876,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
 <script src="<?php $options->adminStaticUrl('js', 'moxie.js'); ?>"></script>
 <script src="<?php $options->adminStaticUrl('js', 'plupload.js'); ?>"></script>
+<script src="<?php echo $pluginUrl; ?>/assets/js/chunked-upload.js"></script>
 <script>
 (function(init) {
     function run() {
@@ -1912,6 +1917,8 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     var allowedTypes = '<?php echo $allowedTypes; ?>';
     var maxFileSize = '<?php echo $phpMaxFilesize; ?>';
     var adminStaticUrl = '<?php echo addslashes($options->adminStaticUrl); ?>';
+    var chunkUploadThreshold = <?php echo $chunkUploadThreshold; ?> * 1024 * 1024; // 转换为字节
+    var chunkSize = <?php echo $chunkSize; ?> * 1024 * 1024; // 转换为字节
     var $grid = $('.editor-media-grid');
     var $copyBtn = $('#editor-copy-markdown');
     var $pagerPrev = $('#editor-page-prev');
@@ -2366,6 +2373,20 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         var uploadArea = document.getElementById('editor-upload-area');
         var uploader;
 
+        // 初始化分片上传器
+        var chunkedUploader = null;
+        if (typeof ChunkedUploader !== 'undefined') {
+            chunkedUploader = new ChunkedUploader({
+                chunkSize: chunkSize,
+                threshold: chunkUploadThreshold,
+                apiUrl: uploadBaseUrl
+            });
+        }
+
+        // 存储所有上传的文件信息（包括普通上传和分片上传）
+        var allUploadedFiles = [];
+        var pendingUploads = 0;
+
         function getStorageLabel(value) {
             var input = $storageInputs.filter('[value="' + value + '"]');
             var customLabel = input.data('label');
@@ -2391,6 +2412,119 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
             setTimeout(function() {
                 $fileList.empty();
             }, 200);
+        }
+
+        // 创建分片上传的列表项
+        function createChunkedFileListItem(file) {
+            var li = document.createElement('li');
+            li.id = 'chunked-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
+            li.innerHTML = ''
+                + '<div><span class="file-name">' + file.name + '</span>'
+                + '<span class="file-size"> (' + formatFileSize(file.size) + ')</span>'
+                + '<span style="margin-left:8px;font-size:11px;color:var(--ml-primary);">[分片上传]</span></div>'
+                + '<div class="progress-bar"><div class="progress-fill"></div></div>'
+                + '<div class="status">准备分片上传...</div>';
+            return li;
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            var k = 1024;
+            var sizes = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 处理分片上传
+        function handleChunkedUpload(file) {
+            var li = createChunkedFileListItem(file);
+            $fileList.append(li);
+            pendingUploads++;
+
+            var fill = li.querySelector('.progress-fill');
+            var status = li.querySelector('.status');
+
+            chunkedUploader.upload(file, currentStorage, {
+                onProgress: function(progress) {
+                    if (fill) fill.style.width = progress.percent + '%';
+                    if (status) {
+                        status.textContent = '分片上传中... ' + progress.percent + '% (' + progress.uploadedChunks + '/' + progress.totalChunks + ')';
+                    }
+                },
+                onChunkComplete: function(info) {
+                    // 单个分片完成
+                },
+                onError: function(error) {
+                    li.classList.add('error');
+                    if (status) status.textContent = '上传失败: ' + error.message;
+                    if (fill) fill.style.background = '#ef4444';
+                    pendingUploads--;
+                    checkAllUploadsComplete();
+                },
+                onCancel: function() {
+                    li.classList.add('error');
+                    if (status) status.textContent = '上传已取消';
+                    pendingUploads--;
+                    checkAllUploadsComplete();
+                }
+            }).then(function(result) {
+                li.classList.add('success');
+                if (status) status.textContent = '上传成功';
+                if (fill) fill.style.background = '#22c55e';
+
+                // 保存上传成功的文件信息
+                if (result && result.data && result.data.url) {
+                    allUploadedFiles.push({
+                        title: result.data.name || file.name,
+                        url: result.data.url,
+                        isImage: result.data.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(file.name)
+                    });
+                }
+
+                pendingUploads--;
+                checkAllUploadsComplete();
+            }).catch(function(error) {
+                // 错误已在 onError 中处理
+                console.error('分片上传失败:', error);
+            });
+        }
+
+        // 检查所有上传是否完成
+        function checkAllUploadsComplete() {
+            if (pendingUploads <= 0) {
+                onAllUploadsComplete();
+            }
+        }
+
+        // 所有上传完成后的处理
+        function onAllUploadsComplete() {
+            closeModal();
+            reloadMediaList();
+            refreshExpandedIfOpen();
+
+            // 自动复制上传文件的 Markdown 链接
+            if (allUploadedFiles.length > 0) {
+                var snippets = [];
+                allUploadedFiles.forEach(function(fileInfo) {
+                    var snippet = buildMarkdownSnippet(fileInfo.title, fileInfo.url, fileInfo.isImage);
+                    if (snippet) {
+                        snippets.push(snippet);
+                    }
+                });
+                if (snippets.length > 0) {
+                    copyTextToClipboard(snippets.join('\n')).then(function() {
+                        showToast('上传完成，Markdown 已复制');
+                    }).catch(function() {
+                        showToast('上传完成');
+                    });
+                } else {
+                    showToast('上传完成');
+                }
+                allUploadedFiles = []; // 清空列表
+            } else {
+                showToast('上传完成');
+            }
         }
 
         $('#editor-upload-btn').on('click', function(e) {
@@ -2439,7 +2573,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
             drop_element: 'editor-upload-area',
             multi_selection: true,
             filters: {
-                max_file_size: maxFileSize || '2mb',
+                max_file_size: '10gb', // 放宽限制，由分片上传处理大文件
                 mime_types: [{
                     title: '允许上传的文件',
                     extensions: allowedTypes
@@ -2454,18 +2588,48 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                 FilesAdded: function(up, files) {
                     openModal();
                     $fileList.empty();
-                    up.uploadedFiles = []; // 重置已上传文件列表
+                    allUploadedFiles = []; // 重置上传文件列表
+                    pendingUploads = 0;
+                    up.uploadedFiles = [];
+
+                    var normalFiles = [];
+                    var chunkedFiles = [];
+
+                    // 分类文件：大文件使用分片上传，小文件使用普通上传
                     plupload.each(files, function(file) {
-                        var li = document.createElement('li');
-                        li.id = file.id;
-                        li.innerHTML = ''
-                            + '<div><span class="file-name">' + file.name + '</span>'
-                            + '<span class="file-size"> (' + plupload.formatSize(file.size) + ')</span></div>'
-                            + '<div class="progress-bar"><div class="progress-fill"></div></div>'
-                            + '<div class="status">等待上传...</div>';
-                        $fileList.append(li);
+                        if (chunkedUploader && file.size > chunkUploadThreshold) {
+                            // 大文件：从 plupload 队列中移除，使用分片上传
+                            chunkedFiles.push(file.getNative());
+                            up.removeFile(file);
+                        } else {
+                            // 小文件：保留在 plupload 队列中
+                            normalFiles.push(file);
+                            var li = document.createElement('li');
+                            li.id = file.id;
+                            li.innerHTML = ''
+                                + '<div><span class="file-name">' + file.name + '</span>'
+                                + '<span class="file-size"> (' + plupload.formatSize(file.size) + ')</span></div>'
+                                + '<div class="progress-bar"><div class="progress-fill"></div></div>'
+                                + '<div class="status">等待上传...</div>';
+                            $fileList.append(li);
+                        }
                     });
-                    uploader.start();
+
+                    // 处理分片上传的文件
+                    if (chunkedFiles.length > 0) {
+                        chunkedFiles.forEach(function(nativeFile) {
+                            handleChunkedUpload(nativeFile);
+                        });
+                    }
+
+                    // 如果有普通文件，启动 plupload 上传
+                    if (normalFiles.length > 0) {
+                        pendingUploads += normalFiles.length;
+                        uploader.start();
+                    } else if (chunkedFiles.length === 0) {
+                        // 没有任何文件
+                        showToast('没有选择文件');
+                    }
                 },
                 UploadProgress: function(up, file) {
                     var li = document.getElementById(file.id);
@@ -2528,7 +2692,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                             if (fill) fill.style.background = '#22c55e';
                             // 保存上传成功的文件信息
                             if (uploadedFileInfo && uploadedFileInfo.url) {
-                                up.uploadedFiles.push({
+                                allUploadedFiles.push({
                                     title: uploadedFileInfo.title || uploadedFileInfo.name || file.name,
                                     url: uploadedFileInfo.url,
                                     isImage: uploadedFileInfo.isImage || /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(file.name)
@@ -2545,34 +2709,11 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                         if (fill) fill.style.background = '#ef4444';
                     }
                     uploader.removeFile(file);
+                    pendingUploads--;
+                    checkAllUploadsComplete();
                 },
                 UploadComplete: function(up) {
-                    closeModal();
-                    reloadMediaList();
-                    refreshExpandedIfOpen();
-
-                    // 自动复制上传文件的 Markdown 链接
-                    if (up.uploadedFiles && up.uploadedFiles.length > 0) {
-                        var snippets = [];
-                        up.uploadedFiles.forEach(function(fileInfo) {
-                            var snippet = buildMarkdownSnippet(fileInfo.title, fileInfo.url, fileInfo.isImage);
-                            if (snippet) {
-                                snippets.push(snippet);
-                            }
-                        });
-                        if (snippets.length > 0) {
-                            copyTextToClipboard(snippets.join('\n')).then(function() {
-                                showToast('上传完成，Markdown 已复制');
-                            }).catch(function() {
-                                showToast('上传完成');
-                            });
-                        } else {
-                            showToast('上传完成');
-                        }
-                        up.uploadedFiles = []; // 清空列表
-                    } else {
-                        showToast('上传完成');
-                    }
+                    // 不在这里处理完成逻辑，统一由 checkAllUploadsComplete 处理
                 },
                 Error: function(up, error) {
                     var li = document.createElement('li');
@@ -2592,6 +2733,8 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                     $fileList.append(li);
                     if (error.file) {
                         up.removeFile(error.file);
+                        pendingUploads--;
+                        checkAllUploadsComplete();
                     }
                 }
             }
