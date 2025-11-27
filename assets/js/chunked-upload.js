@@ -195,32 +195,44 @@ var ChunkedUploader = (function() {
             xhr.timeout = 300000;
 
             var handleError = function(errorMsg) {
-                // 当请求失败时，检查上传是否实际已完成
+                // 当请求失败时，持续检查上传是否实际已完成
                 console.log('completeUpload 请求失败，检查上传状态...');
-                self.checkUploadStatus(uploadId, filename).then(function(statusResult) {
-                    if (statusResult.completed && statusResult.data) {
-                        console.log('上传状态检查：已完成');
-                        resolve(statusResult);
-                    } else if (statusResult.processing) {
-                        // 正在处理中，等待后重试检查
-                        console.log('上传状态检查：处理中，等待重试...');
-                        setTimeout(function() {
-                            self.checkUploadStatus(uploadId, filename).then(function(retryResult) {
-                                if (retryResult.completed && retryResult.data) {
-                                    resolve(retryResult);
-                                } else {
-                                    reject(new Error(errorMsg));
-                                }
-                            }).catch(function() {
-                                reject(new Error(errorMsg));
-                            });
-                        }, 3000);
-                    } else {
+
+                var attempts = 0;
+                var maxAttempts = 5;
+                var delay = 3000;
+
+                var checkStatus = function() {
+                    self.checkUploadStatus(uploadId, filename).then(function(statusResult) {
+                        if (statusResult.completed && statusResult.data) {
+                            console.log('上传状态检查：已完成');
+                            resolve(statusResult);
+                            return;
+                        }
+
+                        if (statusResult.processing) {
+                            if (attempts < maxAttempts) {
+                                attempts++;
+                                console.log('上传状态检查：处理中，等待重试... (' + attempts + '/' + maxAttempts + ')');
+                                setTimeout(checkStatus, delay);
+                            } else {
+                                reject(new Error('服务器仍在处理，请稍后刷新查看'));
+                            }
+                            return;
+                        }
+
                         reject(new Error(errorMsg));
-                    }
-                }).catch(function() {
-                    reject(new Error(errorMsg));
-                });
+                    }).catch(function() {
+                        if (attempts < maxAttempts) {
+                            attempts++;
+                            setTimeout(checkStatus, delay);
+                        } else {
+                            reject(new Error(errorMsg));
+                        }
+                    });
+                };
+
+                checkStatus();
             };
 
             xhr.onreadystatechange = function() {

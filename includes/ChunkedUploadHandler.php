@@ -1020,16 +1020,23 @@ class MediaLibrary_ChunkedUploadHandler
 
         $uploadedCount = count($uploadInfo['uploadedChunks']);
         $totalChunks = $uploadInfo['totalChunks'];
+        $percent = $totalChunks > 0
+            ? round($uploadedCount / $totalChunks * 100, 2)
+            : 0;
+
+        // 所有分片已上传但信息文件仍存在时，说明后台仍在进行合并/写入
+        $isPendingMerge = $uploadedCount >= $totalChunks && $totalChunks > 0;
 
         return [
             'success' => true,
             'completed' => false,
-            'processing' => false,
-            'message' => '上传未完成',
+            'processing' => $isPendingMerge,
+            'pendingMerge' => $isPendingMerge,
+            'message' => $isPendingMerge ? '所有分片已上传，等待合并' : '上传未完成',
             'progress' => [
                 'uploadedChunks' => $uploadedCount,
                 'totalChunks' => $totalChunks,
-                'percent' => round($uploadedCount / $totalChunks * 100, 2)
+                'percent' => $percent
             ]
         ];
     }
