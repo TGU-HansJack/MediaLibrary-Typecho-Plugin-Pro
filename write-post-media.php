@@ -63,7 +63,8 @@ $typeFilterOptions = array(
     array('value' => 'document', 'label' => '文档')
 );
 
-$defaultUploadStorage = 'local';
+// 使用配置的优先存储位置作为默认值
+$defaultUploadStorage = isset($configOptions['preferredStorage']) ? $configOptions['preferredStorage'] : 'local';
 $hasDefaultUploadStorage = false;
 foreach ($uploadStorageOptions as $storageOption) {
     if ($storageOption['value'] === $defaultUploadStorage && !empty($storageOption['available'])) {
@@ -1672,7 +1673,15 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
                         </label>
                     <?php endforeach; ?>
                 </div>
-                <div class="ml-upload-storage-hint">当前上传至：<strong id="editor-upload-storage-label"><?php echo $defaultUploadStorage === 'webdav' ? 'WebDAV' : '本地存储'; ?></strong></div>
+                <div class="ml-upload-storage-hint">当前上传至：<strong id="editor-upload-storage-label"><?php
+                    if ($defaultUploadStorage === 'webdav') {
+                        echo 'WebDAV';
+                    } elseif ($defaultUploadStorage === 'object_storage') {
+                        echo isset($objectStorageStatus['name']) ? $objectStorageStatus['name'] : '对象存储';
+                    } else {
+                        echo '本地存储';
+                    }
+                ?></strong></div>
             </div>
 
             <div id="editor-upload-area" class="ml-upload-area">

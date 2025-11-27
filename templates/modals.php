@@ -8,8 +8,8 @@
             </div>
             <div class="modal-body">
                 <?php
-                // 上传弹窗默认存储位置固定为 local，不受页面筛选条件影响
-                $defaultUploadStorage = 'local';
+                // 使用配置的优先存储位置作为默认值
+                $defaultUploadStorage = isset($preferredStorage) ? $preferredStorage : 'local';
                 $uploadStorageOptions = array(
                     array(
                         'value' => 'local',
@@ -71,7 +71,15 @@
                             </label>
                         <?php endforeach; ?>
                     </div>
-                    <div class="upload-storage-hint">当前上传至：<strong id="upload-storage-current-label"><?php echo $defaultUploadStorage === 'webdav' ? 'WebDAV' : '本地存储'; ?></strong></div>
+                    <div class="upload-storage-hint">当前上传至：<strong id="upload-storage-current-label"><?php
+                        if ($defaultUploadStorage === 'webdav') {
+                            echo 'WebDAV';
+                        } elseif ($defaultUploadStorage === 'object_storage') {
+                            echo '对象存储';
+                        } else {
+                            echo '本地存储';
+                        }
+                    ?></strong></div>
                 </div>
                 <div id="upload-area" class="upload-area">
                     <p>拖拽文件到此处或点击选择文件</p>
