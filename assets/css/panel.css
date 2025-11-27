@@ -834,40 +834,64 @@
     font-weight: 400;
 }
 
-/* 懒加载占位符样式 */
-.lazy-placeholder {
+/* 图标模式 - 悬停预览样式 */
+.icon-mode-placeholder {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
-    animation: lazyPulse 1.5s ease-in-out infinite;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    position: relative;
+    cursor: pointer;
 }
 
-.lazy-placeholder.load-failed {
-    animation: none;
-    background: #fef2f2;
+.icon-mode-placeholder .file-icon {
+    font-size: 28px;
+    color: #94a3b8;
+    font-weight: 500;
+    transition: opacity 0.2s;
 }
 
-.lazy-icon {
-    font-size: 24px;
-    font-weight: 600;
-    color: #9ca3af;
-    letter-spacing: 1px;
+.icon-mode-placeholder .hover-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: var(--ml-card);
+    z-index: 5;
 }
 
-.lazy-icon.lazy-error {
+.icon-mode-placeholder:hover .file-icon {
+    opacity: 0.3;
+}
+
+.icon-mode-placeholder:hover .hover-preview {
+    display: flex;
+}
+
+.icon-mode-placeholder .hover-preview.loaded {
+    display: flex;
+}
+
+.icon-mode-placeholder .hover-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: cover;
+}
+
+.icon-mode-placeholder .hover-preview .preview-loading {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.icon-mode-placeholder .hover-preview .preview-error {
+    font-size: 12px;
     color: #ef4444;
-}
-
-@keyframes lazyPulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.6;
-    }
 }
 
 .media-actions {

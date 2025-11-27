@@ -37,63 +37,70 @@ var MediaLibrary = {
         this.bindEvents();
         this.initUpload();
         this.hideAllModals();
-        this.initLazyLoad();
+        this.initIconMode();
     },
 
-    // 懒加载初始化
-    initLazyLoad: function() {
+    // 图标模式初始化 - 悬停时异步加载预览
+    initIconMode: function() {
         if (!config.enableLoadOptimization) return;
 
         var self = this;
+        // 存储已加载的图片缓存
+        this.imageCache = {};
 
-        // 使用 Intersection Observer 实现懒加载
-        if ('IntersectionObserver' in window) {
-            var lazyObserver = new IntersectionObserver(function(entries) {
-                entries.forEach(function(entry) {
-                    if (entry.isIntersecting) {
-                        self.loadImage(entry.target);
-                        lazyObserver.unobserve(entry.target);
+        document.querySelectorAll('.icon-mode-placeholder').forEach(function(placeholder) {
+            var hoverPreview = placeholder.querySelector('.hover-preview');
+            var src = placeholder.getAttribute('data-src');
+            var loadTimeout = null;
+            var isLoading = false;
+
+            placeholder.addEventListener('mouseenter', function() {
+                if (!src || isLoading) return;
+
+                // 延迟200ms后开始加载，避免快速划过时不必要的请求
+                loadTimeout = setTimeout(function() {
+                    // 如果已缓存，直接显示
+                    if (self.imageCache[src]) {
+                        hoverPreview.innerHTML = '<img src="' + src + '" alt="">';
+                        hoverPreview.classList.add('loaded');
+                        return;
                     }
-                });
-            }, {
-                root: document.querySelector('.media-panel-body'),
-                rootMargin: '50px',
-                threshold: 0.1
+
+                    isLoading = true;
+                    hoverPreview.innerHTML = '<span class="preview-loading">加载中...</span>';
+                    hoverPreview.classList.add('loading');
+
+                    var img = new Image();
+                    img.onload = function() {
+                        self.imageCache[src] = true;
+                        hoverPreview.innerHTML = '';
+                        hoverPreview.appendChild(img);
+                        hoverPreview.classList.remove('loading');
+                        hoverPreview.classList.add('loaded');
+                        isLoading = false;
+                    };
+                    img.onerror = function() {
+                        hoverPreview.innerHTML = '<span class="preview-error">加载失败</span>';
+                        hoverPreview.classList.remove('loading');
+                        hoverPreview.classList.add('error');
+                        isLoading = false;
+                    };
+                    img.src = src;
+                }, 200);
             });
 
-            document.querySelectorAll('.lazy-placeholder').forEach(function(placeholder) {
-                lazyObserver.observe(placeholder);
+            placeholder.addEventListener('mouseleave', function() {
+                if (loadTimeout) {
+                    clearTimeout(loadTimeout);
+                    loadTimeout = null;
+                }
+                // 保留已加载的预览，只是隐藏
+                if (!hoverPreview.classList.contains('loaded')) {
+                    hoverPreview.innerHTML = '';
+                    hoverPreview.classList.remove('loading');
+                }
             });
-
-            // 保存 observer 以便后续使用
-            this.lazyObserver = lazyObserver;
-        } else {
-            // 降级处理：直接加载所有图片
-            document.querySelectorAll('.lazy-placeholder').forEach(function(placeholder) {
-                self.loadImage(placeholder);
-            });
-        }
-    },
-
-    // 加载单张图片
-    loadImage: function(placeholder) {
-        var src = placeholder.getAttribute('data-src');
-        if (!src) return;
-
-        var img = document.createElement('img');
-        var mediaItem = placeholder.closest('.media-item');
-        var title = mediaItem ? mediaItem.getAttribute('data-title') : '';
-
-        img.alt = title;
-        img.onload = function() {
-            placeholder.parentNode.replaceChild(img, placeholder);
-        };
-        img.onerror = function() {
-            // 加载失败，显示错误图标
-            placeholder.innerHTML = '<span class="lazy-icon lazy-error">ERR</span>';
-            placeholder.classList.add('load-failed');
-        };
-        img.src = src;
+        });
     },
 
     hideAllModals: function() {

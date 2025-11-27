@@ -17,9 +17,10 @@
                 <?php if ($attachment['isImage'] && $attachment['hasValidUrl']): ?>
                     <div class="media-preview">
                         <?php if (!empty($enableLoadOptimization)): ?>
-                            <!-- 加载优化模式：懒加载图片 -->
-                            <div class="lazy-placeholder" data-src="<?php echo $attachment['url']; ?>">
-                                <span class="lazy-icon">IMG</span>
+                            <!-- 图标模式：显示图标，悬停时异步加载预览 -->
+                            <div class="icon-mode-placeholder" data-src="<?php echo htmlspecialchars($attachment['url']); ?>">
+                                <span class="file-icon">IMG</span>
+                                <div class="hover-preview"></div>
                             </div>
                         <?php else: ?>
                             <img src="<?php echo $attachment['url']; ?>" alt="<?php echo htmlspecialchars($attachment['title']); ?>">

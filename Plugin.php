@@ -657,10 +657,10 @@ jQuery(function($) {
         
         // 加载优化设置
         $enableLoadOptimization = new Typecho_Widget_Helper_Form_Element_Checkbox('enableLoadOptimization',
-            array('1' => '启用加载优化'),
+            array('1' => '启用图标模式（推荐低带宽环境）'),
             array(),
             '加载优化',
-            '优化媒体库页面图片加载方式：使用懒加载、显示占位符代替原图。适用于内存低或带宽受限的环境，可显著减少页面加载时间和带宽消耗。');
+            '启用后图片显示为图标而非缩略图，鼠标悬停时才异步加载预览。适用于1M等低带宽服务器，页面加载几乎不消耗带宽，且加载过程不阻塞界面操作。');
         $form->addInput($enableLoadOptimization);
 
         // 添加其他配置选项
