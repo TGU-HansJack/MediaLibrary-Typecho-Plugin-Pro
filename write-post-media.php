@@ -88,46 +88,97 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 <style>
 /* ========================================
    写作页面媒体库组件 - GitHub 风格
+   优化版：响应式布局 + 深色模式适配
    ======================================== */
 
-/* CSS 变量定义 */
-#media-library-container {
+/* CSS 变量定义 - 亮色主题 */
+#media-library-container,
+.media-library-overlay,
+.ml-modal,
+.ml-confirm-dialog {
     --ml-bg: #ffffff;
     --ml-bg-secondary: #f6f8fa;
+    --ml-bg-tertiary: #eaeef2;
+    --ml-bg-overlay: rgba(27, 31, 36, 0.5);
     --ml-border: #d0d7de;
     --ml-border-muted: #d8dee4;
-    --ml-text: #24292f;
-    --ml-text-secondary: #656d76;
-    --ml-text-muted: #8b949e;
+    --ml-border-subtle: #eaeef2;
+    --ml-text: #1f2328;
+    --ml-text-secondary: #59636e;
+    --ml-text-muted: #6e7781;
+    --ml-text-placeholder: #8c959f;
     --ml-primary: #0969da;
     --ml-primary-hover: #0860ca;
     --ml-primary-bg: #ddf4ff;
+    --ml-primary-border: #54aeff;
     --ml-success: #1a7f37;
+    --ml-success-bg: #dafbe1;
+    --ml-success-border: #4ac26b;
     --ml-danger: #d1242f;
-    --ml-shadow: 0 1px 0 rgba(31, 35, 40, 0.04);
+    --ml-danger-bg: #ffebe9;
+    --ml-danger-border: #ff8182;
+    --ml-warning: #9a6700;
+    --ml-warning-bg: #fff8c5;
+    --ml-shadow-sm: 0 1px 0 rgba(31, 35, 40, 0.04);
+    --ml-shadow: 0 1px 3px rgba(31, 35, 40, 0.12), 0 8px 24px rgba(66, 74, 83, 0.12);
     --ml-shadow-md: 0 3px 6px rgba(140, 149, 159, 0.15);
+    --ml-shadow-lg: 0 8px 24px rgba(140, 149, 159, 0.2);
+    --ml-shadow-xl: 0 12px 28px rgba(140, 149, 159, 0.3);
+    --ml-radius-sm: 4px;
     --ml-radius: 6px;
     --ml-radius-md: 8px;
-    --ml-transition: 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+    --ml-radius-lg: 12px;
+    --ml-transition-fast: 80ms cubic-bezier(0.33, 1, 0.68, 1);
+    --ml-transition: 150ms cubic-bezier(0.33, 1, 0.68, 1);
+    --ml-transition-slow: 250ms cubic-bezier(0.33, 1, 0.68, 1);
+    --ml-focus-ring: 0 0 0 3px rgba(9, 105, 218, 0.3);
+    --ml-btn-bg: #f6f8fa;
+    --ml-btn-border: rgba(31, 35, 40, 0.15);
+    --ml-btn-hover-bg: #f3f4f6;
+    --ml-btn-active-bg: #ebecf0;
+    color-scheme: light;
 }
 
 /* 深色模式变量 */
 @media (prefers-color-scheme: dark) {
-    #media-library-container {
+    #media-library-container,
+    .media-library-overlay,
+    .ml-modal,
+    .ml-confirm-dialog {
         --ml-bg: #0d1117;
         --ml-bg-secondary: #161b22;
+        --ml-bg-tertiary: #21262d;
+        --ml-bg-overlay: rgba(1, 4, 9, 0.8);
         --ml-border: #30363d;
         --ml-border-muted: #21262d;
-        --ml-text: #c9d1d9;
-        --ml-text-secondary: #8b949e;
-        --ml-text-muted: #6e7681;
-        --ml-primary: #58a6ff;
-        --ml-primary-hover: #79c0ff;
+        --ml-border-subtle: #30363d;
+        --ml-text: #e6edf3;
+        --ml-text-secondary: #8d96a0;
+        --ml-text-muted: #7d8590;
+        --ml-text-placeholder: #6e7681;
+        --ml-primary: #2f81f7;
+        --ml-primary-hover: #58a6ff;
         --ml-primary-bg: #1c2d41;
+        --ml-primary-border: #388bfd;
         --ml-success: #3fb950;
+        --ml-success-bg: #1c3d2e;
+        --ml-success-border: #2ea043;
         --ml-danger: #f85149;
-        --ml-shadow: 0 1px 0 rgba(1, 4, 9, 0.1);
-        --ml-shadow-md: 0 3px 6px rgba(1, 4, 9, 0.3);
+        --ml-danger-bg: #3d1f20;
+        --ml-danger-border: #f85149;
+        --ml-warning: #d29922;
+        --ml-warning-bg: #3b2e1a;
+        --ml-shadow-sm: 0 1px 0 rgba(1, 4, 9, 0.1);
+        --ml-shadow: 0 0 0 1px #30363d, 0 16px 32px rgba(1, 4, 9, 0.85);
+        --ml-shadow-md: 0 3px 6px rgba(1, 4, 9, 0.4);
+        --ml-shadow-lg: 0 8px 24px rgba(1, 4, 9, 0.5);
+        --ml-shadow-xl: 0 12px 28px rgba(1, 4, 9, 0.6);
+        --ml-focus-ring: 0 0 0 3px rgba(47, 129, 247, 0.4);
+        --ml-btn-bg: #21262d;
+        --ml-btn-border: rgba(240, 246, 252, 0.1);
+        --ml-btn-hover-bg: #30363d;
+        --ml-btn-active-bg: #3c444d;
+        color-scheme: dark;
     }
 }
 
@@ -136,83 +187,150 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     background: var(--ml-bg);
     border: 1px solid var(--ml-border);
     border-radius: var(--ml-radius-md);
-    padding: 12px;
+    padding: clamp(10px, 2vw, 16px);
     margin-top: 12px;
-    box-shadow: var(--ml-shadow);
+    box-shadow: var(--ml-shadow-sm);
+    transition: border-color var(--ml-transition);
 }
 
-/* 工具栏 */
+#media-library-container .media-library-editor:hover {
+    border-color: var(--ml-border-muted);
+}
+
+/* 工具栏 - GitHub 风格 */
 #media-library-container .media-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 8px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--ml-border-muted);
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--ml-border-subtle);
+    flex-wrap: wrap;
 }
 
-#media-library-container .media-toolbar .btn {
+/* GitHub 风格按钮基础 */
+#media-library-container .media-toolbar .btn,
+.overlay-toolbar .btn,
+.ml-modal .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 6px;
     padding: 5px 12px;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 20px;
     color: var(--ml-text);
-    background: var(--ml-bg);
-    border: 1px solid var(--ml-border);
+    background: var(--ml-btn-bg);
+    border: 1px solid var(--ml-btn-border);
     border-radius: var(--ml-radius);
     cursor: pointer;
-    transition: background var(--ml-transition), border-color var(--ml-transition);
+    transition: background var(--ml-transition-fast), border-color var(--ml-transition-fast), box-shadow var(--ml-transition-fast);
     white-space: nowrap;
+    user-select: none;
+    vertical-align: middle;
+    appearance: none;
+    text-decoration: none;
 }
 
-#media-library-container .media-toolbar .btn:hover {
-    background: var(--ml-bg-secondary);
+#media-library-container .media-toolbar .btn:hover,
+.overlay-toolbar .btn:hover,
+.ml-modal .btn:hover {
+    background: var(--ml-btn-hover-bg);
     border-color: var(--ml-border);
 }
 
-#media-library-container .media-toolbar .btn-primary {
-    color: #ffffff;
-    background: var(--ml-success);
-    border-color: rgba(31, 35, 40, 0.15);
+#media-library-container .media-toolbar .btn:active,
+.overlay-toolbar .btn:active,
+.ml-modal .btn:active {
+    background: var(--ml-btn-active-bg);
 }
 
-#media-library-container .media-toolbar .btn-primary:hover {
-    background: #1a7f37;
+#media-library-container .media-toolbar .btn:focus-visible,
+.overlay-toolbar .btn:focus-visible,
+.ml-modal .btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ml-focus-ring);
+}
+
+#media-library-container .media-toolbar .btn:disabled,
+.overlay-toolbar .btn:disabled,
+.ml-modal .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* 主要按钮 - 绿色 */
+#media-library-container .media-toolbar .btn-primary,
+.overlay-toolbar .btn-primary,
+.ml-modal .btn-primary {
+    color: #ffffff;
+    background: var(--ml-success);
+    border-color: var(--ml-success-border);
+    box-shadow: var(--ml-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+#media-library-container .media-toolbar .btn-primary:hover,
+.overlay-toolbar .btn-primary:hover,
+.ml-modal .btn-primary:hover {
+    background: #1a8039;
 }
 
 @media (prefers-color-scheme: dark) {
-    #media-library-container .media-toolbar .btn-primary {
+    #media-library-container .media-toolbar .btn-primary,
+    .overlay-toolbar .btn-primary,
+    .ml-modal .btn-primary {
         background: #238636;
-        border-color: rgba(240, 246, 252, 0.1);
+        border-color: #2ea043;
     }
-    #media-library-container .media-toolbar .btn-primary:hover {
+    #media-library-container .media-toolbar .btn-primary:hover,
+    .overlay-toolbar .btn-primary:hover,
+    .ml-modal .btn-primary:hover {
         background: #2ea043;
     }
 }
 
-/* 媒体网格容器 - 带滚动 */
+/* 危险按钮 */
+.overlay-toolbar .btn-danger,
+.ml-confirm-dialog .btn-confirm-danger {
+    color: #ffffff;
+    background: var(--ml-danger);
+    border-color: var(--ml-danger-border);
+}
+
+.overlay-toolbar .btn-danger:hover,
+.ml-confirm-dialog .btn-confirm-danger:hover {
+    background: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+    .overlay-toolbar .btn-danger:hover,
+    .ml-confirm-dialog .btn-confirm-danger:hover {
+        background: #da3633;
+    }
+}
+
+/* 媒体网格容器 - 响应式带滚动 */
 #media-library-container .media-grid {
-    max-height: 240px;
-    min-height: 80px;
+    max-height: clamp(200px, 30vh, 280px);
+    min-height: 100px;
     overflow-y: auto;
     overflow-x: hidden;
     border: 1px solid var(--ml-border-muted);
     border-radius: var(--ml-radius);
-    padding: 8px;
+    padding: clamp(8px, 1.5vw, 12px);
     display: block;
     background: var(--ml-bg-secondary);
     scrollbar-width: thin;
     scrollbar-color: var(--ml-border) transparent;
     position: relative;
+    scroll-behavior: smooth;
 }
 
 #media-library-container .media-page-group {
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
 
 #media-library-container .media-page-group:last-child {
@@ -220,23 +338,70 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 }
 
 #media-library-container .media-page-label {
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 500;
     color: var(--ml-text-muted);
-    margin: 4px 0 6px;
+    margin: 4px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
+#media-library-container .media-page-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--ml-border-subtle);
+}
+
+/* 响应式网格布局 */
 #media-library-container .media-page-items {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(80px, 12vw, 100px), 1fr));
+    gap: clamp(6px, 1vw, 10px);
     background: var(--ml-bg-secondary);
+}
+
+/* 小屏幕 */
+@media (max-width: 480px) {
+    #media-library-container .media-page-items {
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+        gap: 6px;
+    }
+}
+
+/* 中等屏幕 */
+@media (min-width: 768px) {
+    #media-library-container .media-page-items {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    }
+}
+
+/* 大屏幕 */
+@media (min-width: 1200px) {
+    #media-library-container .media-page-items {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 10px;
+    }
 }
 
 #media-library-container .media-end-indicator {
     text-align: center;
     color: var(--ml-text-muted);
-    font-size: 11px;
-    padding: 6px 0;
+    font-size: 12px;
+    padding: 12px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+#media-library-container .media-end-indicator::before,
+#media-library-container .media-end-indicator::after {
+    content: '';
+    width: 40px;
+    height: 1px;
+    background: var(--ml-border-subtle);
 }
 
 #media-library-container .media-page-items .loading,
@@ -244,17 +409,20 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     grid-column: 1 / -1;
 }
 
+/* 滚动条样式 */
 #media-library-container .media-grid::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
 }
 
 #media-library-container .media-grid::-webkit-scrollbar-track {
     background: transparent;
+    border-radius: 4px;
 }
 
 #media-library-container .media-grid::-webkit-scrollbar-thumb {
     background: var(--ml-border);
-    border-radius: 3px;
+    border-radius: 4px;
+    border: 2px solid var(--ml-bg-secondary);
 }
 
 #media-library-container .media-grid::-webkit-scrollbar-thumb:hover {
@@ -266,83 +434,105 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     grid-column: 1 / -1;
     text-align: center;
     color: var(--ml-text-muted);
-    padding: 20px 0;
-    font-size: 13px;
+    padding: 32px 16px;
+    font-size: 14px;
 }
 
-/* 媒体项 */
+/* 媒体项 - GitHub 风格卡片 */
 #media-library-container .editor-media-item {
     background: var(--ml-bg);
     border: 1px solid var(--ml-border-muted);
     border-radius: var(--ml-radius);
-    padding: 6px;
+    padding: clamp(6px, 1vw, 8px);
     cursor: pointer;
-    transition: border-color var(--ml-transition), box-shadow var(--ml-transition), transform var(--ml-transition);
+    transition: all var(--ml-transition);
+    position: relative;
 }
 
 #media-library-container .editor-media-item:hover {
     border-color: var(--ml-border);
     box-shadow: var(--ml-shadow-md);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+}
+
+#media-library-container .editor-media-item:focus-visible {
+    outline: none;
+    box-shadow: var(--ml-focus-ring);
 }
 
 #media-library-container .editor-media-item.selected {
     border-color: var(--ml-primary);
-    box-shadow: 0 0 0 2px var(--ml-primary-bg);
+    box-shadow: 0 0 0 3px var(--ml-primary-bg);
+    background: var(--ml-primary-bg);
 }
 
 #media-library-container .editor-media-item .media-preview {
     width: 100%;
-    height: 64px;
+    aspect-ratio: 1;
+    min-height: 56px;
+    max-height: 80px;
     background: var(--ml-bg-secondary);
-    border-radius: 4px;
+    border-radius: var(--ml-radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    position: relative;
 }
 
 #media-library-container .editor-media-item img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform var(--ml-transition);
+}
+
+#media-library-container .editor-media-item:hover img {
+    transform: scale(1.05);
 }
 
 #media-library-container .editor-media-item .file-icon {
-    font-size: 20px;
+    font-size: clamp(14px, 3vw, 18px);
     color: var(--ml-text-secondary);
-    font-weight: 500;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
 }
 
 #media-library-container .editor-media-item .media-title {
-    margin-top: 4px;
+    margin-top: 6px;
     font-size: 11px;
+    font-weight: 500;
     color: var(--ml-text-secondary);
     text-align: center;
-    max-height: 28px;
+    max-height: 30px;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    line-height: 1.3;
+    line-height: 1.35;
+    word-break: break-all;
 }
 
 #media-library-container .editor-media-item .media-meta {
-    margin-top: 2px;
+    margin-top: 3px;
     font-size: 10px;
     color: var(--ml-text-muted);
     text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* 上传模态框 */
+/* 上传模态框 - GitHub 风格 */
 .ml-modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(27, 31, 36, 0.5);
+    background: var(--ml-bg-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -351,7 +541,9 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
-    transition: opacity 0.2s ease;
+    transition: opacity var(--ml-transition-slow), visibility var(--ml-transition-slow);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .ml-modal.active {
@@ -360,125 +552,103 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     visibility: visible;
 }
 
-@media (prefers-color-scheme: dark) {
-    .ml-modal {
-        background: rgba(1, 4, 9, 0.8);
-    }
-}
-
 .ml-modal-dialog {
-    background: var(--ml-bg, #ffffff);
-    width: 400px;
-    max-width: 100%;
-    border-radius: var(--ml-radius-md, 8px);
-    border: 1px solid var(--ml-border, #d0d7de);
-    box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
-    padding: 16px;
-    animation: mlModalScale 0.2s cubic-bezier(0.33, 1, 0.68, 1);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-modal-dialog {
-        background: #161b22;
-        border-color: #30363d;
-        box-shadow: 0 8px 24px rgba(1, 4, 9, 0.4);
-    }
+    background: var(--ml-bg);
+    width: 440px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+    border-radius: var(--ml-radius-lg);
+    border: 1px solid var(--ml-border);
+    box-shadow: var(--ml-shadow);
+    padding: 0;
+    animation: mlModalScale var(--ml-transition-slow) cubic-bezier(0.33, 1, 0.68, 1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .ml-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--ml-border-muted, #d8dee4);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-modal-header {
-        border-bottom-color: #21262d;
-    }
+    padding: 16px;
+    border-bottom: 1px solid var(--ml-border-muted);
+    background: var(--ml-bg-secondary);
 }
 
 .ml-modal-header h3 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: var(--ml-text, #24292f);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-modal-header h3 {
-        color: #c9d1d9;
-    }
+    color: var(--ml-text);
 }
 
 .ml-modal-close {
     cursor: pointer;
-    font-size: 18px;
-    color: var(--ml-text-muted, #8b949e);
-    padding: 4px;
-    border-radius: 4px;
-    transition: background var(--ml-transition, 0.2s), color var(--ml-transition, 0.2s);
+    font-size: 20px;
+    color: var(--ml-text-muted);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--ml-radius);
+    transition: background var(--ml-transition-fast), color var(--ml-transition-fast);
 }
 
 .ml-modal-close:hover {
-    color: var(--ml-text, #24292f);
-    background: var(--ml-bg-secondary, #f6f8fa);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-modal-close:hover {
-        color: #c9d1d9;
-        background: #21262d;
-    }
+    color: var(--ml-text);
+    background: var(--ml-bg-tertiary);
 }
 
 .ml-modal-body {
-    font-size: 13px;
-    color: var(--ml-text-secondary, #656d76);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-modal-body {
-        color: #8b949e;
-    }
+    padding: 16px;
+    font-size: 14px;
+    color: var(--ml-text-secondary);
+    overflow-y: auto;
+    flex: 1;
 }
 
 /* 存储选择控件 */
 .ml-upload-storage-control {
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+}
+
+.ml-upload-storage-control > div:first-child {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ml-text);
+    margin-bottom: 8px;
 }
 
 .ml-storage-options {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
+    gap: 8px;
 }
 
 .ml-storage-pill {
-    border: 1px solid var(--ml-border, #d0d7de);
-    border-radius: var(--ml-radius, 6px);
-    padding: 8px 10px;
-    font-size: 12px;
+    border: 1px solid var(--ml-border);
+    border-radius: var(--ml-radius);
+    padding: 10px 12px;
+    font-size: 13px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
-    min-width: 100px;
-    background: var(--ml-bg, #ffffff);
-    transition: border-color var(--ml-transition, 0.2s), background var(--ml-transition, 0.2s);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-storage-pill {
-        background: #0d1117;
-        border-color: #30363d;
-    }
+    min-width: 110px;
+    flex: 1;
+    background: var(--ml-bg);
+    transition: all var(--ml-transition);
 }
 
 .ml-storage-pill:hover:not(.disabled) {
-    border-color: var(--ml-primary, #0969da);
+    border-color: var(--ml-primary-border);
+    background: var(--ml-bg-secondary);
+}
+
+.ml-storage-pill:has(input:checked) {
+    border-color: var(--ml-primary);
+    background: var(--ml-primary-bg);
 }
 
 .ml-storage-pill input {
@@ -487,30 +657,19 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
 .ml-storage-pill .storage-pill-name {
     font-weight: 600;
-    color: var(--ml-text, #24292f);
-    font-size: 12px;
+    color: var(--ml-text);
+    font-size: 13px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .ml-storage-pill .storage-pill-name {
-        color: #c9d1d9;
-    }
+.ml-storage-pill:has(input:checked) .storage-pill-name {
+    color: var(--ml-primary);
 }
 
 .ml-storage-pill .storage-pill-desc {
-    color: var(--ml-text-muted, #8b949e);
+    color: var(--ml-text-muted);
     font-size: 11px;
-    margin-top: 2px;
-}
-
-.ml-storage-pill input:checked + .storage-pill-text .storage-pill-name {
-    color: var(--ml-primary, #0969da);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-storage-pill input:checked + .storage-pill-text .storage-pill-name {
-        color: #58a6ff;
-    }
+    margin-top: 3px;
+    line-height: 1.3;
 }
 
 .ml-storage-pill.disabled {
@@ -519,200 +678,170 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 }
 
 .ml-upload-storage-hint {
-    margin-top: 6px;
+    margin-top: 10px;
     font-size: 12px;
-    color: var(--ml-text-secondary, #656d76);
+    color: var(--ml-text-secondary);
+    padding: 8px 10px;
+    background: var(--ml-bg-secondary);
+    border-radius: var(--ml-radius-sm);
 }
 
-@media (prefers-color-scheme: dark) {
-    .ml-upload-storage-hint {
-        color: #8b949e;
-    }
+.ml-upload-storage-hint strong {
+    color: var(--ml-primary);
 }
 
 /* 上传区域 */
 .ml-upload-area {
-    border: 2px dashed var(--ml-border, #d0d7de);
-    border-radius: var(--ml-radius, 6px);
-    padding: 20px;
+    border: 2px dashed var(--ml-border);
+    border-radius: var(--ml-radius-md);
+    padding: clamp(20px, 4vw, 32px) 20px;
     text-align: center;
-    background: var(--ml-bg-secondary, #f6f8fa);
-    transition: border-color var(--ml-transition, 0.2s), background var(--ml-transition, 0.2s);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-upload-area {
-        background: #0d1117;
-        border-color: #30363d;
-    }
+    background: var(--ml-bg-secondary);
+    transition: all var(--ml-transition);
 }
 
 .ml-upload-area:hover {
-    border-color: var(--ml-primary, #0969da);
+    border-color: var(--ml-primary-border);
+    background: var(--ml-primary-bg);
 }
 
 .ml-upload-area.dragover {
-    border-color: var(--ml-primary, #0969da);
-    background: var(--ml-primary-bg, #ddf4ff);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-upload-area.dragover {
-        background: #1c2d41;
-    }
+    border-color: var(--ml-primary);
+    background: var(--ml-primary-bg);
+    transform: scale(1.01);
 }
 
 .ml-upload-area .upload-hint {
-    color: var(--ml-text-muted, #8b949e);
-    margin-bottom: 8px;
-    font-size: 13px;
+    color: var(--ml-text-muted);
+    margin-bottom: 12px;
+    font-size: 14px;
 }
 
 /* 文件列表 */
 #editor-file-list {
     list-style: none;
-    margin: 12px 0 0;
+    margin: 16px 0 0;
     padding: 0;
-    max-height: 180px;
+    max-height: 200px;
     overflow-y: auto;
 }
 
 #editor-file-list li {
-    border: 1px solid var(--ml-border, #d0d7de);
-    border-left: 3px solid var(--ml-border, #d0d7de);
-    border-radius: var(--ml-radius, 6px);
-    padding: 8px 10px;
+    border: 1px solid var(--ml-border);
+    border-left: 3px solid var(--ml-border);
+    border-radius: var(--ml-radius);
+    padding: 10px 12px;
     margin-bottom: 8px;
-    font-size: 12px;
-    color: var(--ml-text-secondary, #656d76);
-    background: var(--ml-bg, #ffffff);
-}
-
-@media (prefers-color-scheme: dark) {
-    #editor-file-list li {
-        background: #0d1117;
-        border-color: #30363d;
-        color: #8b949e;
-    }
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+    background: var(--ml-bg);
+    transition: border-color var(--ml-transition);
 }
 
 #editor-file-list li.success {
-    border-left-color: var(--ml-success, #1a7f37);
-}
-
-@media (prefers-color-scheme: dark) {
-    #editor-file-list li.success {
-        border-left-color: #3fb950;
-    }
+    border-left-color: var(--ml-success);
+    background: var(--ml-success-bg);
 }
 
 #editor-file-list li.error {
-    border-left-color: var(--ml-danger, #d1242f);
-    color: var(--ml-danger, #d1242f);
-}
-
-@media (prefers-color-scheme: dark) {
-    #editor-file-list li.error {
-        border-left-color: #f85149;
-        color: #f85149;
-    }
+    border-left-color: var(--ml-danger);
+    background: var(--ml-danger-bg);
+    color: var(--ml-danger);
 }
 
 #editor-file-list .file-name {
     font-weight: 600;
     display: inline-block;
-    max-width: 60%;
+    max-width: 65%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--ml-text, #24292f);
-}
-
-@media (prefers-color-scheme: dark) {
-    #editor-file-list .file-name {
-        color: #c9d1d9;
-    }
+    color: var(--ml-text);
+    vertical-align: middle;
 }
 
 #editor-file-list .file-size {
-    color: var(--ml-text-muted, #8b949e);
-    margin-left: 6px;
+    color: var(--ml-text-muted);
+    margin-left: 8px;
+    font-size: 12px;
 }
 
 #editor-file-list .progress-bar {
     width: 100%;
     height: 4px;
-    background: var(--ml-border-muted, #d8dee4);
+    background: var(--ml-border-muted);
     border-radius: 2px;
-    margin-top: 6px;
+    margin-top: 8px;
     overflow: hidden;
-}
-
-@media (prefers-color-scheme: dark) {
-    #editor-file-list .progress-bar {
-        background: #21262d;
-    }
 }
 
 #editor-file-list .progress-fill {
     width: 0%;
     height: 100%;
     border-radius: 2px;
-    background: linear-gradient(90deg, var(--ml-primary, #0969da), #54aeff);
-    transition: width 0.2s ease;
-}
-
-@media (prefers-color-scheme: dark) {
-    #editor-file-list .progress-fill {
-        background: linear-gradient(90deg, #1f6feb, #58a6ff);
-    }
+    background: linear-gradient(90deg, var(--ml-primary), var(--ml-primary-hover));
+    transition: width var(--ml-transition);
 }
 
 #editor-file-list .status {
-    margin-top: 4px;
-    font-size: 11px;
+    margin-top: 6px;
+    font-size: 12px;
 }
 
 .media-toolbar .toolbar-actions {
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .media-toolbar .btn-icon {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    border-radius: 50%;
+    border-radius: var(--ml-radius);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
-    background: var(--ml-bg);
+    font-size: 16px;
+    background: var(--ml-btn-bg);
+    color: var(--ml-text-secondary);
+    border: 1px solid var(--ml-btn-border);
+    cursor: pointer;
+    transition: all var(--ml-transition-fast);
+}
+
+.media-toolbar .btn-icon:hover {
+    background: var(--ml-btn-hover-bg);
+    color: var(--ml-text);
 }
 
 .media-toolbar .btn-icon svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
 }
 
 .media-pagination {
-    margin-top: 8px;
+    margin-top: 12px;
     display: flex;
     justify-content: flex-end;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
 }
 
 .media-pagination .pager-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--ml-radius);
     border: 1px solid var(--ml-border);
     background: var(--ml-bg);
     color: var(--ml-text);
     cursor: pointer;
-    transition: background var(--ml-transition);
+    transition: all var(--ml-transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
 }
 
 .media-pagination .pager-btn:disabled {
@@ -721,21 +850,27 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 }
 
 .media-pagination .pager-btn:not(:disabled):hover {
-    background: var(--ml-bg-secondary);
+    background: var(--ml-btn-hover-bg);
+    border-color: var(--ml-primary-border);
 }
 
+/* ========================================
+   展开版 Overlay - 全屏媒体库
+   ======================================== */
 .media-library-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(13, 17, 23, 0.6);
+    background: var(--ml-bg-overlay);
     display: none;
     align-items: center;
     justify-content: center;
     z-index: 10000;
-    padding: 20px;
+    padding: clamp(12px, 2vw, 24px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 .media-library-overlay.active {
@@ -743,179 +878,233 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 }
 
 .media-overlay-panel {
-    width: 90vw;
-    height: 90vh;
-    background: #fff;
-    border-radius: 12px;
+    width: min(95vw, 1400px);
+    height: min(92vh, 900px);
+    background: var(--ml-bg);
+    border-radius: var(--ml-radius-lg);
+    border: 1px solid var(--ml-border);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.35);
-    animation: mlModalScale 0.25s ease;
+    box-shadow: var(--ml-shadow-xl);
+    animation: mlPanelSlideIn var(--ml-transition-slow) cubic-bezier(0.34, 1.56, 0.64, 1);
     overflow: hidden;
 }
 
-@media (prefers-color-scheme: dark) {
-    .media-overlay-panel {
-        background: #161b22;
-        color: #c9d1d9;
-    }
-}
-
+/* 展开版 Header */
 .overlay-header {
-    padding: 18px 20px 10px;
+    padding: clamp(12px, 2vw, 20px);
     border-bottom: 1px solid var(--ml-border-muted);
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: clamp(8px, 1.5vw, 16px);
     align-items: center;
     justify-content: space-between;
+    background: var(--ml-bg-secondary);
 }
 
 .overlay-title {
-    font-size: 18px;
+    font-size: clamp(16px, 2vw, 20px);
     font-weight: 600;
     color: var(--ml-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .overlay-controls {
     display: flex;
-    gap: 10px;
+    gap: clamp(6px, 1vw, 10px);
     align-items: center;
     flex-wrap: wrap;
+    flex: 1;
+    justify-content: flex-end;
 }
 
-.overlay-controls input[type="text"],
-.overlay-controls select {
+.overlay-controls input[type="text"] {
+    width: clamp(140px, 20vw, 220px);
     border: 1px solid var(--ml-border);
-    border-radius: 6px;
-    padding: 5px 8px;
-    font-size: 13px;
+    border-radius: var(--ml-radius);
+    padding: 7px 12px;
+    font-size: 14px;
     background: var(--ml-bg);
     color: var(--ml-text);
+    transition: all var(--ml-transition-fast);
 }
 
+.overlay-controls input[type="text"]::placeholder {
+    color: var(--ml-text-placeholder);
+}
+
+.overlay-controls input[type="text"]:focus {
+    outline: none;
+    border-color: var(--ml-primary);
+    box-shadow: var(--ml-focus-ring);
+}
+
+.overlay-controls select {
+    border: 1px solid var(--ml-border);
+    border-radius: var(--ml-radius);
+    padding: 7px 12px;
+    font-size: 14px;
+    background: var(--ml-bg);
+    color: var(--ml-text);
+    cursor: pointer;
+    transition: border-color var(--ml-transition-fast);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236e7781' d='M2.5 4.5l3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .overlay-controls select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237d8590' d='M2.5 4.5l3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+    }
+}
+
+.overlay-controls select:focus {
+    outline: none;
+    border-color: var(--ml-primary);
+    box-shadow: var(--ml-focus-ring);
+}
+
+/* 展开版工具栏 */
 .overlay-toolbar {
-    padding: 12px 20px;
+    padding: clamp(10px, 1.5vw, 14px) clamp(12px, 2vw, 20px);
     border-bottom: 1px solid var(--ml-border-muted);
     display: flex;
-    gap: 8px;
+    gap: clamp(6px, 1vw, 10px);
     flex-wrap: wrap;
-}
-
-.overlay-toolbar .btn {
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--ml-border);
+    align-items: center;
     background: var(--ml-bg);
-    cursor: pointer;
 }
 
-.overlay-toolbar .btn-primary {
-    background: var(--ml-primary);
-    color: #fff;
-    border-color: var(--ml-primary);
+.overlay-toolbar .selection-count {
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+    margin-left: auto;
+    padding: 4px 10px;
+    background: var(--ml-bg-secondary);
+    border-radius: var(--ml-radius-sm);
 }
 
-.overlay-toolbar .btn-danger {
-    background: var(--ml-danger);
-    border-color: var(--ml-danger);
-    color: #fff;
-}
-
+/* 展开版内容区域 */
 .media-overlay-content {
     flex: 1;
     overflow: hidden;
-    padding: 0 20px;
+    padding: 0 clamp(12px, 2vw, 20px);
     display: flex;
     flex-direction: column;
+    background: var(--ml-bg-secondary);
 }
 
+/* 展开版响应式网格 - 核心布局 */
 #expanded-media-grid {
     flex: 1;
     overflow-y: auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
-    padding: 16px 0;
-}
-
-.expanded-media-item {
-    border: 1px solid var(--ml-border);
-    border-radius: 8px;
-    background: var(--ml-bg);
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    cursor: pointer;
-    transition: border-color var(--ml-transition), box-shadow var(--ml-transition);
-}
-
-.expanded-media-item.selected {
-    border-color: var(--ml-primary);
-    box-shadow: 0 0 0 2px var(--ml-primary-bg);
-}
-
-.expanded-media-item .media-preview {
-    height: 120px;
-}
-
-.expanded-media-item .media-meta {
-    font-size: 12px;
-    color: var(--ml-text-secondary);
-}
-
-.overlay-pagination {
-    padding: 12px 20px 20px;
-    border-top: 1px solid var(--ml-border-muted);
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 10px;
-}
-
-.overlay-pagination .page-indicator {
-    font-size: 13px;
-    color: var(--ml-text-secondary);
-}
-
-/* 展开版网格样式 */
-#expanded-media-grid {
-    flex: 1;
-    overflow-y: auto;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
-    padding: 16px 0;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 15vw, 180px), 1fr));
+    gap: clamp(10px, 1.5vw, 16px);
+    padding: clamp(12px, 2vw, 20px) 0;
     align-content: start;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ml-border) transparent;
 }
 
+/* 响应式断点适配 */
+@media (max-width: 480px) {
+    #expanded-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 8px;
+    }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+    #expanded-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 10px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    #expanded-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+}
+
+@media (min-width: 1025px) and (max-width: 1440px) {
+    #expanded-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 14px;
+    }
+}
+
+@media (min-width: 1441px) {
+    #expanded-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 16px;
+    }
+}
+
+/* 滚动条样式 */
+#expanded-media-grid::-webkit-scrollbar {
+    width: 10px;
+}
+
+#expanded-media-grid::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 5px;
+}
+
+#expanded-media-grid::-webkit-scrollbar-thumb {
+    background: var(--ml-border);
+    border-radius: 5px;
+    border: 2px solid var(--ml-bg-secondary);
+}
+
+#expanded-media-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--ml-text-muted);
+}
+
+/* 展开版媒体项 */
 #expanded-media-grid .expanded-media-item {
     background: var(--ml-bg);
     border: 1px solid var(--ml-border-muted);
     border-radius: var(--ml-radius-md);
-    padding: 10px;
+    padding: clamp(8px, 1.5vw, 12px);
     cursor: pointer;
     transition: all var(--ml-transition);
-    animation: mlFadeInUp 0.25s ease backwards;
+    animation: mlFadeInUp var(--ml-transition-slow) ease backwards;
+    position: relative;
 }
 
 #expanded-media-grid .expanded-media-item:hover {
     border-color: var(--ml-border);
     box-shadow: var(--ml-shadow-md);
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+}
+
+#expanded-media-grid .expanded-media-item:focus-visible {
+    outline: none;
+    box-shadow: var(--ml-focus-ring);
 }
 
 #expanded-media-grid .expanded-media-item.selected {
     border-color: var(--ml-primary);
     box-shadow: 0 0 0 3px var(--ml-primary-bg);
+    background: var(--ml-primary-bg);
 }
 
 #expanded-media-grid .expanded-media-item .media-preview {
     width: 100%;
-    height: 100px;
+    aspect-ratio: 1;
+    min-height: 80px;
+    max-height: clamp(100px, 15vw, 140px);
     background: var(--ml-bg-secondary);
-    border-radius: 6px;
+    border-radius: var(--ml-radius);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -927,50 +1116,64 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform var(--ml-transition);
+}
+
+#expanded-media-grid .expanded-media-item:hover .media-preview img {
+    transform: scale(1.05);
 }
 
 #expanded-media-grid .expanded-media-item .file-icon {
-    font-size: 24px;
+    font-size: clamp(18px, 3vw, 28px);
     color: var(--ml-text-secondary);
-    font-weight: 600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
 }
 
 #expanded-media-grid .expanded-media-item .media-title {
-    margin-top: 8px;
-    font-size: 12px;
+    margin-top: 10px;
+    font-size: clamp(11px, 1.2vw, 13px);
     font-weight: 500;
     color: var(--ml-text);
     text-align: center;
-    max-height: 32px;
+    max-height: 36px;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    line-height: 1.35;
+    line-height: 1.4;
+    word-break: break-all;
 }
 
 #expanded-media-grid .expanded-media-item .media-meta {
-    margin-top: 4px;
-    font-size: 11px;
+    margin-top: 6px;
+    font-size: clamp(10px, 1vw, 12px);
     color: var(--ml-text-muted);
     text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
+/* 选择复选框 */
 #expanded-media-grid .expanded-media-item .media-checkbox {
     position: absolute;
-    top: 6px;
-    left: 6px;
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    border: 2px solid rgba(255, 255, 255, 0.8);
-    background: rgba(0, 0, 0, 0.3);
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--ml-radius-sm);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    background: rgba(0, 0, 0, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity var(--ml-transition);
+    transition: all var(--ml-transition);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 #expanded-media-grid .expanded-media-item:hover .media-checkbox,
@@ -986,176 +1189,62 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 #expanded-media-grid .expanded-media-item.selected .media-checkbox::after {
     content: '✓';
     color: #fff;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
+    line-height: 1;
 }
 
-/* 展开版加载和空状态 */
+/* 加载和空状态 */
 #expanded-media-grid .loading,
 #expanded-media-grid .empty-state {
     grid-column: 1 / -1;
     text-align: center;
     color: var(--ml-text-muted);
-    padding: 60px 20px;
-    font-size: 14px;
+    padding: clamp(40px, 8vw, 80px) 20px;
+    font-size: 15px;
 }
 
 #expanded-media-grid .end-indicator {
     grid-column: 1 / -1;
     text-align: center;
     color: var(--ml-text-muted);
-    font-size: 12px;
-    padding: 16px 0;
-}
-
-/* 展开版 Header 样式优化 */
-.overlay-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--ml-border-muted);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--ml-bg);
-}
-
-.overlay-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--ml-text);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.overlay-controls {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.overlay-controls input[type="text"] {
-    width: 180px;
-    border: 1px solid var(--ml-border);
-    border-radius: var(--ml-radius);
-    padding: 6px 10px;
     font-size: 13px;
-    background: var(--ml-bg);
-    color: var(--ml-text);
-    transition: border-color var(--ml-transition);
-}
-
-.overlay-controls input[type="text"]:focus {
-    outline: none;
-    border-color: var(--ml-primary);
-    box-shadow: 0 0 0 2px var(--ml-primary-bg);
-}
-
-.overlay-controls select {
-    border: 1px solid var(--ml-border);
-    border-radius: var(--ml-radius);
-    padding: 6px 10px;
-    font-size: 13px;
-    background: var(--ml-bg);
-    color: var(--ml-text);
-    cursor: pointer;
-}
-
-/* 展开版工具栏优化 */
-.overlay-toolbar {
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--ml-border-muted);
+    padding: 20px 0;
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-    background: var(--ml-bg-secondary);
-}
-
-.overlay-toolbar .btn {
-    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 1.4;
-    border-radius: var(--ml-radius);
-    border: 1px solid var(--ml-border);
-    background: var(--ml-bg);
-    color: var(--ml-text);
-    cursor: pointer;
-    transition: all var(--ml-transition);
+    gap: 12px;
 }
 
-.overlay-toolbar .btn:hover:not(:disabled) {
-    background: var(--ml-bg-secondary);
+#expanded-media-grid .end-indicator::before,
+#expanded-media-grid .end-indicator::after {
+    content: '';
+    width: 60px;
+    height: 1px;
+    background: var(--ml-border-subtle);
 }
 
-.overlay-toolbar .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.overlay-toolbar .btn-primary {
-    background: var(--ml-success);
-    border-color: transparent;
-    color: #fff;
-}
-
-.overlay-toolbar .btn-primary:hover:not(:disabled) {
-    background: #1a7f37;
-}
-
-@media (prefers-color-scheme: dark) {
-    .overlay-toolbar .btn-primary {
-        background: #238636;
-    }
-    .overlay-toolbar .btn-primary:hover:not(:disabled) {
-        background: #2ea043;
-    }
-}
-
-.overlay-toolbar .btn-danger {
-    background: var(--ml-danger);
-    border-color: transparent;
-    color: #fff;
-}
-
-.overlay-toolbar .btn-danger:hover:not(:disabled) {
-    background: #b91c1c;
-}
-
-.overlay-toolbar .selection-count {
-    font-size: 13px;
-    color: var(--ml-text-secondary);
-    margin-left: auto;
-}
-
-/* 展开版分页优化 */
+/* 展开版分页 */
 .overlay-pagination {
-    padding: 14px 20px;
+    padding: clamp(12px, 2vw, 18px) clamp(12px, 2vw, 20px);
     border-top: 1px solid var(--ml-border-muted);
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 12px;
+    gap: clamp(10px, 1.5vw, 16px);
     background: var(--ml-bg);
 }
 
 .overlay-pagination .pager-btn {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--ml-radius);
     border: 1px solid var(--ml-border);
     background: var(--ml-bg);
     color: var(--ml-text);
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
-    transition: all var(--ml-transition);
+    transition: all var(--ml-transition-fast);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1167,25 +1256,38 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 }
 
 .overlay-pagination .pager-btn:not(:disabled):hover {
-    background: var(--ml-bg-secondary);
-    border-color: var(--ml-primary);
+    background: var(--ml-btn-hover-bg);
+    border-color: var(--ml-primary-border);
 }
 
-/* 关闭按钮样式 */
+.overlay-pagination .page-indicator {
+    font-size: 14px;
+    color: var(--ml-text-secondary);
+    padding: 6px 14px;
+    background: var(--ml-bg-secondary);
+    border-radius: var(--ml-radius);
+    min-width: 100px;
+    text-align: center;
+}
+
+/* 关闭按钮 */
 #expanded-close-btn {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     padding: 0;
-    font-size: 20px;
+    font-size: 22px;
     line-height: 1;
     border-radius: var(--ml-radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* 动画 */
+/* 动画关键帧 */
 @keyframes mlFadeInUp {
     from {
         opacity: 0;
-        transform: translateY(8px);
+        transform: translateY(10px);
     }
     to {
         opacity: 1;
@@ -1194,18 +1296,14 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 }
 
 @keyframes mlOverlayFadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 @keyframes mlPanelSlideIn {
     from {
         opacity: 0;
-        transform: scale(0.95) translateY(-10px);
+        transform: scale(0.96) translateY(-12px);
     }
     to {
         opacity: 1;
@@ -1213,20 +1311,33 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     }
 }
 
+@keyframes mlModalScale {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes mlSpinnerRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Overlay 动画 */
 .media-library-overlay {
-    animation: mlOverlayFadeIn 0.2s ease;
+    animation: mlOverlayFadeIn var(--ml-transition-slow) ease;
 }
 
 .media-library-overlay.closing {
-    animation: mlOverlayFadeIn 0.15s ease reverse;
-}
-
-.media-overlay-panel {
-    animation: mlPanelSlideIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: mlOverlayFadeIn var(--ml-transition) ease reverse;
 }
 
 .media-library-overlay.closing .media-overlay-panel {
-    animation: mlPanelSlideIn 0.15s ease reverse;
+    animation: mlPanelSlideIn var(--ml-transition) ease reverse;
 }
 
 /* 删除确认对话框 */
@@ -1236,145 +1347,135 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(13, 17, 23, 0.7);
+    background: var(--ml-bg-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10001;
-    animation: mlOverlayFadeIn 0.15s ease;
+    animation: mlOverlayFadeIn var(--ml-transition) ease;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .ml-confirm-dialog .confirm-box {
-    background: var(--ml-bg, #fff);
-    border-radius: var(--ml-radius-md, 8px);
-    padding: 24px;
-    max-width: 400px;
-    width: 90%;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-    animation: mlPanelSlideIn 0.2s ease;
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-confirm-dialog .confirm-box {
-        background: #161b22;
-    }
+    background: var(--ml-bg);
+    border-radius: var(--ml-radius-lg);
+    border: 1px solid var(--ml-border);
+    padding: clamp(20px, 4vw, 28px);
+    max-width: 420px;
+    width: calc(100% - 32px);
+    box-shadow: var(--ml-shadow-xl);
+    animation: mlModalScale var(--ml-transition-slow) ease;
 }
 
 .ml-confirm-dialog .confirm-title {
     font-size: 16px;
     font-weight: 600;
-    color: var(--ml-text, #24292f);
+    color: var(--ml-text);
     margin-bottom: 12px;
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-confirm-dialog .confirm-title {
-        color: #c9d1d9;
-    }
 }
 
 .ml-confirm-dialog .confirm-message {
     font-size: 14px;
-    color: var(--ml-text-secondary, #656d76);
-    margin-bottom: 20px;
-    line-height: 1.5;
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-confirm-dialog .confirm-message {
-        color: #8b949e;
-    }
+    color: var(--ml-text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.6;
 }
 
 .ml-confirm-dialog .confirm-actions {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     justify-content: flex-end;
 }
 
 .ml-confirm-dialog .confirm-actions .btn {
-    padding: 8px 16px;
-    font-size: 13px;
+    padding: 8px 18px;
+    font-size: 14px;
     font-weight: 500;
-    border-radius: var(--ml-radius, 6px);
+    border-radius: var(--ml-radius);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--ml-transition-fast);
 }
 
 .ml-confirm-dialog .btn-cancel {
-    background: var(--ml-bg-secondary, #f6f8fa);
-    border: 1px solid var(--ml-border, #d0d7de);
-    color: var(--ml-text, #24292f);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-confirm-dialog .btn-cancel {
-        background: #21262d;
-        border-color: #30363d;
-        color: #c9d1d9;
-    }
+    background: var(--ml-btn-bg);
+    border: 1px solid var(--ml-border);
+    color: var(--ml-text);
 }
 
 .ml-confirm-dialog .btn-cancel:hover {
-    background: var(--ml-border-muted, #d8dee4);
-}
-
-@media (prefers-color-scheme: dark) {
-    .ml-confirm-dialog .btn-cancel:hover {
-        background: #30363d;
-    }
-}
-
-.ml-confirm-dialog .btn-confirm-danger {
-    background: var(--ml-danger, #d1242f);
-    border: 1px solid transparent;
-    color: #fff;
-}
-
-.ml-confirm-dialog .btn-confirm-danger:hover {
-    background: #b91c1c;
+    background: var(--ml-btn-hover-bg);
 }
 
 /* 加载动画 */
-@keyframes mlSpinnerRotate {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 .loading::before {
     content: '';
     display: inline-block;
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--ml-border, #d0d7de);
-    border-top-color: var(--ml-primary, #0969da);
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--ml-border);
+    border-top-color: var(--ml-primary);
     border-radius: 50%;
-    animation: mlSpinnerRotate 0.8s linear infinite;
-    margin-right: 8px;
+    animation: mlSpinnerRotate 0.7s linear infinite;
+    margin-right: 10px;
     vertical-align: middle;
 }
 
-/* 响应式设计 */
+/* Toast 提示 */
+.ml-editor-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--ml-text);
+    color: var(--ml-bg);
+    padding: 10px 18px;
+    border-radius: var(--ml-radius);
+    box-shadow: var(--ml-shadow-lg);
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all var(--ml-transition);
+    z-index: 10002;
+    font-size: 14px;
+    font-weight: 500;
+    max-width: 320px;
+}
+
+.ml-editor-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ========================================
+   响应式设计 - 移动端优化
+   ======================================== */
 @media (max-width: 768px) {
     .media-library-overlay {
-        padding: 10px;
+        padding: 0;
     }
 
     .media-overlay-panel {
         width: 100%;
         height: 100%;
         border-radius: 0;
+        max-width: none;
+        max-height: none;
     }
 
     .overlay-header {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
+        align-items: stretch;
+        gap: 12px;
+        padding: 14px;
+    }
+
+    .overlay-title {
+        font-size: 16px;
     }
 
     .overlay-controls {
         width: 100%;
-        justify-content: space-between;
+        justify-content: stretch;
+        gap: 8px;
     }
 
     .overlay-controls input[type="text"] {
@@ -1382,8 +1483,20 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         flex: 1;
     }
 
+    .overlay-controls select {
+        flex: 1;
+        min-width: 0;
+    }
+
     .overlay-toolbar {
         flex-wrap: wrap;
+        padding: 12px 14px;
+    }
+
+    .overlay-toolbar .btn {
+        flex: 1;
+        min-width: 80px;
+        justify-content: center;
     }
 
     .overlay-toolbar .selection-count {
@@ -1393,60 +1506,78 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
         text-align: center;
     }
 
-    #expanded-media-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-        gap: 8px;
+    .media-overlay-content {
+        padding: 0 10px;
     }
 
     #expanded-media-grid .expanded-media-item .media-preview {
-        height: 80px;
+        min-height: 60px;
+    }
+
+    .overlay-pagination {
+        padding: 12px 14px;
     }
 }
 
-/* 深色模式下的加载动画 */
-@media (prefers-color-scheme: dark) {
-    .loading::before {
-        border-color: #30363d;
-        border-top-color: #58a6ff;
+/* 小屏幕工具栏适配 */
+@media (max-width: 480px) {
+    #media-library-container .media-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
     }
-}
-/* Toast 提示 */
-.ml-editor-toast {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    background: var(--ml-text, #24292f);
-    color: #ffffff;
-    padding: 8px 14px;
-    border-radius: var(--ml-radius, 6px);
-    box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
-    opacity: 0;
-    transform: translateY(-8px);
-    transition: all 0.2s ease;
-    z-index: 10000;
-    font-size: 13px;
-}
 
-@media (prefers-color-scheme: dark) {
-    .ml-editor-toast {
-        background: #c9d1d9;
-        color: #0d1117;
+    #media-library-container .media-toolbar > div:first-child {
+        display: flex;
+        gap: 8px;
+    }
+
+    .media-toolbar .toolbar-actions {
+        justify-content: flex-end;
+    }
+
+    .media-pagination {
+        justify-content: center;
     }
 }
 
-.ml-editor-toast.show {
-    opacity: 1;
-    transform: translateY(0);
+/* 大屏幕优化 */
+@media (min-width: 1600px) {
+    .media-overlay-panel {
+        max-width: 1500px;
+    }
+
+    .overlay-controls input[type="text"] {
+        width: 260px;
+    }
 }
 
-@keyframes mlModalScale {
-    from {
-        opacity: 0;
-        transform: translateY(-8px) scale(0.98);
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+    #media-library-container,
+    .media-library-overlay,
+    .ml-modal,
+    .ml-confirm-dialog {
+        --ml-border: currentColor;
+        --ml-border-muted: currentColor;
     }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
+}
+
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+    #media-library-container,
+    .media-library-overlay,
+    .ml-modal,
+    .ml-confirm-dialog {
+        --ml-transition-fast: 0ms;
+        --ml-transition: 0ms;
+        --ml-transition-slow: 0ms;
+    }
+
+    #expanded-media-grid .expanded-media-item,
+    .media-overlay-panel,
+    .ml-modal-dialog {
+        animation: none !important;
     }
 }
 </style>
