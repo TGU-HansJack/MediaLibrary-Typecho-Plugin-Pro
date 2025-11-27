@@ -154,6 +154,17 @@ include 'menu.php';
 
                     <div id="tab-files" class="tab-content hidden">
                         <?php include 'file-upload.php'; ?>
+                        <?php if (class_exists('MediaLibrary_Plugin')): ?>
+                            <div class="typecho-post-option" style="margin-top: 20px;" id="media-library-plugin-panel">
+                                <h4 style="margin-bottom: 10px;"><?php _e('媒体库'); ?></h4>
+                                <?php if (!defined('MEDIALIBRARY_INLINE_RENDERED')) {
+                                    define('MEDIALIBRARY_INLINE_RENDERED', true);
+                                } ?>
+                                <div id="media-library-container">
+                                    <?php include __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/write-post-media.php'; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     </div><!-- end #tab-files -->
                 </div>
             </form>

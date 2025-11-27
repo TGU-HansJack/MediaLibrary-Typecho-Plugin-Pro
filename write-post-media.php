@@ -868,7 +868,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     align-items: center;
     justify-content: center;
     z-index: 10000;
-    padding: clamp(12px, 2vw, 24px);
+    padding: clamp(16px, 3vw, 32px);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }
@@ -877,9 +877,11 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     display: flex;
 }
 
+/* Overlay 面板 - 高度自适应 */
 .media-overlay-panel {
-    width: min(95vw, 1400px);
-    height: min(92vh, 900px);
+    width: min(96vw, 1200px);
+    max-height: calc(100vh - clamp(32px, 6vw, 64px));
+    min-height: min(400px, 60vh);
     background: var(--ml-bg);
     border-radius: var(--ml-radius-lg);
     border: 1px solid var(--ml-border);
@@ -999,52 +1001,58 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     background: var(--ml-bg-secondary);
 }
 
-/* 展开版响应式网格 - 核心布局 */
+/* 展开版响应式网格 - 最多5列布局 */
 #expanded-media-grid {
     flex: 1;
     overflow-y: auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 15vw, 180px), 1fr));
-    gap: clamp(10px, 1.5vw, 16px);
-    padding: clamp(12px, 2vw, 20px) 0;
+    /* 使用 repeat(auto-fill) 配合 max() 确保最多5列 */
+    grid-template-columns: repeat(auto-fill, minmax(max(160px, calc((100% - 64px) / 5)), 1fr));
+    gap: 16px;
+    padding: 16px 4px 16px 0;
     align-content: start;
     scroll-behavior: smooth;
     scrollbar-width: thin;
     scrollbar-color: var(--ml-border) transparent;
 }
 
-/* 响应式断点适配 */
+/* 响应式断点 - 限制最大列数 */
+/* 超小屏幕: 2列 */
 @media (max-width: 480px) {
     #expanded-media-grid {
-        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-        gap: 8px;
-    }
-}
-
-@media (min-width: 481px) and (max-width: 768px) {
-    #expanded-media-grid {
-        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        grid-template-columns: repeat(2, 1fr);
         gap: 10px;
     }
 }
 
-@media (min-width: 769px) and (max-width: 1024px) {
+/* 小屏幕: 2-3列 */
+@media (min-width: 481px) and (max-width: 640px) {
     #expanded-media-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
         gap: 12px;
     }
 }
 
-@media (min-width: 1025px) and (max-width: 1440px) {
+/* 中等屏幕: 3-4列 */
+@media (min-width: 641px) and (max-width: 900px) {
     #expanded-media-grid {
         grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
         gap: 14px;
     }
 }
 
-@media (min-width: 1441px) {
+/* 大屏幕: 4-5列 */
+@media (min-width: 901px) and (max-width: 1200px) {
     #expanded-media-grid {
         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 16px;
+    }
+}
+
+/* 超大屏幕: 固定5列 */
+@media (min-width: 1201px) {
+    #expanded-media-grid {
+        grid-template-columns: repeat(5, 1fr);
         gap: 16px;
     }
 }
@@ -1101,8 +1109,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 #expanded-media-grid .expanded-media-item .media-preview {
     width: 100%;
     aspect-ratio: 1;
-    min-height: 80px;
-    max-height: clamp(100px, 15vw, 140px);
+    min-height: 100px;
     background: var(--ml-bg-secondary);
     border-radius: var(--ml-radius);
     display: flex;
@@ -1456,16 +1463,16 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     .media-overlay-panel {
         width: 100%;
         height: 100%;
+        max-height: 100vh;
+        min-height: 100vh;
         border-radius: 0;
-        max-width: none;
-        max-height: none;
     }
 
     .overlay-header {
         flex-direction: column;
         align-items: stretch;
         gap: 12px;
-        padding: 14px;
+        padding: 12px 14px;
     }
 
     .overlay-title {
@@ -1481,6 +1488,7 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     .overlay-controls input[type="text"] {
         width: 100%;
         flex: 1;
+        min-width: 0;
     }
 
     .overlay-controls select {
@@ -1490,13 +1498,15 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
 
     .overlay-toolbar {
         flex-wrap: wrap;
-        padding: 12px 14px;
+        padding: 10px 14px;
     }
 
     .overlay-toolbar .btn {
         flex: 1;
-        min-width: 80px;
+        min-width: 70px;
         justify-content: center;
+        padding: 6px 10px;
+        font-size: 13px;
     }
 
     .overlay-toolbar .selection-count {
@@ -1507,19 +1517,23 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     }
 
     .media-overlay-content {
-        padding: 0 10px;
+        padding: 0 12px;
+    }
+
+    #expanded-media-grid {
+        padding: 12px 0;
     }
 
     #expanded-media-grid .expanded-media-item .media-preview {
-        min-height: 60px;
+        min-height: 70px;
     }
 
     .overlay-pagination {
-        padding: 12px 14px;
+        padding: 10px 14px;
     }
 }
 
-/* 小屏幕工具栏适配 */
+/* 超小屏幕 */
 @media (max-width: 480px) {
     #media-library-container .media-toolbar {
         flex-direction: column;
@@ -1539,16 +1553,47 @@ $editorMediaAjaxUrl = $options->adminUrl . 'extending.php?panel=MediaLibrary/edi
     .media-pagination {
         justify-content: center;
     }
+
+    .overlay-header {
+        padding: 10px 12px;
+    }
+
+    .overlay-controls {
+        flex-direction: column;
+    }
+
+    .overlay-controls input[type="text"],
+    .overlay-controls select {
+        width: 100%;
+    }
+
+    .overlay-toolbar .btn {
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+
+    #expanded-media-grid .expanded-media-item {
+        padding: 8px;
+    }
+
+    #expanded-media-grid .expanded-media-item .media-title {
+        font-size: 11px;
+        margin-top: 6px;
+    }
+
+    #expanded-media-grid .expanded-media-item .media-meta {
+        font-size: 10px;
+    }
 }
 
 /* 大屏幕优化 */
-@media (min-width: 1600px) {
+@media (min-width: 1400px) {
     .media-overlay-panel {
-        max-width: 1500px;
+        max-width: 1300px;
     }
 
     .overlay-controls input[type="text"] {
-        width: 260px;
+        width: 240px;
     }
 }
 
