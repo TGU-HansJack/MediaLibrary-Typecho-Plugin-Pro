@@ -13,9 +13,10 @@ class MediaLibrary_PanelHelper
     /**
      * 获取插件配置
      * 
+     * @param bool $skipFeatureCheck 是否跳过功能依赖探测（用于编辑器内嵌场景避免加载额外类）
      * @return array 配置选项
      */
-    public static function getPluginConfig()
+    public static function getPluginConfig($skipFeatureCheck = false)
     {
         try {
             $config = Helper::options()->plugin('MediaLibrary');
@@ -24,7 +25,17 @@ class MediaLibrary_PanelHelper
 
             $enableExif = self::normalizeCheckboxOption($config, 'enableExif');
             if ($enableExif === null) {
-                $enableExif = extension_loaded('exif') || MediaLibrary_ExifPrivacy::isExifToolAvailable();
+                if ($skipFeatureCheck) {
+                    $enableExif = extension_loaded('exif');
+                } else {
+                    $hasExifClass = self::loadExifPrivacyClass();
+                    $enableExif = extension_loaded('exif') || ($hasExifClass && MediaLibrary_ExifPrivacy::isExifToolAvailable());
+                }
+            } else {
+                $enableExif = (bool)$enableExif;
+                if ($enableExif && !$skipFeatureCheck) {
+                    self::loadExifPrivacyClass();
+                }
             }
 
             $enableGD = self::normalizeCheckboxOption($config, 'enableGD');
@@ -1376,6 +1387,24 @@ class MediaLibrary_PanelHelper
         }
 
         return $statistics;
+    }
+
+    /**
+     * Lazy-load ExifPrivacy class before running Exif-related checks.
+     */
+    private static function loadExifPrivacyClass()
+    {
+        if (class_exists('MediaLibrary_ExifPrivacy')) {
+            return true;
+        }
+
+        $path = __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/ExifPrivacy.php';
+        if (file_exists($path)) {
+            require_once $path;
+            return class_exists('MediaLibrary_ExifPrivacy');
+        }
+
+        return false;
     }
 
     /**

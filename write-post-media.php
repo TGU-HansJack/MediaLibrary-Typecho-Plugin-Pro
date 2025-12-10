@@ -5,7 +5,7 @@ require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/MediaLibrary/includes/PanelHel
 
 $options = Helper::options();
 $pluginUrl = $options->pluginUrl . '/MediaLibrary';
-$configOptions = MediaLibrary_PanelHelper::getPluginConfig();
+$configOptions = MediaLibrary_PanelHelper::getPluginConfig(true);
 $webdavStatus = MediaLibrary_PanelHelper::getWebDAVStatus($configOptions);
 $objectStorageStatus = MediaLibrary_PanelHelper::getObjectStorageStatus();
 
