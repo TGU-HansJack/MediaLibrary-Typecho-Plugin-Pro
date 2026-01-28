@@ -451,9 +451,6 @@ class MediaLibrary_ChunkedUploadHandler
             @unlink($mergedFile);
         }
 
-        // 使用 Typecho 的上传组件处理
-        $upload = \Widget\Upload::alloc();
-
         // 构建上传文件数据
         $attachmentData = [
             'name' => $filename,

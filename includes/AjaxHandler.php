@@ -44,7 +44,7 @@ class MediaLibrary_AjaxHandler
                     break;
                     
                 case 'upload':
-                    self::handleUploadAction($configOptions);
+                    self::handleUploadAction($request, $configOptions);
                     break;
                     
                 case 'get_info':
@@ -159,7 +159,7 @@ class MediaLibrary_AjaxHandler
                     ], 'warning');
                     echo json_encode(['success' => false, 'message' => '未知操作'], JSON_UNESCAPED_UNICODE);
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             MediaLibrary_Logger::log('ajax_error', '操作失败: ' . $e->getMessage(), [
                 'action' => $action,
                 'file' => $e->getFile(),
@@ -455,7 +455,7 @@ class MediaLibrary_AjaxHandler
     /**
      * 处理上传请求
      */
-    private static function handleUploadAction($configOptions)
+    private static function handleUploadAction($request, $configOptions)
     {
         if (empty($_FILES)) {
             MediaLibrary_Logger::log('upload', '上传失败：没有文件上传', [], 'warning');
@@ -510,23 +510,130 @@ class MediaLibrary_AjaxHandler
                 return;
             }
 
-            // 默认使用 Typecho 的本地上传处理
-            $upload = \Widget\Upload::alloc();
-            $result = $upload->upload($_FILES);
+            // 默认使用 Typecho 的本地上传处理（兼容 Typecho 1.1/1.2+）
+            if (class_exists('\\Widget\\Upload')) {
+                $upload = \Widget\Upload::alloc();
+                $result = $upload->upload($_FILES);
 
-            if ($result) {
-                MediaLibrary_Logger::log('upload', '本地上传成功', [
-                    'files' => self::summarizeUploadedFiles(),
-                    'result' => $result
-                ]);
-                echo json_encode(['success' => true, 'count' => 1, 'data' => $result], JSON_UNESCAPED_UNICODE);
-            } else {
-                MediaLibrary_Logger::log('upload', '本地上传失败：上传返回空结果', [
+                if ($result) {
+                    MediaLibrary_Logger::log('upload', '本地上传成功', [
+                        'files' => self::summarizeUploadedFiles(),
+                        'result' => $result
+                    ]);
+                    echo json_encode(['success' => true, 'count' => 1, 'data' => $result], JSON_UNESCAPED_UNICODE);
+                } else {
+                    MediaLibrary_Logger::log('upload', '本地上传失败：上传返回空结果', [
+                        'files' => self::summarizeUploadedFiles()
+                    ], 'error');
+                    echo json_encode(['success' => false, 'message' => '上传失败'], JSON_UNESCAPED_UNICODE);
+                }
+                return;
+            }
+
+            if (!class_exists('Widget_Upload')) {
+                throw new Exception('Typecho Upload 组件不存在，可能与当前 Typecho 版本不兼容');
+            }
+
+            // 兼容 Typecho 1.1.x：使用 Widget_Upload::uploadHandle 并手动写入附件记录
+            $file = null;
+            foreach ($_FILES as $uploaded) {
+                if (!is_array($uploaded) || !isset($uploaded['name'])) {
+                    continue;
+                }
+
+                if (is_array($uploaded['name'])) {
+                    $index = 0;
+                    $file = [
+                        'name' => $uploaded['name'][$index] ?? '',
+                        'type' => $uploaded['type'][$index] ?? '',
+                        'tmp_name' => $uploaded['tmp_name'][$index] ?? '',
+                        'error' => $uploaded['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+                        'size' => $uploaded['size'][$index] ?? 0,
+                    ];
+                } else {
+                    $file = $uploaded;
+                }
+                break;
+            }
+
+            if (empty($file) || empty($file['name'])) {
+                MediaLibrary_Logger::log('upload', '本地上传失败：无法解析上传文件', [
+                    'files' => self::summarizeUploadedFiles()
+                ], 'error');
+                echo json_encode(['success' => false, 'message' => '无法解析上传文件'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            if (!empty($file['error']) || empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+                MediaLibrary_Logger::log('upload', '本地上传失败：上传文件无效', [
+                    'error' => $file['error'] ?? null,
+                    'name' => $file['name'] ?? null
+                ], 'error');
+                echo json_encode(['success' => false, 'message' => '上传文件无效'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            // xhr 的 send 可能导致文件名 urlencoded（沿用 Typecho 核心逻辑）
+            if ($request && method_exists($request, 'isAjax') && $request->isAjax()) {
+                $file['name'] = urldecode($file['name']);
+            }
+
+            $uploadResult = Widget_Upload::uploadHandle($file);
+            if ($uploadResult === false || !is_array($uploadResult) || empty($uploadResult['path'])) {
+                MediaLibrary_Logger::log('upload', '本地上传失败：Typecho 上传处理返回失败', [
                     'files' => self::summarizeUploadedFiles()
                 ], 'error');
                 echo json_encode(['success' => false, 'message' => '上传失败'], JSON_UNESCAPED_UNICODE);
+                return;
             }
-        } catch (Exception $e) {
+
+            $db = Typecho_Db::get();
+            $options = Typecho_Widget::widget('Widget_Options');
+            $user = Typecho_Widget::widget('Widget_User');
+
+            $slug = basename($uploadResult['path']);
+            $insertData = [
+                'title' => $uploadResult['name'],
+                'slug' => $slug ?: $uploadResult['name'],
+                'created' => time(),
+                'modified' => time(),
+                'text' => serialize($uploadResult),
+                'order' => 0,
+                'authorId' => $user->uid,
+                'template' => NULL,
+                'type' => 'attachment',
+                'status' => 'publish',
+                'password' => NULL,
+                'commentsNum' => 0,
+                'allowComment' => 1,
+                'allowPing' => 0,
+                'allowFeed' => 1,
+                'parent' => 0
+            ];
+
+            $insertId = $db->query($db->insert('table.contents')->rows($insertData));
+            $fileUrl = Typecho_Common::url($uploadResult['path'], $options->siteUrl);
+            $mime = isset($uploadResult['mime']) ? (string)$uploadResult['mime'] : '';
+
+            $responseData = [
+                'cid' => $insertId,
+                'title' => $uploadResult['name'],
+                'name' => $uploadResult['name'],
+                'url' => $fileUrl,
+                'path' => $uploadResult['path'],
+                'size' => $uploadResult['size'] ?? 0,
+                'type' => $uploadResult['type'] ?? '',
+                'mime' => $mime,
+                'isImage' => (strpos($mime, 'image/') === 0)
+            ];
+
+            MediaLibrary_Logger::log('upload', '本地上传成功（兼容模式）', [
+                'files' => self::summarizeUploadedFiles(),
+                'result' => $responseData
+            ]);
+
+            echo json_encode(['success' => true, 'count' => 1, 'data' => $responseData], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
             MediaLibrary_Logger::log('upload', '上传失败: ' . $e->getMessage(), [
                 'files' => self::summarizeUploadedFiles()
             ], 'error');
